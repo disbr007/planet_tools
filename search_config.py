@@ -1,5 +1,16 @@
 import os
 
+# TODO: Convert all field names to variables for easy updating
+
+# args
+min_date = "2019-01-01T00:00:00.000Z" #  Earliest date to search for
+max_date = "2020-01-02T00:00:00.000Z" #  Latest date to search for
+max_cc = 0.01
+max_view_angle = 10
+
+# Constants
+dove_item_types = ['PSScene3Band']
+
 search_geometry = {"geometry": {
     "type": "Polygon",
     "coordinates": [
@@ -17,12 +28,12 @@ search_geometry = {"geometry": {
 # Set up filters
 min_date_filter = {
     "type": "DateRangeFilter",
-    "field_name": acquired,
+    "field_name": "acquired",
     "config": {"gte": min_date}
     }
 max_date_filter = {
     "type": "DateRangeFilter",
-    "field_name": acquired,
+    "field_name": "acquired",
     "config": {"lte": max_date}
     }
 date_filter = {
