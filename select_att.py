@@ -16,7 +16,6 @@ import search_config
 def p(data):
     print(json.dumps(data, indent=2))
 
-
 def response2gdf(response):
     """Converts API response to a geodataframe."""
     features = response.json()[features_key]
@@ -53,16 +52,54 @@ def get_search_count(search_request):
 
     stats_req["interval"] = "year"
     stats = session.post(STATS_URL, json=stats_req)
+    logger.debug(stats.json()[buckets_key])
     total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])
 
     return total_count
 
+
+def get_features(saved_search_id):
+    master_footprints = gpd.GeoDataFrame()
+    page_search_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, 250)
+
+    processed_count = 0
+    process_next = True
+    while process_next:
+        logger.debug(process_next)
+        logger.debug(page_search_url)
+        # Process current page of responses (250 features)
+        res = session.get(page_search_url)  # , json=search_request)
+        if res.status_code != 200:
+            logger.error('Error connecting to search API: {}'.format(page_search_url))
+            logger.error('Status code: {}'.format(res.status_code))
+            raise ConnectionError
+        page_footprints = response2gdf(res)
+        master_footprints = pd.concat([master_footprints, page_footprints])
+
+        # Log progress
+        # processed_count += 250
+        # if processed_count % 1000 == 0:
+        #     logger.debug('Processed features: {:,}'.format(processed_count))
+
+        # Check for next page, continue processing if it exists
+        next_page = '_next'
+        page_search_url = res.json()['_links'].get(next_page)
+
+        if not page_search_url:
+            process_next = False
+
+    return master_footprints
+
+
+out_shp = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\fairbanks_features_2019.shp'
 
 #### Constants
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
 STATS_URL = '{}/stats'.format(PLANET_URL)
 QSEARCH_URL = '{}/quick-search'.format(PLANET_URL)
+SEARCH_URL = '{}/searches'.format(PLANET_URL)
+
 # Environmental variable
 PL_API_KEY = 'PL_API_KEY'
 # Redundant? Is three band just reduced 4-band or diff sensors?
@@ -89,7 +126,6 @@ polygon_type = 'Polygon'
 point_type = 'Point'
 
 
-
 #### Set up
 # Logging
 logger = create_logger(__name__, 'sh', 'DEBUG')
@@ -108,39 +144,19 @@ r = session.get(PLANET_URL)
 if not r.status_code == 200:
     logger.error('Error connecting to Planet Data API.')
 
-
+# TODO: Do this outside of this script
 # Get search request
-search_request = search_config.search_request
+sr = search_config.master_search
+# Save the search request
+saved_search = session.post(SEARCH_URL, json=sr)
+saved_search_id = saved_search.json()["id"]
 
 # Get a total count for the given filters
-total_count = get_search_count(search_request=search_request)
+total_count = get_search_count(search_request=sr)
 logger.debug('Total count for search parameters: {:,}'.format(total_count))
 
-
 # Perform requests to API to return features, which are converted to footprints in a geodataframe
-def get_features(search_request):
-    master_footprints = gpd.GeoDataFrame()
-    processed_count = 0
-    process_next = True
-    while process_next:
-        # Process current page of responses (250 features)
-        res = session.post(QSEARCH_URL, json=search_request)
-        if res.status_code != 200:
-            logger.error('Error connecting to search API: {}'.format(QSEARCH_URL))
-            logger.error('Status code: {}'.format(res.status_code))
-            raise ConnectionError
-        page_footprints = response2gdf(res)
-        master_footprints = pd.concat([master_footprints, page_footprints])
-        processed_count += 250
-        if processed_count % 10_000 == 0:
-            logger.debug('Processed features: {;,}'.format(processed_count))
-        # Check for next page
-        next_page = '_next'
-        process_next = False
-        if next_page not in res.json()['_links'].keys():
-            process_next = False
+master_footprints = get_features(saved_search_id=saved_search_id)
 
-    return master_footprints
-
-
-master_footprints = get_features(search_request=search_request)
+# TODO: best output format? stream directly to postgres DB?
+master_footprints.to_file(out_shp)

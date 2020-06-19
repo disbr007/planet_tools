@@ -3,15 +3,16 @@ import os
 # TODO: Convert all field names to variables for easy updating
 
 # args
-min_date = "2019-01-01T00:00:00.000Z" #  Earliest date to search for
-max_date = "2020-01-02T00:00:00.000Z" #  Latest date to search for
+min_date = "2020-06-01T00:00:00.000Z" #  Earliest date to search for
+max_date = "2020-06-15T00:00:00.000Z" #  Latest date to search for
 max_cc = 0.01
 max_view_angle = 10
 
 # Constants
 dove_item_types = ['PSScene3Band']
 
-search_geometry = {"geometry": {
+# Location to search
+search_geometry = {
     "type": "Polygon",
     "coordinates": [
                         [
@@ -23,7 +24,12 @@ search_geometry = {"geometry": {
                         ]
                     ]
                     }
-    }
+
+geometry_filter = {
+    "type": "GeometryFilter",
+    "field_name": "geometry",
+    "config": search_geometry
+}
 
 # Set up filters
 min_date_filter = {
@@ -61,9 +67,13 @@ assest_filter = {
 }
 master_filter = {
     "type": "AndFilter",
-    "config": [date_filter, cc_filter, view_angle_filter, quality_cat_filter, assest_filter]
+    "config": [date_filter, cc_filter, view_angle_filter,
+               quality_cat_filter, assest_filter,
+               geometry_filter]
     }
-search_request = {
+# Create a search
+master_search = {
+    "name": "planet_stereo",
     "item_types": dove_item_types,
     "filter": master_filter,
     }
