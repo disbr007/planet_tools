@@ -12,6 +12,7 @@ from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import  create_logger
 import search_config
+import saved_search_utils
 
 def p(data):
     print(json.dumps(data, indent=2))
@@ -59,14 +60,14 @@ def get_search_count(search_request):
 
 
 def get_features(saved_search_id):
+    # TODO: Paralleize: https://developers.planet.com/docs/quickstart/best-practices-large-aois/
     master_footprints = gpd.GeoDataFrame()
+    # 250 is max page size
     page_search_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, 250)
 
     processed_count = 0
     process_next = True
     while process_next:
-        logger.debug(process_next)
-        logger.debug(page_search_url)
         # Process current page of responses (250 features)
         res = session.get(page_search_url)  # , json=search_request)
         if res.status_code != 200:
@@ -77,9 +78,8 @@ def get_features(saved_search_id):
         master_footprints = pd.concat([master_footprints, page_footprints])
 
         # Log progress
-        # processed_count += 250
-        # if processed_count % 1000 == 0:
-        #     logger.debug('Processed features: {:,}'.format(processed_count))
+        processed_count += len(page_footprints)
+        logger.debug('Processed features: {:,}'.format(processed_count))
 
         # Check for next page, continue processing if it exists
         next_page = '_next'
@@ -91,6 +91,8 @@ def get_features(saved_search_id):
     return master_footprints
 
 
+# ARGS
+saved_search_name = 'planet_stereo'
 out_shp = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\fairbanks_features_2019.shp'
 
 #### Constants
@@ -104,9 +106,10 @@ SEARCH_URL = '{}/searches'.format(PLANET_URL)
 PL_API_KEY = 'PL_API_KEY'
 # Redundant? Is three band just reduced 4-band or diff sensors?
 dove_item_types = ['PSScene3Band']  # 'PSScene4Band'
-# acquired = 'acquired'  # Field name with acquire date/time
+
 # Coordinate system of features returned by Planet API
 crs = 'epsg:4326'
+
 # Response feature property keys
 features_key = 'features'
 id_key = 'id'
@@ -144,12 +147,10 @@ r = session.get(PLANET_URL)
 if not r.status_code == 200:
     logger.error('Error connecting to Planet Data API.')
 
-# TODO: Do this outside of this script
 # Get search request
+# TODO: clean this file structure, etc. up. Return search dict with name?
 sr = search_config.master_search
-# Save the search request
-saved_search = session.post(SEARCH_URL, json=sr)
-saved_search_id = saved_search.json()["id"]
+saved_search_id = saved_search_utils.get_search_id(saved_search_name)
 
 # Get a total count for the given filters
 total_count = get_search_count(search_request=sr)
