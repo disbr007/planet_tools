@@ -11,11 +11,13 @@ import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import  create_logger
-import search_config
-import saved_search_utils
+import config.search_filter as search_filter
+import manage_searches
+
 
 def p(data):
     print(json.dumps(data, indent=2))
+
 
 def response2gdf(response):
     """Converts API response to a geodataframe."""
@@ -149,8 +151,8 @@ if not r.status_code == 200:
 
 # Get search request
 # TODO: clean this file structure, etc. up. Return search dict with name?
-sr = search_config.master_search
-saved_search_id = saved_search_utils.get_search_id(saved_search_name)
+sr = search_filter.master_search
+saved_search_id = manage_searches.get_search_id(saved_search_name)
 
 # Get a total count for the given filters
 total_count = get_search_count(search_request=sr)
