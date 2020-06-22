@@ -1,0 +1,22 @@
+{"type": "AndFilter",
+  "config": [
+  {
+    "type": "RangeFilter",
+    "field_name": "cloud_cover",
+    "config": {"lte": 0.01}
+  },
+  {
+    "type": "RangeFilter",
+    "field_name": "view_angle",
+    "config": {"lte": 10}
+  },
+  {
+    "type": "StringInFilter",
+    "field_name": "quality_category",
+    "config": ["standard"]
+  },
+  {
+    "type": "AssetFilter",
+    "config": ["basic_analytic_dn"]
+  }]
+}
