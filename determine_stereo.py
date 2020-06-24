@@ -11,14 +11,15 @@ import shapely
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
+from utm_zone_locater import utm_zone_locater
 
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-# Args
-scenes_p = r'V:\pgc\data\scratch\jeff\projects\planet\scenes\n65w148\n65w148_2020_scenes.shp'
-days_threshold = 10
-ovlp_metric = 'percent'
+# # Args
+# scenes_p = r'V:\pgc\data\scratch\jeff\projects\planet\scenes\n65w148\n65w148_2020_scenes.shp'
+# days_threshold = 10
+# ovlp_metric = 'percent'
 
 # Constants
 # Preexisting fields
@@ -163,7 +164,8 @@ def threshold_overlap(ovlp_dict, threshold_fld, threshold=None):
     return selected
 
 
-def select_by_overlap(scenes, days_threshold=None, percent_overlap=False, overlap_threshold=None):
+def select_by_overlap(scenes, days_threshold=None, percent_overlap=False, overlap_threshold=None,
+                      within_strip=False, within_days=False, within_ins=False):
     """Finds the pairs for each scene in scenes, then selects only those above the given
     days_threshold and overlap_threshold"""
     if percent_overlap:
@@ -172,13 +174,15 @@ def select_by_overlap(scenes, days_threshold=None, percent_overlap=False, overla
         threshold_fld = fld_ovlp_area
     left_scenes = deepcopy(scenes)
     if days_threshold:
+        within_days = True
         # Convert acquired field to datetime
         left_scenes[fld_acquired] = pd.to_datetime(left_scenes[fld_acquired], format='%Y-%m-%dT%H:%M:%S.%fZ')
         left_scenes[fld_days_window] = left_scenes[fld_acquired].apply(lambda x: create_days_window(x, days_theshold=days_threshold))
 
     left_scenes[fld_pairs] = left_scenes.apply(lambda x: get_pairs(x, scenes=left_scenes,
-                                                                   within_strip=False,
-                                                                   within_days=True,
+                                                                   within_strip=within_strip,
+                                                                   within_days=within_days,
+                                                                   within_ins=within_ins,
                                                                    percent_overlap=percent_overlap),
                                                axis=1)
 
@@ -231,16 +235,15 @@ def create_overlap_dataframe(left_scenes, src_scenes, fld_ovlp_metric):
     return overlaps
 
 
-def determine_stereo(scenes_p, overlap_metric='area', overlap_threshold=0,
-                     days_threshold=None, out_pairs_p=None):
+def determine_stereo(scenes_p, overlap_metric='area',
+                     overlap_threshold=0, days_threshold=None,
+                     within_days=False, within_strip=False, within_ins=False,
+                     out_pairs_p=None):
     """Finds stereo pairs in a given scenes footprint, given an
     optional days threshold and overlap threshold """
     logger.info("Loading scenes footprint...")
     scenes = gpd.read_file(scenes_p)
-    scenes = scenes.iloc[0:50]
-    # TODO: Remove if area not necessary or correctly ID the UTM zone
-    # Convert to UTM for area calulating
-    scenes = scenes.to_crs('epsg:32606')
+    # scenes = scenes.iloc[0:50]
 
     logger.debug('Records loaded: {}'.format(len(scenes)))
     logger.debug('Selecting features by overlap...')
@@ -251,10 +254,18 @@ def determine_stereo(scenes_p, overlap_metric='area', overlap_threshold=0,
     elif overlap_metric == 'area':
         percent_overlap = False
         threshold_fld = fld_ovlp_area
+        # TODO: Fix area calculation -- calculate all areas ahead of time? (big refac.)
+        # Finds the UTM zone that the most features fall into
+        logger.debug('Determining UTM Zone to use...')
+        utms = utm_zone_locater(scenes_p)
+        utm_zone = utms['EPSG'].mode().values[0]
+        logger.debug('Using UTM zone: {}'.format(utm_zone))
+        # Convert to UTM for area calulating
+        scenes = scenes.to_crs('epsg:{}'.format(utm_zone))
 
     left_scenes = select_by_overlap(scenes=scenes, days_threshold=days_threshold,
-                                    percent_overlap=percent_overlap,
-                                    overlap_threshold=overlap_threshold)
+                                    percent_overlap=percent_overlap, overlap_threshold=overlap_threshold,
+                                    within_strip=within_strip, within_days=within_days, within_ins=within_ins)
 
     if len(left_scenes) > 0:
         stereo = create_overlap_dataframe(left_scenes=left_scenes, src_scenes=scenes, fld_ovlp_metric=threshold_fld)
@@ -271,3 +282,5 @@ def determine_stereo(scenes_p, overlap_metric='area', overlap_threshold=0,
 
     return stereo
 
+# st = determine_stereo(scenes_p=scenes_p, overlap_threshold=0, within_ins=True,
+#                       within_days=True, days_threshold=5)

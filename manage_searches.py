@@ -10,7 +10,9 @@ import geopandas as gpd
 from logging_utils.logging_utils import  create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
-# TODO: Fix saved searches config location
+
+# TODO: convert to search_session class (all fxns that take session)
+
 # config = os.path.join('config', 'saved_searches.yaml')
 
 # API URLs and key
