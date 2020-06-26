@@ -3,6 +3,7 @@ from copy import deepcopy
 import json
 import requests
 import os
+from multiprocessing.dummy import Pool as ThreadPool
 
 from pprint import pprint
 import pandas as pd
@@ -80,11 +81,34 @@ def response2gdf(response):
     return gdf
 
 
+def get_search_page_urls(session, saved_search_id):
+    def fetch_pages(search_url, all_pages):
+        all_pages.append(search_url)
+        res = session.get(search_url)
+        if res.status_code != 200:
+            logger.error('Error connecting to search API: {}'.format(first_page_url))
+            logger.error('Status code: {}'.format(res.status_code))
+            raise ConnectionError
+        page = res.json()
+        next_url = page['_links'].get('_next')
+        if next_url:
+            fetch_pages(next_url, all_pages)
+
+    all_pages = []
+    # 250 is max page size
+    first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, 250)
+    fetch_pages(first_page_url, all_pages=all_pages)
+
+    return all_pages
+
+
 def get_features(session, saved_search_id):
     # TODO: Paralleize: https://developers.planet.com/docs/quickstart/best-practices-large-aois/
     master_footprints = gpd.GeoDataFrame()
-    # 250 is max page size
-    page_search_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, 250)
+
+    all_pages = get_search_page_urls(session=session, saved_search_id=saved_search_id)
+
+
 
     processed_count = 0
     process_next = True
@@ -141,22 +165,25 @@ def select_scenes(search_id, out_scenes=None, out_dir=None):
         logger.info('Writing selected features to file: {}'.format(out_scenes))
         master_footprints.to_file(out_scenes, driver='GeoJSON')
 
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-i', '--search_id', type=str,
-                        help='The ID of a previously created search. Use create_saved_search.py to do so.')
-    parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
-                        help='Path to write selected scene footprints to.')
-    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-                        help="""Directory to write scenes footprint to - 
-                        the search request name will be used for the filename.""")
-
-    args = parser.parse_args()
-
-    search_id = args.search_id
-    out_scenes = args.out_scenes
-    out_dir = args.out_dir
-
-    select_scenes(search_id=search_id, out_scenes=out_scenes, out_dir=out_dir)
+s = requests.Session()
+s.auth = (PLANET_API_KEY, '')
+pgs = []
+aps = get_search_page_urls(s, "f892458ca6df45bd8f9e8ec570bafc51")
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#
+#     parser.add_argument('-i', '--search_id', type=str,
+#                         help='The ID of a previously created search. Use create_saved_search.py to do so.')
+#     parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
+#                         help='Path to write selected scene footprints to.')
+#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+#                         help="""Directory to write scenes footprint to -
+#                         the search request name will be used for the filename.""")
+#
+#     args = parser.parse_args()
+#
+#     search_id = args.search_id
+#     out_scenes = args.out_scenes
+#     out_dir = args.out_dir
+#
+#     select_scenes(search_id=search_id, out_scenes=out_scenes, out_dir=out_dir)
