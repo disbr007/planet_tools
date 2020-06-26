@@ -4,15 +4,16 @@ import json
 import requests
 import os
 from multiprocessing.dummy import Pool as ThreadPool
+import threading
+from retrying import retry
 
-from pprint import pprint
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import  create_logger
-# import config.search_filter as search_filter
 from search_utils import get_saved_search, get_search_count
+
 
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
@@ -21,13 +22,17 @@ STATS_URL = '{}/stats'.format(PLANET_URL)
 SEARCH_URL = '{}/searches'.format(PLANET_URL)
 # Environmental variable
 PL_API_KEY = 'PL_API_KEY'
-
-# Logging
-logger = create_logger(__name__, 'sh', 'DEBUG')
 # Get API key
 PLANET_API_KEY = os.getenv(PL_API_KEY)
-if not PLANET_API_KEY:
-    logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+
+# Set up threading
+thread_local = threading.local()
+
+def get_session():
+    if not hasattr(thread_local, "session"):
+        thread_local.session = requests.Session()
+        thread_local.session.auth = (PLANET_API_KEY, '')
+    return thread_local.session
 
 
 def response2gdf(response):
@@ -81,8 +86,9 @@ def response2gdf(response):
     return gdf
 
 
-def get_search_page_urls(session, saved_search_id):
+def get_search_page_urls(saved_search_id):
     def fetch_pages(search_url, all_pages):
+        session = get_session()
         all_pages.append(search_url)
         res = session.get(search_url)
         if res.status_code != 200:
@@ -94,96 +100,112 @@ def get_search_page_urls(session, saved_search_id):
         if next_url:
             fetch_pages(next_url, all_pages)
 
+    logger.debug('Getting page urls for search...')
     all_pages = []
     # 250 is max page size
     first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, 250)
     fetch_pages(first_page_url, all_pages=all_pages)
+    logger.debug('Pages: {}'.format(len(all_pages)))
 
     return all_pages
 
 
-def get_features(session, saved_search_id):
+@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
+def process_page(page_url):
+    session = get_session()
+    res = session.get(page_url)
+    if res.status_code == 429:
+        logger.debug('Response: {} - rate limited - retrying...'.format(res.status_code))
+        raise Exception("Rate limit error.")
+    if res.status_code != 200:
+        logger.error('Error connecting to search API: {}'.format(page_url))
+        logger.error('Status code: {}'.format(res.status_code))
+        raise ConnectionError
+
+    gdf = response2gdf(response=res)
+
+    return gdf
+
+
+def get_features(saved_search_id):
     # TODO: Paralleize: https://developers.planet.com/docs/quickstart/best-practices-large-aois/
     master_footprints = gpd.GeoDataFrame()
 
-    all_pages = get_search_page_urls(session=session, saved_search_id=saved_search_id)
+    all_pages = get_search_page_urls(saved_search_id=saved_search_id)
 
+    threads = 1
+    thread_pool = ThreadPool(threads)
+    logger.debug('Getting features...')
+    results = thread_pool.map(process_page, all_pages)
 
-
-    processed_count = 0
-    process_next = True
-    while process_next:
-        # Process current page of responses (250 features)
-        res = session.get(page_search_url)  # , json=search_request)
-        if res.status_code != 200:
-            logger.error('Error connecting to search API: {}'.format(page_search_url))
-            logger.error('Status code: {}'.format(res.status_code))
-            raise ConnectionError
-        page_footprints = response2gdf(res)
-        master_footprints = pd.concat([master_footprints, page_footprints])
-
-        # Log progress
-        processed_count += len(page_footprints)
-        logger.debug('Processed features: {:,}'.format(processed_count))
-
-        # Check for next page, continue processing if it exists
-        next_page = '_next'
-        page_search_url = res.json()['_links'].get(next_page)
-
-        if not page_search_url:
-            process_next = False
+    master_footprints = pd.concat(results)
 
     return master_footprints
 
 
-def select_scenes(search_id, out_scenes=None, out_dir=None):
-    # Start session
-    with requests.Session() as s:
-        # Auth
-        s.auth = (PLANET_API_KEY, '')
-        # Test a request
-        r = s.get(PLANET_URL)
-        if not r.status_code == 200:
-            logger.error('Error connecting to Planet Data API.')
+def select_scenes(search_id):
 
-        logger.info('Performing query using saved search ID: {}'.format(search_id))
+    # Test a request
+    session = get_session()
+    r = session.get(PLANET_URL)
+    if not r.status_code == 200:
+        logger.error('Error connecting to Planet Data API.')
 
-        # Get a total count for the given filters
-        # Get search request of passed search ID
-        sr = get_saved_search(session=s, search_id=search_id)
-        total_count = get_search_count(search_request=sr)
-        logger.debug('Total count for search parameters: {:,}'.format(total_count))
+    logger.info('Performing query using saved search ID: {}'.format(search_id))
 
-        # Perform requests to API to return features, which are converted to footprints in a geodataframe
-        master_footprints = get_features(session=s, saved_search_id=search_id)
+    # Get a total count for the given filters
+    # Get search request of passed search ID
+    sr = get_saved_search(session=session, search_id=search_id)
+    sr_name = sr['name']
+    total_count = get_search_count(search_request=sr)
+    logger.info('Total count for search parameters: {:,}'.format(total_count))
 
-        # TODO: best output format? stream directly to postgres DB?
-        if out_dir:
-            # Use search request name as output
-            out_scenes = os.path.join(out_dir, '{}.geojson'.format(sr['name']))
-        # TODO: Check if out_scenes exists (earlier) abort if not overwrite
-        logger.info('Writing selected features to file: {}'.format(out_scenes))
-        master_footprints.to_file(out_scenes, driver='GeoJSON')
+    # Perform requests to API to return features, which are converted to footprints in a geodataframe
+    master_footprints = get_features(saved_search_id=search_id)
+    logger.info('Total features processed: {}'.format(len(master_footprints)))
 
-s = requests.Session()
-s.auth = (PLANET_API_KEY, '')
-pgs = []
-aps = get_search_page_urls(s, "f892458ca6df45bd8f9e8ec570bafc51")
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser()
-#
-#     parser.add_argument('-i', '--search_id', type=str,
-#                         help='The ID of a previously created search. Use create_saved_search.py to do so.')
-#     parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
-#                         help='Path to write selected scene footprints to.')
-#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-#                         help="""Directory to write scenes footprint to -
-#                         the search request name will be used for the filename.""")
-#
-#     args = parser.parse_args()
-#
-#     search_id = args.search_id
-#     out_scenes = args.out_scenes
-#     out_dir = args.out_dir
-#
-#     select_scenes(search_id=search_id, out_scenes=out_scenes, out_dir=out_dir)
+    return master_footprints, sr_name
+
+
+def write_scenes(scenes, out_name=None, out_scenes=None, out_dir=None):
+    # TODO: best output format? stream directly to postgres DB?
+    if out_dir:
+        # Use search request name as output
+        out_scenes = os.path.join(out_dir, '{}.geojson'.format(out_name))
+    # TODO: Check if out_scenes exists (earlier) abort if not overwrite
+    logger.info('Writing selected features to file: {}'.format(out_scenes))
+    scenes.to_file(out_scenes, driver='GeoJSON')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-i', '--search_id', type=str,
+                        help='The ID of a previously created search. Use create_saved_search.py to do so.')
+    parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
+                        help='Path to write selected scene footprints to.')
+    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+                        help="""Directory to write scenes footprint to -
+                        the search request name will be used for the filename.""")
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Set logging level to DEBUG')
+
+    args = parser.parse_args()
+
+    search_id = args.search_id
+    out_scenes = args.out_scenes
+    out_dir = args.out_dir
+    verbose = args.verbose
+
+    # Logging
+    if verbose:
+        log_lvl = 'DEBUG'
+    else:
+        log_lvl = 'INFO'
+    logger = create_logger(__name__, 'sh', log_lvl)
+
+    if not PLANET_API_KEY:
+        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+
+    scenes, out_name = select_scenes(search_id=search_id)
+    write_scenes(scenes, out_scenes=out_scenes, out_dir=out_dir)
