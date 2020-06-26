@@ -10,8 +10,8 @@ import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import  create_logger
-import config.search_filter as search_filter
-import manage_searches
+# import config.search_filter as search_filter
+from search_utils import get_saved_search, get_search_count
 
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
@@ -112,7 +112,7 @@ def get_features(session, saved_search_id):
     return master_footprints
 
 
-def select_scenes(search_id, out_scenes):
+def select_scenes(search_id, out_scenes=None, out_dir=None):
     # Start session
     with requests.Session() as s:
         # Auth
@@ -126,16 +126,20 @@ def select_scenes(search_id, out_scenes):
 
         # Get a total count for the given filters
         # Get search request of passed search ID
-        sr = manage_searches.get_saved_search(session=s, search_id=search_id)
-        total_count = manage_searches.get_search_count(search_request=sr)
+        sr = get_saved_search(session=s, search_id=search_id)
+        total_count = get_search_count(search_request=sr)
         logger.debug('Total count for search parameters: {:,}'.format(total_count))
 
         # Perform requests to API to return features, which are converted to footprints in a geodataframe
         master_footprints = get_features(session=s, saved_search_id=search_id)
 
         # TODO: best output format? stream directly to postgres DB?
+        if out_dir:
+            # Use search request name as output
+            out_scenes = os.path.join(out_dir, '{}.geojson'.format(sr['name']))
+        # TODO: Check if out_scenes exists (earlier) abort if not overwrite
         logger.info('Writing selected features to file: {}'.format(out_scenes))
-        master_footprints.to_file(out_scenes)
+        master_footprints.to_file(out_scenes, driver='GeoJSON')
 
 
 if __name__ == '__main__':
@@ -145,10 +149,14 @@ if __name__ == '__main__':
                         help='The ID of a previously created search. Use create_saved_search.py to do so.')
     parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
+    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+                        help="""Directory to write scenes footprint to - 
+                        the search request name will be used for the filename.""")
 
     args = parser.parse_args()
 
     search_id = args.search_id
     out_scenes = args.out_scenes
-    
-    select_scenes(search_id=search_id, out_scenes=out_scenes)
+    out_dir = args.out_dir
+
+    select_scenes(search_id=search_id, out_scenes=out_scenes, out_dir=out_dir)

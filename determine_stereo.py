@@ -11,7 +11,6 @@ import shapely
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
-from utm_zone_locater import utm_zone_locater
 
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
@@ -29,6 +28,7 @@ fld_sid = 'strip_id'
 fld_iid = 'id'
 fld_acquired = 'acquired'
 fld_geometry = 'geometry'
+fld_epsg = 'epsg_code'
 # Created fields
 fld_area = 'utm_area'
 fld_sqkm = 'utm_sqkm'
@@ -44,6 +44,7 @@ fld_days_window = 'days_window'
 fld_min_date = 'min_date'
 fld_max_date = 'max_date'
 date_format = '%Y-%m-%dT%H:%M:%S.%fZ'
+date_format_alt = '%Y-%m-%dT%H:%M:%S'
 date_window_format = '%Y-%m-%d'
 rsuffix = '2' # suffix to add to 'right' field names
 
@@ -63,8 +64,9 @@ def days_window_to_str(date_window, date_format=date_window_format):
 
 def get_overlap_perc(geom1, geom2):
     """Get overlap perctange from two shapely geometries"""
-    intersection = geom1.intersection(geom2)
-    ovlp_perc = round(intersection.area / (geom1.area + geom2.area), 4) * 100
+    g_intersection = geom1.intersection(geom2)
+    g_union = geom1.union(geom2)
+    ovlp_perc = round(g_intersection.area / g_union.area, 4) * 100
 
     return ovlp_perc
 
@@ -85,7 +87,7 @@ def get_within_strip(scenes, sid, fld_sid=fld_sid):
     return strip_scenes
 
 
-def create_days_window(date, days_theshold):
+def create_days_window(date, days_threshold):
     """Create tuple of date-days_threshold and date+days_threshold"""
     min_date = date + datetime.timedelta(days=-days_threshold)
     max_date = date + datetime.timedelta(days=days_threshold)
@@ -111,7 +113,7 @@ def get_within_date_range(scenes, days_window, fld_acquired=fld_acquired):
 
 
 def get_pairs(row, scenes, percent_overlap=False,
-                within_strip=False, within_days=False, within_ins=False):
+              within_strip=False, within_days=False, within_ins=False):
     """Finds the pairs for a given row, optionally, within its own strip,
     within a number of days, and/or within the same instrument"""
     # TODO: Handle no overlaps better
@@ -146,9 +148,11 @@ def get_pairs(row, scenes, percent_overlap=False,
                     ovlps[r['{}_2'.format(fld_iid)]] = {fld_ovlp_geom: r.geometry,
                                                         fld_ovlp_area: r.geometry.area}
         else:
-            logger.debug('No pair scenes found that overlap scene footprint.')
+            pass
+            # logger.debug('No pair scenes found that overlap scene footprint.')
     else:
-        logger.debug('No pair scenes found matching inital criteria (date and/or w/in strip')
+        pass
+        # logger.debug('No pair scenes found matching inital criteria (date and/or w/in strip')
 
     return ovlps
 
@@ -176,8 +180,8 @@ def select_by_overlap(scenes, days_threshold=None, percent_overlap=False, overla
     if days_threshold:
         within_days = True
         # Convert acquired field to datetime
-        left_scenes[fld_acquired] = pd.to_datetime(left_scenes[fld_acquired], format='%Y-%m-%dT%H:%M:%S.%fZ')
-        left_scenes[fld_days_window] = left_scenes[fld_acquired].apply(lambda x: create_days_window(x, days_theshold=days_threshold))
+        left_scenes[fld_acquired] = pd.to_datetime(left_scenes[fld_acquired], infer_datetime_format=True) # format='%Y-%m-%dT%H:%M:%S.%fZ')
+        left_scenes[fld_days_window] = left_scenes[fld_acquired].apply(lambda x: create_days_window(x, days_threshold=days_threshold))
 
     left_scenes[fld_pairs] = left_scenes.apply(lambda x: get_pairs(x, scenes=left_scenes,
                                                                    within_strip=within_strip,
@@ -243,10 +247,10 @@ def determine_stereo(scenes_p, overlap_metric='area',
     optional days threshold and overlap threshold """
     logger.info("Loading scenes footprint...")
     scenes = gpd.read_file(scenes_p)
-    # scenes = scenes.iloc[0:50]
+    # scenes = scenes.iloc[0:250]
 
     logger.debug('Records loaded: {}'.format(len(scenes)))
-    logger.debug('Selecting features by overlap...')
+    logger.info('Selecting features by overlap...')
 
     if overlap_metric == 'percent':
         percent_overlap = True
@@ -255,13 +259,11 @@ def determine_stereo(scenes_p, overlap_metric='area',
         percent_overlap = False
         threshold_fld = fld_ovlp_area
         # TODO: Fix area calculation -- calculate all areas ahead of time? (big refac.)
-        # Finds the UTM zone that the most features fall into
-        logger.debug('Determining UTM Zone to use...')
-        utms = utm_zone_locater(scenes_p)
-        utm_zone = utms['EPSG'].mode().values[0]
+        utm_zone = int(scenes)[fld_epsg].mode().values[0]
         logger.debug('Using UTM zone: {}'.format(utm_zone))
         # Convert to UTM for area calulating
-        scenes = scenes.to_crs('epsg:{}'.format(utm_zone))
+        if scenes.crs != 'epsg:{}'.format(utm_zone):
+            scenes = scenes.to_crs('epsg:{}'.format(utm_zone))
 
     left_scenes = select_by_overlap(scenes=scenes, days_threshold=days_threshold,
                                     percent_overlap=percent_overlap, overlap_threshold=overlap_threshold,

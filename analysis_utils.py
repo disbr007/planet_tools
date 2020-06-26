@@ -77,6 +77,9 @@ def get_count(geocells, fps, date_col=None):
 
     geocells: geodataframe of features to count within
     fps: geodataframe of polygons
+
+    Returns
+    gpd.GeoDataFrame
     '''
     ## Confirm crs is the same
     logger.info('Counting footprints over each feature...')
