@@ -14,6 +14,7 @@ from shapely.geometry import Point, Polygon
 from logging_utils.logging_utils import  create_logger
 from search_utils import get_saved_search, get_search_count
 
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
@@ -87,6 +88,9 @@ def response2gdf(response):
 
 
 def get_search_page_urls(saved_search_id):
+    # TODO: Speed this up, bottle neck - is it possible to speed up?
+    # TODO: How much longer would it take to just process each page...?
+
     def fetch_pages(search_url, all_pages):
         session = get_session()
         all_pages.append(search_url)
@@ -128,7 +132,7 @@ def process_page(page_url):
 
 
 def get_features(saved_search_id):
-    # TODO: Paralleize: https://developers.planet.com/docs/quickstart/best-practices-large-aois/
+
     master_footprints = gpd.GeoDataFrame()
 
     all_pages = get_search_page_urls(saved_search_id=saved_search_id)
@@ -176,36 +180,36 @@ def write_scenes(scenes, out_name=None, out_scenes=None, out_dir=None):
     logger.info('Writing selected features to file: {}'.format(out_scenes))
     scenes.to_file(out_scenes, driver='GeoJSON')
 
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-i', '--search_id', type=str,
-                        help='The ID of a previously created search. Use create_saved_search.py to do so.')
-    parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
-                        help='Path to write selected scene footprints to.')
-    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-                        help="""Directory to write scenes footprint to -
-                        the search request name will be used for the filename.""")
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Set logging level to DEBUG')
-
-    args = parser.parse_args()
-
-    search_id = args.search_id
-    out_scenes = args.out_scenes
-    out_dir = args.out_dir
-    verbose = args.verbose
-
-    # Logging
-    if verbose:
-        log_lvl = 'DEBUG'
-    else:
-        log_lvl = 'INFO'
-    logger = create_logger(__name__, 'sh', log_lvl)
-
-    if not PLANET_API_KEY:
-        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
-
-    scenes, out_name = select_scenes(search_id=search_id)
-    write_scenes(scenes, out_scenes=out_scenes, out_dir=out_dir)
+scenes, out_name = select_scenes('d05f830189c24e98b84862812229481a')
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+# 
+#     parser.add_argument('-i', '--search_id', type=str,
+#                         help='The ID of a previously created search. Use create_saved_search.py to do so.')
+#     parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
+#                         help='Path to write selected scene footprints to.')
+#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+#                         help="""Directory to write scenes footprint to -
+#                         the search request name will be used for the filename.""")
+#     parser.add_argument('-v', '--verbose', action='store_true',
+#                         help='Set logging level to DEBUG')
+# 
+#     args = parser.parse_args()
+# 
+#     search_id = args.search_id
+#     out_scenes = args.out_scenes
+#     out_dir = args.out_dir
+#     verbose = args.verbose
+# 
+#     # Logging
+#     if verbose:
+#         log_lvl = 'DEBUG'
+#     else:
+#         log_lvl = 'INFO'
+#     logger = create_logger(__name__, 'sh', log_lvl)
+# 
+#     if not PLANET_API_KEY:
+#         logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+# 
+#     scenes, out_name = select_scenes(search_id=search_id)
+#     write_scenes(scenes, out_scenes=out_scenes, out_dir=out_dir)
