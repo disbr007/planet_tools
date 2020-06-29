@@ -13,21 +13,25 @@ from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import  create_logger
 from search_utils import get_saved_search, get_search_count
+from db_utils import Postgres
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
 STATS_URL = '{}/stats'.format(PLANET_URL)
-# QSEARCH_URL = '{}/quick-search'.format(PLANET_URL)
 SEARCH_URL = '{}/searches'.format(PLANET_URL)
 # Environmental variable
 PL_API_KEY = 'PL_API_KEY'
 # Get API key
 PLANET_API_KEY = os.getenv(PL_API_KEY)
 
+# Constants
+fld_id = 'id'
+
 # Set up threading
 thread_local = threading.local()
+
 
 def get_session():
     if not hasattr(thread_local, "session"):
@@ -182,8 +186,20 @@ def write_scenes(scenes, out_name=None, out_scenes=None, out_dir=None):
     scenes.to_file(out_scenes, driver='GeoJSON')
 
 
-scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
+def insert_scenes(scenes, layer='scenes', new_only=True):
+    logger.debug('Loading existing IDs..')
+    pg = Postgres()
+    existing_ids = pg.get_values(layer, columns=[fld_id], distinct=True)
 
+    logger.debug('Existing unique IDs: {}'.format(len(existing_ids)))
+
+    logger.debug('Removing any existing IDs from search results...')
+    new = scenes[~scenes[fld_id].isin(existing_ids)]
+    logger.debug('Remaining new IDs: {}'.format(len(new)))
+
+
+scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
+insert_scenes(scenes)
 
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser()

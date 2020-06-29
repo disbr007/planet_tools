@@ -136,4 +136,4 @@ clarie_repos
 *.ini
 
 # User config
-config/db_cxn.json
+config/db_creds.json
