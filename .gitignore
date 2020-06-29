@@ -134,3 +134,6 @@ clarie_repos
 # google
 .tmp.drivedownload
 *.ini
+
+# User config
+config/db_cxn.json

@@ -22,6 +22,7 @@ def write_searches(session, out_json):
     with open(out_json, 'w') as oj:
         json.dump(all_searches, oj)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 

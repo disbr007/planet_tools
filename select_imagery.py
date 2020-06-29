@@ -173,6 +173,7 @@ def select_scenes(search_id):
 
 def write_scenes(scenes, out_name=None, out_scenes=None, out_dir=None):
     # TODO: best output format? stream directly to postgres DB?
+    # TODO Load all IDs currently in table, remove existing, then write
     if out_dir:
         # Use search request name as output
         out_scenes = os.path.join(out_dir, '{}.geojson'.format(out_name))
@@ -180,7 +181,10 @@ def write_scenes(scenes, out_name=None, out_scenes=None, out_dir=None):
     logger.info('Writing selected features to file: {}'.format(out_scenes))
     scenes.to_file(out_scenes, driver='GeoJSON')
 
-scenes, out_name = select_scenes('d05f830189c24e98b84862812229481a')
+
+scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
+
+
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser()
 # 
