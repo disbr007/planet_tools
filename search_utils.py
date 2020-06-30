@@ -12,6 +12,7 @@ from logging_utils.logging_utils import  create_logger
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # TODO: convert to search_session class (all fxns that take session)
+# TODO: Add filter: id NOT IN [list of existing IDs]
 
 # config = os.path.join('config', 'saved_searches.yaml')
 

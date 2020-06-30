@@ -9,6 +9,8 @@ from retrying import retry
 
 import pandas as pd
 import geopandas as gpd
+from geoalchemy2 import Geometry, WKTElement
+from sqlalchemy import create_engine
 from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import  create_logger
@@ -28,6 +30,7 @@ PLANET_API_KEY = os.getenv(PL_API_KEY)
 
 # Constants
 fld_id = 'id'
+srid = 4326
 
 # Set up threading
 thread_local = threading.local()
@@ -175,15 +178,13 @@ def select_scenes(search_id):
     return master_footprints, sr_name
 
 
-def write_scenes(scenes, out_name=None, out_scenes=None, out_dir=None):
-    # TODO: best output format? stream directly to postgres DB?
-    # TODO Load all IDs currently in table, remove existing, then write
+def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
     if out_dir:
         # Use search request name as output
-        out_scenes = os.path.join(out_dir, '{}.geojson'.format(out_name))
+        out_path = os.path.join(out_dir, '{}.geojson'.format(out_name))
     # TODO: Check if out_scenes exists (earlier) abort if not overwrite
-    logger.info('Writing selected features to file: {}'.format(out_scenes))
-    scenes.to_file(out_scenes, driver='GeoJSON')
+    logger.info('Writing selected features to file: {}'.format(out_path))
+    scenes.to_file(out_path, driver='GeoJSON')
 
 
 def insert_scenes(scenes, layer='scenes', new_only=True):
@@ -194,42 +195,63 @@ def insert_scenes(scenes, layer='scenes', new_only=True):
     logger.debug('Existing unique IDs: {}'.format(len(existing_ids)))
 
     logger.debug('Removing any existing IDs from search results...')
-    new = scenes[~scenes[fld_id].isin(existing_ids)]
+    new = scenes[~scenes[fld_id].isin(existing_ids)].copy()
+    del scenes
     logger.debug('Remaining new IDs: {}'.format(len(new)))
 
+    geometry_name = new.geometry.name
+    new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
+    new.drop(columns=geometry_name, inplace=True)
+    if len(new) != 0:
+        logger.info('Writing new IDs to table: {}'.format(layer))
+        new.to_sql(layer, pg.get_engine(), if_exists='append', index=False,
+                   dtype={'geom': Geometry('POLYGON', srid=srid)})
+    else:
+        logger.info('No new scenes to be written.')
 
-scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
-insert_scenes(scenes)
 
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser()
-# 
-#     parser.add_argument('-i', '--search_id', type=str,
-#                         help='The ID of a previously created search. Use create_saved_search.py to do so.')
-#     parser.add_argument('-o', '--out_scenes', type=os.path.abspath,
-#                         help='Path to write selected scene footprints to.')
-#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-#                         help="""Directory to write scenes footprint to -
-#                         the search request name will be used for the filename.""")
-#     parser.add_argument('-v', '--verbose', action='store_true',
-#                         help='Set logging level to DEBUG')
-# 
-#     args = parser.parse_args()
-# 
-#     search_id = args.search_id
-#     out_scenes = args.out_scenes
-#     out_dir = args.out_dir
-#     verbose = args.verbose
-# 
-#     # Logging
-#     if verbose:
-#         log_lvl = 'DEBUG'
-#     else:
-#         log_lvl = 'INFO'
-#     logger = create_logger(__name__, 'sh', log_lvl)
-# 
-#     if not PLANET_API_KEY:
-#         logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
-# 
-#     scenes, out_name = select_scenes(search_id=search_id)
-#     write_scenes(scenes, out_scenes=out_scenes, out_dir=out_dir)
+# scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
+# insert_scenes(scenes)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-i', '--search_id', type=str,
+                        help='The ID of a previously created search. Use create_saved_search.py to do so.')
+    parser.add_argument('-op', '--out_path', type=os.path.abspath,
+                        help='Path to write selected scene footprints to.')
+    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+                        help="""Directory to write scenes footprint to -
+                        the search request name will be used for the filename.""")
+    parser.add_argument('--to_tbl', type=str,
+                        help="""Insert search results into this table.""")
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='Set logging level to DEBUG')
+
+    args = parser.parse_args()
+
+    search_id = args.search_id
+    out_path = args.out_path
+    out_dir = args.out_dir
+    to_tbl = args.to_tbl
+    verbose = args.verbose
+
+    # Logging
+    if verbose:
+        log_lvl = 'DEBUG'
+    else:
+        log_lvl = 'INFO'
+    logger = create_logger(__name__, 'sh', log_lvl)
+
+    if not PLANET_API_KEY:
+        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+
+    scenes, search_name = select_scenes(search_id=search_id)
+    if any([out_path, out_dir]):
+        if out_dir:
+            write_scenes(scenes, out_name=search_name, out_dir=out_dir)
+        else:
+            write_scenes(scenes, out_path=out_path)
+
+    if to_tbl:
+        insert_scenes(scenes, layer=to_tbl, new_only=True)

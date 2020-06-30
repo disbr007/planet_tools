@@ -62,4 +62,3 @@ if __name__ == '__main__':
         ss_id = create_saved_search(search_request=sr, overwrite_saved=overwrite_saved)
         if ss_id:
             logger.info('Successfully created new search. Search ID: {}'.format(ss_id))
-

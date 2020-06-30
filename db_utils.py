@@ -1,7 +1,6 @@
 import json
 import os
 
-from geoalchemy2 import Geometry, WKTElement
 from sqlalchemy import create_engine
 import psycopg2
 
