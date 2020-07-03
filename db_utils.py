@@ -14,7 +14,7 @@ logger = create_logger(__name__, 'sh', 'DEBUG')
 # host = 'localhost'
 # database = 'plt_fps'
 # layer = "scenes"
-db_conf = os.path.join('config', 'db_creds.json')
+db_conf = os.path.join(os.path.dirname(__file__),'config', 'db_creds.json')
 
 params = json.load(open(db_conf))
 user = params['user']
@@ -96,9 +96,24 @@ class Postgres(object):
         self.connection = self._instance.connection
         self.cursor = self._instance.cursor
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cursor.close()
+        self.connection.close()
+
     def __del__(self):
         self.cursor.close()
         self.connection.close()
+
+    def list_db_tables(self):
+        self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        tables = self.cursor.fetchall()
+        tables = [x[0] for x in tables]
+        tables = sorted(tables)
+
+        return tables
 
     def execute_sql(self, sql):
         self.cursor.execute(sql)
@@ -125,7 +140,7 @@ class Postgres(object):
         engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(user, password, host, database))
 
         return engine
-#
+
 # def db_connect(database=database, user=user, password=password, host=host):
 #     try:
 #         connection = psycopg2.connect(user=user, password=password, host=host, database=database)

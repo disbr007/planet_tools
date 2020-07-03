@@ -154,7 +154,7 @@ def get_features(saved_search_id):
     return master_footprints
 
 
-def select_scenes(search_id):
+def select_scenes(search_id, dryrun=False):
 
     # Test a request
     session = get_session()
@@ -172,7 +172,9 @@ def select_scenes(search_id):
     logger.info('Total count for search parameters: {:,}'.format(total_count))
 
     # Perform requests to API to return features, which are converted to footprints in a geodataframe
-    master_footprints = get_features(saved_search_id=search_id)
+    master_footprints = gpd.GeoDataFrame()
+    if not dryrun:
+        master_footprints = get_features(saved_search_id=search_id)
     logger.info('Total features processed: {}'.format(len(master_footprints)))
 
     return master_footprints, sr_name
@@ -189,25 +191,28 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
 
 def insert_scenes(scenes, layer='scenes', new_only=True):
     logger.debug('Loading existing IDs..')
-    pg = Postgres()
-    existing_ids = pg.get_values(layer, columns=[fld_id], distinct=True)
+    with Postgres() as pg:
+        if layer in pg.list_db_tables():
+            existing_ids = pg.get_values(layer, columns=[fld_id], distinct=True)
+        else:
+            existing_ids = []
 
-    logger.debug('Existing unique IDs: {}'.format(len(existing_ids)))
+        logger.debug('Existing unique IDs in table "{}": {}'.format(layer, len(existing_ids)))
 
-    logger.debug('Removing any existing IDs from search results...')
-    new = scenes[~scenes[fld_id].isin(existing_ids)].copy()
-    del scenes
-    logger.debug('Remaining new IDs: {}'.format(len(new)))
+        logger.debug('Removing any existing IDs from search results...')
+        new = scenes[~scenes[fld_id].isin(existing_ids)].copy()
+        del scenes
+        logger.debug('Remaining new IDs: {}'.format(len(new)))
 
-    geometry_name = new.geometry.name
-    new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
-    new.drop(columns=geometry_name, inplace=True)
-    if len(new) != 0:
-        logger.info('Writing new IDs to table: {}'.format(layer))
-        new.to_sql(layer, pg.get_engine(), if_exists='append', index=False,
-                   dtype={'geom': Geometry('POLYGON', srid=srid)})
-    else:
-        logger.info('No new scenes to be written.')
+        geometry_name = new.geometry.name
+        new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
+        new.drop(columns=geometry_name, inplace=True)
+        if len(new) != 0:
+            logger.info('Writing new IDs to table: {}'.format(layer))
+            new.to_sql(layer, pg.get_engine(), if_exists='append', index=False,
+                       dtype={'geom': Geometry('POLYGON', srid=srid)})
+        else:
+            logger.info('No new scenes to be written.')
 
 
 # scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
@@ -225,6 +230,8 @@ if __name__ == '__main__':
                         the search request name will be used for the filename.""")
     parser.add_argument('--to_tbl', type=str,
                         help="""Insert search results into this table.""")
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print actions, but do not actually download or write anything.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='Set logging level to DEBUG')
 
@@ -234,6 +241,7 @@ if __name__ == '__main__':
     out_path = args.out_path
     out_dir = args.out_dir
     to_tbl = args.to_tbl
+    dryrun = args.dryrun
     verbose = args.verbose
 
     # Logging
@@ -246,7 +254,7 @@ if __name__ == '__main__':
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
 
-    scenes, search_name = select_scenes(search_id=search_id)
+    scenes, search_name = select_scenes(search_id=search_id, dryrun=dryrun)
     if any([out_path, out_dir]):
         if out_dir:
             write_scenes(scenes, out_name=search_name, out_dir=out_dir)

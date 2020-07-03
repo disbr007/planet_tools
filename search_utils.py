@@ -231,6 +231,8 @@ def get_search_count(search_request):
         logger.debug('Authorizing using Planet API key...')
         session.auth = (PLANET_API_KEY, '')
         stats = session.post(STATS_URL, json=stats_request)
+        if not str(stats.status_code).startswith('2'):
+            logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)))
         logger.debug(stats)
 
     total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])

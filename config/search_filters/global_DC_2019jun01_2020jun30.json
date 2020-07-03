@@ -1,0 +1,50 @@
+{
+  "filter": {
+    "config": [
+      {
+        "config": {
+          "gte": "2019-06-01T00:00:00.000Z"
+        },
+        "field_name": "acquired",
+        "type": "DateRangeFilter"
+      },
+      {
+        "config": {
+          "lte": "2020-06-30T00:00:00.000Z"
+        },
+        "field_name": "acquired",
+        "type": "DateRangeFilter"
+      },
+      {
+        "config": [
+          "PS2"
+        ],
+        "field_name": "instrument",
+        "type": "StringInFilter"
+      },
+      {
+        "config": [
+          {
+            "config": [
+              "standard"
+            ],
+            "field_name": "quality_category",
+            "type": "StringInFilter"
+          },
+          {
+            "config": [
+              "basic_analytic_dn"
+            ],
+            "type": "AssetFilter"
+          }
+        ],
+        "type": "AndFilter"
+      }
+    ],
+    "type": "AndFilter"
+  },
+  "item_types": [
+    "PSScene3Band"
+  ],
+  "name": "global_DC_2019jun01_2020jun30"
+}
