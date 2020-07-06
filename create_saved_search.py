@@ -24,7 +24,6 @@ if __name__ == '__main__':
                         'StringInFilter'  [field_name] [value]\n
                         'GeometryFilter'  [path]\n
                         'RangeFilter'     [field]      [compare] [value]""")
-    # TODO: Allow for just passing name or relative path (already would work?) to .json
     parser.add_argument('-lf', '--load_filter', type=os.path.abspath,
                         help='Base filter to load, upon which nay provided filters will be added.')
     parser.add_argument('--get_count', action='store_true',

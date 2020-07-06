@@ -2,18 +2,14 @@ import json
 import os
 
 from sqlalchemy import create_engine
+from geoalchemy2 import Geometry, WKTElement
 import psycopg2
+import pandas as pd
 
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-# TODO: put this all in a config file
-# user = 'postgres'
-# pw = '1nil2theARSENALfc'
-# host = 'localhost'
-# database = 'plt_fps'
-# layer = "scenes"
 db_conf = os.path.join(os.path.dirname(__file__),'config', 'db_creds.json')
 
 params = json.load(open(db_conf))
@@ -28,18 +24,14 @@ db_config = {'user': user,
 
 
 def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False, distinct=False,
-                 limit=False, offset=None, table=False):
+                 limit=False, offset=None,):
     # COLUMNS
     if columns:
         cols_str = ', '.join(columns)
     else:
         cols_str = '*'  # select all columns
 
-    # If table, do not select geometry
-    if table == True:
-        sql = "SELECT {} FROM {}".format(cols_str, layer)
-    else:
-        sql = "SELECT {}, encode(ST_AsBinary(geom), 'hex') AS geom FROM {}".format(cols_str, layer)
+    sql = "SELECT {} FROM {}".format(cols_str, layer)
 
     # CUSTOM WHERE CLAUSE
     if where:
@@ -131,8 +123,8 @@ class Postgres(object):
         if isinstance(columns, str):
             columns = [columns]
         sql = generate_sql(layer=layer, columns=columns, distinct=distinct, table=True)
-        r = self.execute_sql(sql)
-        values = [a[0] for a in r]
+        values = self.execute_sql(sql)
+        # values = [a[0] for a in r]
 
         return values
 
@@ -141,47 +133,38 @@ class Postgres(object):
 
         return engine
 
-# def db_connect(database=database, user=user, password=password, host=host):
-#     try:
-#         connection = psycopg2.connect(user=user, password=password, host=host, database=database)
-#
-#     except(psycopg2.Error) as error:
-#         connection = None
-#         logger.error('Error connecting to {} at {}'.format(database, host))
-#         logger.error(error)
-#         raise error
-#
-#     return connection
-#
-#
-# def execute_sql(connection, sql):
-#     cursor = connection.cursor()
-#     cursor.execute(sql)
-#     results = cursor.fetchall()
-#
-#     return results
-#
-#
-# def get_layer_columns(connection, layer):
-#     cursor = connection.cursor()
-#     cursor.execute("SELECT * FROM {} LIMIT 0".format(layer))
-#     columns = [d[0] for d in cursor.description]
-#
-#     return columns
-#
-#
-# def get_values(connection, layer, columns, distinct=False):
-#     if isinstance(columns, str):
-#         columns = [columns]
-#     sql = generate_sql(layer=layer, columns=columns, distinct=distinct, table=True)
-#     r = execute_sql(connection, sql)
-#     values = [a[0] for a in r]
-#
-#     return values
-#
-#
-# def layer_column_values(layer, columns, distinct, database=database, user=user, password=password, host=host):
-#     connection = db_connect(user=user, password=password, host=host, database=database)
-#     values = get_values(connection=connection, layer=layer, columns=columns, distinct=distinct)
-#
-#     return values
+
+def insert_records(records, table, new_only=True, unique_id=None, dryrun=False):
+    logger.debug('Loading existing IDs..')
+    with Postgres() as pg:
+        if new_only:
+            if table in pg.list_db_tables():
+                existing_ids = pg.get_values(table, columns=[unique_id], distinct=True)
+                logger.debug('Removing any existing IDs from search results...')
+            else:
+                existing_ids = []
+
+        logger.debug('Existing unique IDs in table "{}": {}'.format(table, len(existing_ids)))
+        new = records[~records[unique_id].isin(existing_ids)].copy()
+        del records
+        if new_only:
+            logger.debug('Remaining IDs: {}'.format(len(new)))
+
+        # Get epsg code
+        srid = new.crs.to_epsg()
+        # Drop old format geometry column
+        geometry_name = new.geometry.name
+        new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
+        new.drop(columns=geometry_name, inplace=True)
+        # Convert date column to datetime
+        new['acquired'] = pd.to_datetime(new['acquired'], format="%Y-%m-%dT%H:%M:%S.%fZ")
+
+        logger.debug('Dataframe column types:\n{}'.format(new.dtypes))
+        if len(new) != 0 and not dryrun:
+            logger.info('Writing new IDs to {}: {}'.format(table, len(new)))
+            new.to_sql(table, pg.get_engine(), if_exists='append', index=False,
+                       dtype={'geom': Geometry('POLYGON', srid=srid)})
+        else:
+            logger.info('No new records to be written.')
+
+# TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB

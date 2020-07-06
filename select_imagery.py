@@ -9,13 +9,11 @@ from retrying import retry
 
 import pandas as pd
 import geopandas as gpd
-from geoalchemy2 import Geometry, WKTElement
-from sqlalchemy import create_engine
 from shapely.geometry import Point, Polygon
 
-from logging_utils.logging_utils import  create_logger
+from logging_utils.logging_utils import create_logger
 from search_utils import get_saved_search, get_search_count
-from db_utils import Postgres
+from db_utils import insert_records
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
@@ -90,6 +88,7 @@ def response2gdf(response):
                 reform_feats[att].append(None)
 
     gdf = gpd.GeoDataFrame(reform_feats, crs=crs)
+    # gdf['acquired'] = pd.to_datetime(gdf['acquired'], format="%Y-%m-%dT%H%M%S%fZ")
 
     return gdf
 
@@ -189,30 +188,7 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
     scenes.to_file(out_path, driver='GeoJSON')
 
 
-def insert_scenes(scenes, layer='scenes', new_only=True):
-    logger.debug('Loading existing IDs..')
-    with Postgres() as pg:
-        if layer in pg.list_db_tables():
-            existing_ids = pg.get_values(layer, columns=[fld_id], distinct=True)
-        else:
-            existing_ids = []
 
-        logger.debug('Existing unique IDs in table "{}": {}'.format(layer, len(existing_ids)))
-
-        logger.debug('Removing any existing IDs from search results...')
-        new = scenes[~scenes[fld_id].isin(existing_ids)].copy()
-        del scenes
-        logger.debug('Remaining new IDs: {}'.format(len(new)))
-
-        geometry_name = new.geometry.name
-        new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
-        new.drop(columns=geometry_name, inplace=True)
-        if len(new) != 0:
-            logger.info('Writing new IDs to table: {}'.format(layer))
-            new.to_sql(layer, pg.get_engine(), if_exists='append', index=False,
-                       dtype={'geom': Geometry('POLYGON', srid=srid)})
-        else:
-            logger.info('No new scenes to be written.')
 
 
 # scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
@@ -262,4 +238,4 @@ if __name__ == '__main__':
             write_scenes(scenes, out_path=out_path)
 
     if to_tbl:
-        insert_scenes(scenes, layer=to_tbl, new_only=True)
+        insert_records(scenes, layer=to_tbl, new_only=True, unique_id=fld_id, dryrun=dryrun)

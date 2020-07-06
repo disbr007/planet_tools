@@ -191,7 +191,6 @@ def get_saved_search(session, search_id=None, search_name=None):
 
 
 def delete_saved_search(session, search_name=None, search_id=None, dryrun=False):
-    # TODO: Fix this, key is not an arg to get_all_searches any more
     all_searches = get_all_searches(session)
     if search_id:
         if search_id in all_searches.keys():
