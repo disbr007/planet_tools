@@ -66,11 +66,17 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
 class Postgres(object):
     _instance = None
 
-    def __new__(cls):
+    def __init__(self, db_name):
+        self.connection = self._instance.connection
+        self.cursor = self._instance.cursor
+        self.db_name = db_name
+
+    def __new__(cls, db_name):
         if cls._instance is None:
             cls._instance = object.__new__(cls)
             try:
-                connection = Postgres._instance.connection = psycopg2.connect(user=user, password=password, host=host, database=database)
+                connection = Postgres._instance.connection = psycopg2.connect(user=user, password=password,
+                                                                              host=host, database=db_name)
                 cursor = Postgres._instance.cursor = connection.cursor()
                 cursor.execute('SELECT VERSION()')
                 db_version = cursor.fetchone()
@@ -83,10 +89,6 @@ class Postgres(object):
                 logger.debug('Connection to {} at {} established. Version: {}'.format(database, host, db_version))
 
         return cls._instance
-
-    def __init__(self):
-        self.connection = self._instance.connection
-        self.cursor = self._instance.cursor
 
     def __enter__(self):
         return self
@@ -134,21 +136,21 @@ class Postgres(object):
         return engine
 
 
-def insert_records(records, table, new_only=True, unique_id=None, dryrun=False):
+def insert_new_records(records, table, unique_id=None, dryrun=False):
     logger.debug('Loading existing IDs..')
     with Postgres() as pg:
-        if new_only:
-            if table in pg.list_db_tables():
-                existing_ids = pg.get_values(table, columns=[unique_id], distinct=True)
-                logger.debug('Removing any existing IDs from search results...')
-            else:
-                existing_ids = []
 
-        logger.debug('Existing unique IDs in table "{}": {}'.format(table, len(existing_ids)))
+        if table in pg.list_db_tables():
+            existing_ids = pg.get_values(table, columns=[unique_id], distinct=True)
+            logger.debug('Removing any existing IDs from search results...')
+        else:
+            logger.error('Table "{}" not found in database "{}"'.format(table, pg.db_name))
+
+        logger.debug('Existing unique IDs in table "{}": {:,}'.format(table, len(existing_ids)))
         new = records[~records[unique_id].isin(existing_ids)].copy()
         del records
-        if new_only:
-            logger.debug('Remaining IDs: {}'.format(len(new)))
+
+        logger.debug('Remaining IDs to add: {:,}'.format(len(new)))
 
         # Get epsg code
         srid = new.crs.to_epsg()
@@ -159,12 +161,13 @@ def insert_records(records, table, new_only=True, unique_id=None, dryrun=False):
         # Convert date column to datetime
         new['acquired'] = pd.to_datetime(new['acquired'], format="%Y-%m-%dT%H:%M:%S.%fZ")
 
-        logger.debug('Dataframe column types:\n{}'.format(new.dtypes))
+        # logger.debug('Dataframe column types:\n{}'.format(new.dtypes))
         if len(new) != 0 and not dryrun:
             logger.info('Writing new IDs to {}: {}'.format(table, len(new)))
-            new.to_sql(table, pg.get_engine(), if_exists='append', index=False,
+            new.to_sql(table, con=pg.get_engine(), if_exists='append', index=False,
                        dtype={'geom': Geometry('POLYGON', srid=srid)})
         else:
             logger.info('No new records to be written.')
+
 
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB

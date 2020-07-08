@@ -31,10 +31,22 @@ if not PLANET_API_KEY:
     logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
 auth = HTTPBasicAuth(PLANET_API_KEY, '')
 
+# AWS
+aws_conf = os.path.join(os.path.dirname(__file__),'config', 'aws_creds.json')
+
+aws_params = json.load(open(aws_conf))
+aws_access_key_id = aws_params['aws_access_key_id']
+aws_secret_access_key = aws_params['aws_secret_access_key']
+aws_bucket = aws_params['aws_bucket']
+aws_region = aws_params['aws_region']
+aws_path_prefix = aws_params['aws_path_prefix']
+
 # Check authorization
 auth_resp = requests.get(ORDERS_URL, auth=auth)
+logger.info('Authorizing Planet API Key....')
 if auth_resp.status_code != 200:
-    logger.debug('Issue authorizing: {}'.format(auth_resp))
+    logger.error('Issue authorizing: {}'.format(auth_resp))
+logger.info('Response: {}'.format(auth_resp))
 
 headers = {'content-type': 'application/json'}
 
@@ -119,7 +131,23 @@ def pairs_to_list(pairs_df, id1='id1', id2='id2'):
     return out_list
 
 
-def create_order_request(order_name, ids):
+def create_aws_delivery(aws_access_key_id=aws_access_key_id,
+                        aws_secret_access_key=aws_secret_access_key,
+                        bucket=aws_bucket, aws_region=aws_region, path_prefix=aws_path_prefix):
+    aws_delivery = {
+        'amazon_s3': {
+            'bucket': bucket,
+            'aws_region': aws_region,
+            'aws_access_key_id': aws_access_key_id,
+            'aws_secret_access_key': aws_secret_access_key,
+            'path_prefix': path_prefix
+        }
+    }
+
+    return aws_delivery
+
+
+def create_order_request(order_name, ids, delivery='aws'):
     """Create order from list of IDs"""
     order_request = {
         'name': order_name,
@@ -129,7 +157,8 @@ def create_order_request(order_name, ids):
              'product_bundle': 'basic_analystic'}
         ]
     }
-
+    if delivery == 'aws':
+        order_request.update(create_aws_delivery())
     return order_request
 
 
@@ -226,51 +255,27 @@ def list_orders(state=None):
     return orders
 
 
-def create_aws_delivery(aws_access_key_id, aws_secret_access_key, bucket, aws_region, path_prefix=None):
-    aws_delivery = {
-        'amazon_s3': {
-            'bucket': bucket
-            'aws_region': aws_region,
-            'aws_access_key_id': aws_access_key_id,
-            'aws_secret_access_key': aws_secret_access_key,
-            'path_prefix': path_prefix
-        }
-    }
-
-    return aws_delivery
-
-
-# Args
-order_name = 'test_order'
-# aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
-aoi_p = r'C:\temp\test_aoi_fbks.shp'
-aoi = gpd.read_file(aoi_p)
-aoi = aoi.to_crs('epsg:4326')
-
-kwa = {'aoi':aoi, 'date_min': '2020-02-01',
-       'ins':'PS2', 'date_diff':10, 'ovlp_perc_min':0.50,
-       'view_angle_diff': 1.5, 'geom_col': 'ovlp_geom'}
-
-
-stereo_pairs = get_stereo_pairs(**kwa)
-stereo_ids = pairs_to_list(stereo_pairs)
-order_request = create_order_request(order_name=order_name, ids=stereo_ids)
-order_url = place_order(order_request=order_request)
-success = poll_for_success(order_url=order_url)
-if not success:
-    logger.warning('Order placement did not finish.')
-results = get_order_results(order_url=order_url)
-download_results(results=results)
 
 
 
-
-
-
-
-# List orders (pending?)
-
-# Get order (by order ID)
-
-# Download order
-
+# # Args
+# order_name = 'test_order'
+# # aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
+# aoi_p = r'C:\temp\test_aoi_fbks.shp'
+# aoi = gpd.read_file(aoi_p)
+# aoi = aoi.to_crs('epsg:4326')
+#
+# kwa = {'aoi':aoi, 'date_min': '2020-02-01',
+#        'ins':'PS2', 'date_diff':10, 'ovlp_perc_min':0.50,
+#        'view_angle_diff': 1.5, 'geom_col': 'ovlp_geom'}
+#
+#
+# stereo_pairs = get_stereo_pairs(**kwa)
+# stereo_ids = pairs_to_list(stereo_pairs)
+# order_request = create_order_request(order_name=order_name, ids=stereo_ids)
+# order_url = place_order(order_request=order_request)
+# success = poll_for_success(order_url=order_url)
+# if not success:
+#     logger.warning('Order placement did not finish.')
+# results = get_order_results(order_url=order_url)
+# download_results(results=results)

@@ -238,4 +238,4 @@ if __name__ == '__main__':
             write_scenes(scenes, out_path=out_path)
 
     if to_tbl:
-        insert_records(scenes, layer=to_tbl, new_only=True, unique_id=fld_id, dryrun=dryrun)
+        insert_new_records(scenes, layer=to_tbl, new_only=True, unique_id=fld_id, dryrun=dryrun)

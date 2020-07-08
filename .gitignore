@@ -137,3 +137,4 @@ clarie_repos
 
 # User config
 config/db_creds.json
+config/aws_creds.json
