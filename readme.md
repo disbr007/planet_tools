@@ -39,8 +39,16 @@ Alternatively, the fooprint can be piped directly into a Postgres databse:
 ```
 python select_imagery.py -i [search ID] --to_tbl [table_name]
 ```
-This requires that creating the following file at config/db_config.json:
- 
+This requires creating the following file at *config/db_config.json*:
+```
+{
+  "host": [host],
+  "database": [database name], 
+  "user": [username],
+  "password": [password]
+}
+```
+*Completion of ordering tool underway...*
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
