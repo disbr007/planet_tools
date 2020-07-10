@@ -61,8 +61,13 @@ def check_where(where):
 
 
 def intersect_aoi_where(aoi, geom_col):
+    """Create a where statement for a PostGIS intersection between the geometry(s) in
+    the aoi geodataframe and a PostGIS table with geometry in geom_col"""
+    aoi_epsg = aoi.crs.to_epsg()
     aoi_wkts = [geom.wkt for geom in aoi.geometry]
-    intersect_wheres = ["""ST_Intersects(ST_SetSRID('{}'::geometry, 4326), {})""".format(wkt, geom_col)
+    intersect_wheres = ["""ST_Intersects(ST_SetSRID('{}'::geometry, {}), {})""".format(wkt,
+                                                                                       aoi_epsg,
+                                                                                       geom_col)
                         for wkt in aoi_wkts]
     aoi_where = " AND ".join(intersect_wheres)
 
@@ -115,8 +120,8 @@ def get_stereo_pairs(**kwargs):
     sql = stereo_pair_sql(**kwargs)
     # Load records
     with Postgres() as db:
-        results = gpd.GeoDataFrame.from_postgis(sql=sql, con=db.get_engine().connect(), geom_col='ovlp_geom',
-                                                crs='epsg:4326')
+        results = gpd.GeoDataFrame.from_postgis(sql=sql, con=db.get_engine().connect(),
+                                                geom_col='ovlp_geom', crs='epsg:4326')
 
     return results
 
@@ -258,12 +263,12 @@ def list_orders(state=None):
 
 
 
-# # Args
-# order_name = 'test_order'
-# # aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
-# aoi_p = r'C:\temp\test_aoi_fbks.shp'
-# aoi = gpd.read_file(aoi_p)
-# aoi = aoi.to_crs('epsg:4326')
+# Args
+order_name = 'test_order'
+# aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
+aoi_p = r'C:\temp\test_aoi_fbks.shp'
+aoi = gpd.read_file(aoi_p)
+aoi = aoi.to_crs('epsg:4326')
 #
 # kwa = {'aoi':aoi, 'date_min': '2020-02-01',
 #        'ins':'PS2', 'date_diff':10, 'ovlp_perc_min':0.50,
