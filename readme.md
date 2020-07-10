@@ -13,6 +13,13 @@ Using conda:
 conda env create -f planet_stereo.yml
 conda activate planet_stereo
 ```
+## Setup
+An environmental variable PL_API_KEY must exist with your Planet API key.  
+On Windows:
+```
+setx PL_API_KEY [your API key]
+```
+
 
 ## Usage
 To create a search from the command line:  
