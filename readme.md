@@ -22,6 +22,13 @@ python create_saved_search.py --name my_search --item_types PSScene4Band \
     -f StringInFilter instrument PS2 \
     -f GeometryFilter C:\path\to\vectorfile.shp
 ```
+
+where the general syntax is:
+```
+[type of filter] [field to filter] [comparison (gte, lte, gt, lt)] [value]
+```
+A simpler method of creating filters is being developed.  
+
 To get the count for a set of filters without creating a search:
 ```
 python create_saved_search.py --name my_search --item_types PSScene4Band \
@@ -40,7 +47,7 @@ Alternatively, the fooprint can be piped directly into a Postgres databse:
 python select_imagery.py -i [search ID] --to_tbl [table_name]
 ```
 This requires creating the following file at *config/db_config.json*:
-```python
+```
 {
   "host": [host],
   "database": [database name], 
