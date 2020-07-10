@@ -42,7 +42,7 @@ select_imagery.py to create a footprint of the imagery:
 ```
 python select_imagery.py -i [search ID] --out_path C:\path\to\write\footprint.shp
 ```
-Alternatively, the fooprint can be piped directly into a Postgres databse:
+Alternatively, the fooprint can be piped directly into a Postgres database:
 ```
 python select_imagery.py -i [search ID] --to_tbl [table_name]
 ```
