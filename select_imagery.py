@@ -13,7 +13,7 @@ from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import create_logger
 from search_utils import get_saved_search, get_search_count
-from db_utils import insert_records
+from db_utils import insert_new_records
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 

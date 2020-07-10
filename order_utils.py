@@ -260,15 +260,12 @@ def list_orders(state=None):
     return orders
 
 
-
-
-
 # Args
-order_name = 'test_order'
-# aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
-aoi_p = r'C:\temp\test_aoi_fbks.shp'
-aoi = gpd.read_file(aoi_p)
-aoi = aoi.to_crs('epsg:4326')
+# order_name = 'test_order'
+# # aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
+# aoi_p = r'C:\temp\test_aoi_fbks.shp'
+# aoi = gpd.read_file(aoi_p)
+# aoi = aoi.to_crs('epsg:4326')
 #
 # kwa = {'aoi':aoi, 'date_min': '2020-02-01',
 #        'ins':'PS2', 'date_diff':10, 'ovlp_perc_min':0.50,
