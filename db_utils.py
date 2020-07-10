@@ -10,13 +10,14 @@ from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-db_conf = os.path.join(os.path.dirname(__file__),'config', 'db_creds.json')
+db_conf = os.path.join(os.path.dirname(__file__),'config', 'db_conf.json')
 
 params = json.load(open(db_conf))
 user = params['user']
 password = params['password']
-host = 'localhost'
-database = 'plt_fps'
+host =  params['host']
+database = params['database']
+
 db_config = {'user': user,
              'password': password,
              'database': database,

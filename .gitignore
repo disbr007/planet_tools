@@ -136,5 +136,5 @@ clarie_repos
 *.ini
 
 # User config
-config/db_creds.json
+config/db_conf.json
 config/aws_creds.json
