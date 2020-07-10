@@ -40,7 +40,7 @@ Alternatively, the fooprint can be piped directly into a Postgres databse:
 python select_imagery.py -i [search ID] --to_tbl [table_name]
 ```
 This requires creating the following file at *config/db_config.json*:
-```json
+```python
 {
   "host": [host],
   "database": [database name], 
