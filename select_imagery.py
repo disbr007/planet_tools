@@ -15,6 +15,8 @@ from logging_utils.logging_utils import create_logger
 from search_utils import get_saved_search, get_search_count
 from db_utils import insert_new_records
 
+# TODO: add get_search_area function to aid in managing quota
+# TODO: add remove_ids function
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # API URLs
