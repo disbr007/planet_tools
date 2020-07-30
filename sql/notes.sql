@@ -20,8 +20,16 @@ CREATE MATERIALIZED VIEW candidate_pairs AS SELECT * FROM scene_pair WHERE view_
 
 
 # NOTES
+# Create DB
+psql -U postgres
+CREATE DATABASE example_gis;
+\connect example_gis;
+CREATE EXTENSION postgis;
+
+
 # Get table columns and types
 \d table
+
 
 # Delete all rows
 DELETE FROM table;

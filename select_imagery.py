@@ -176,7 +176,7 @@ def select_scenes(search_id, dryrun=False):
     master_footprints = gpd.GeoDataFrame()
     if not dryrun:
         master_footprints = get_features(saved_search_id=search_id)
-    logger.info('Total features processed: {}'.format(len(master_footprints)))
+    logger.info('Total features processed: {:,}'.format(len(master_footprints)))
 
     return master_footprints, sr_name
 
@@ -188,9 +188,6 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
     # TODO: Check if out_scenes exists (earlier) abort if not overwrite
     logger.info('Writing selected features to file: {}'.format(out_path))
     scenes.to_file(out_path, driver='GeoJSON')
-
-
-
 
 
 # scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
@@ -240,4 +237,4 @@ if __name__ == '__main__':
             write_scenes(scenes, out_path=out_path)
 
     if to_tbl:
-        insert_new_records(scenes, layer=to_tbl, new_only=True, unique_id=fld_id, dryrun=dryrun)
+        insert_new_records(scenes, table=to_tbl, unique_id=fld_id, dryrun=dryrun)

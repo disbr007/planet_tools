@@ -31,6 +31,9 @@ if not PLANET_API_KEY:
     logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
 auth = HTTPBasicAuth(PLANET_API_KEY, '')
 
+# Postgres
+planet_db = 'sandwich-pool.planet' # Used for finding connection config file -> config/sandwich-pool.planet.json
+
 # AWS
 aws_conf = os.path.join(os.path.dirname(__file__),'config', 'aws_creds.json')
 
@@ -119,7 +122,7 @@ def get_stereo_pairs(**kwargs):
     """Load stereo pairs from DB"""
     sql = stereo_pair_sql(**kwargs)
     # Load records
-    with Postgres() as db:
+    with Postgres(planet_db) as db:
         results = gpd.GeoDataFrame.from_postgis(sql=sql, con=db.get_engine().connect(),
                                                 geom_col='ovlp_geom', crs='epsg:4326')
 
@@ -261,20 +264,20 @@ def list_orders(state=None):
 
 
 # Args
-# order_name = 'test_order'
-# # aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
-# aoi_p = r'C:\temp\test_aoi_fbks.shp'
-# aoi = gpd.read_file(aoi_p)
-# aoi = aoi.to_crs('epsg:4326')
-#
-# kwa = {'aoi':aoi, 'date_min': '2020-02-01',
-#        'ins':'PS2', 'date_diff':10, 'ovlp_perc_min':0.50,
-#        'view_angle_diff': 1.5, 'geom_col': 'ovlp_geom'}
-#
-#
-# stereo_pairs = get_stereo_pairs(**kwa)
-# stereo_ids = pairs_to_list(stereo_pairs)
-# order_request = create_order_request(order_name=order_name, ids=stereo_ids)
+order_name = 'test_order'
+# aoi_p = r'V:\pgc\data\scratch\jeff\projects\planet\scratch\test_aoi.shp'
+aoi_p = r'C:\temp\test_aoi_fbks.shp'
+aoi = gpd.read_file(aoi_p)
+aoi = aoi.to_crs('epsg:4326')
+
+kwa = {'aoi':aoi, 'date_min': '2020-02-01',
+       'ins':'PS2', 'date_diff':10, 'ovlp_perc_min':0.50,
+       'view_angle_diff': 1.5, 'geom_col': 'ovlp_geom'}
+
+
+stereo_pairs = get_stereo_pairs(**kwa)
+stereo_ids = pairs_to_list(stereo_pairs)
+order_request = create_order_request(order_name=order_name, ids=stereo_ids)
 # order_url = place_order(order_request=order_request)
 # success = poll_for_success(order_url=order_url)
 # if not success:

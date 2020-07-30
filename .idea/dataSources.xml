@@ -7,5 +7,17 @@
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://localhost:5432/plt_fps</jdbc-url>
     </data-source>
+    <data-source source="LOCAL" name="danco" uuid="d71cb419-8cce-4d74-80b3-e6e6141d26bd">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://danco.pgc.umn.edu:5432/footprint</jdbc-url>
+    </data-source>
+    <data-source source="LOCAL" name="sandwich-pool" uuid="d0033134-dd1d-4a18-9ff3-93d634b34908">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/dem</jdbc-url>
+    </data-source>
   </component>
 </project>
