@@ -1,38 +1,55 @@
 import json
+import re
 import os
 
 from sqlalchemy import create_engine
 from geoalchemy2 import Geometry, WKTElement
 import psycopg2
 import pandas as pd
+import geopandas as gpd
 
-from logging_utils.logging_utils import create_logger
+from misc_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
-db_conf = os.path.join(os.path.dirname(__file__),'config', 'db_conf.json')
-
-params = json.load(open(db_conf))
-user = params['user']
-password = params['password']
-host =  params['host']
-database = params['database']
-
-db_config = {'user': user,
-             'password': password,
-             'database': database,
-             'host': host}
+db_confs = {
+    'sandwich-pool.dem': os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                      'config', 'sandwich-pool.dem.json'),
+    'danco.footprint': os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                                    'config', 'danco.footprint.json'),
+}
 
 
-def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False, distinct=False,
-                 limit=False, offset=None,):
+def load_db_config(db_conf):
+    params = json.load(open(db_conf))
+
+    return params
+
+
+def encode_geom_sql(geom_col, encode_geom_col):
+    geom_sql = """encode(ST_AsBinary({}), 'hex') AS {}""".format(geom_col, encode_geom_col)
+
+    return geom_sql
+
+
+def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False,
+                 distinct=False, limit=False, offset=None,
+                 geom_col=None, encode_geom_col=None):
+    """
+    geom_col not needed for PostGIS if loading SQL with geopandas -
+        gpd can interpet the geometry column without encoding
+    """
     # COLUMNS
     if columns:
         cols_str = ', '.join(columns)
     else:
         cols_str = '*'  # select all columns
 
-    sql = "SELECT {} FROM {}".format(cols_str, layer)
+    if not geom_col:
+        sql = "SELECT {} FROM {}".format(cols_str, layer)
+    else:
+        sql = "SELECT encode(ST_AsBinary({}), 'hex') AS {}, {} FROM {}".format(geom_col, encode_geom_col,
+                                                                               cols_str, layer)
 
     # CUSTOM WHERE CLAUSE
     if where:
@@ -68,28 +85,27 @@ class Postgres(object):
     _instance = None
 
     def __init__(self, db_name):
-        self.connection = self._instance.connection
-        self.cursor = self._instance.cursor
-        self.db_name = db_name
-
-    def __new__(cls, db_name):
-        if cls._instance is None:
-            cls._instance = object.__new__(cls)
-            try:
-                connection = Postgres._instance.connection = psycopg2.connect(user=user, password=password,
-                                                                              host=host, database=db_name)
-                cursor = Postgres._instance.cursor = connection.cursor()
-                cursor.execute('SELECT VERSION()')
-                db_version = cursor.fetchone()
-            except psycopg2.Error as error:
-                Postgres._instance = None
-                logger.error('Error connecting to {} at {}'.format(database, host))
-                logger.error(error)
-                raise error
-            else:
-                logger.debug('Connection to {} at {} established. Version: {}'.format(database, host, db_version))
-
-        return cls._instance
+        # self.connection = self._instance.connection
+        # self.cursor = self._instance.cursor
+        config = load_db_config(db_confs[db_name])
+        self.host = config['host']
+        self.database = config['database']
+        self.user = config['user']
+        self.password = config['password']
+        try:
+            self.connection = psycopg2.connect(user=self.user, password=self.password,
+                                               host=self.host, database=self.database)
+            self.cursor = self.connection.cursor()
+            self.cursor.execute('SELECT VERSION()')
+            db_version = self.cursor.fetchone()
+        except psycopg2.Error as error:
+            Postgres._instance = None
+            logger.error('Error connecting to {} at {}'.format(self.database, self.host))
+            logger.error(error)
+            raise error
+        else:
+            logger.debug('Connection to {} at {} established. Version: {}'.format(self.database, self.host,
+                                                                                  db_version))
 
     def __enter__(self):
         return self
@@ -103,9 +119,22 @@ class Postgres(object):
         self.connection.close()
 
     def list_db_tables(self):
-        self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        # self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        # self.cursor.execute("""SELECT table_schema as schema_name,
+        #                               table_name as view_name
+        #                        FROM information_schema.views
+        #                        WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+        #                        ORDER BY schema_name, view_name""")
+        # # tables = self.cursor.fetchall()
+        # views = self.cursor.fetchall()
+        self.cursor.execute("""SELECT table_schema as schema_name,
+                                      table_name as view_name
+                               FROM information_schema.tables
+                               WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                               ORDER BY schema_name, view_name""")
         tables = self.cursor.fetchall()
-        tables = [x[0] for x in tables]
+        # tables.extend(views)
+        tables = [x[1] for x in tables]
         tables = sorted(tables)
 
         return tables
@@ -115,6 +144,14 @@ class Postgres(object):
         results = self.cursor.fetchall()
 
         return results
+
+    def get_sql_count(self, sql):
+        count_sql = re.sub('SELECT (.*) FROM', 'SELECT COUNT(\\1) FROM', sql)
+        logger.debug('Count sql: {}'.format(count_sql))
+        self.cursor.execute(count_sql)
+        count = self.cursor.fetchall()[0][0]
+
+        return count
 
     def get_layer_columns(self, layer):
         self.cursor.execute("SELECT * FROM {} LIMIT 0".format(layer))
@@ -132,9 +169,20 @@ class Postgres(object):
         return values
 
     def get_engine(self):
-        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(user, password, host, database))
+        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(self.user, self.password,
+                                                                          self.host, self.database))
 
         return engine
+
+    def sql2gdf(self, sql, geom_col='geom', crs=4326,):
+        gdf = gpd.GeoDataFrame.from_postgis(sql=sql, con=self.get_engine().connect(),
+                                                geom_col=geom_col, crs=crs)
+        return gdf
+
+    def sql2df(self, sql, columns=None):
+        df = pd.read_sql(sql=sql, con=self.get_engine().connect(), columns=columns)
+
+        return df
 
 
 def insert_new_records(records, table, unique_id=None, dryrun=False):
@@ -171,4 +219,16 @@ def insert_new_records(records, table, unique_id=None, dryrun=False):
             logger.info('No new records to be written.')
 
 
+def intersect_aoi_where(aoi, geom_col):
+    """Create a where statement for a PostGIS intersection between the geometry(s) in
+    the aoi geodataframe and a PostGIS table with geometry in geom_col"""
+    aoi_epsg = aoi.crs.to_epsg()
+    aoi_wkts = [geom.wkt for geom in aoi.geometry]
+    intersect_wheres = ["""ST_Intersects({}, ST_SetSRID('{}'::geometry, {}))""".format(geom_col,
+                                                                                       wkt,
+                                                                                       aoi_epsg,)
+                        for wkt in aoi_wkts]
+    aoi_where = " OR ".join(intersect_wheres)
+
+    return aoi_where
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB
