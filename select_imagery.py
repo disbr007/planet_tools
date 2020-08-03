@@ -6,6 +6,7 @@ import os
 from multiprocessing.dummy import Pool as ThreadPool
 import threading
 from retrying import retry
+import sys
 
 import pandas as pd
 import geopandas as gpd
@@ -13,7 +14,7 @@ from shapely.geometry import Point, Polygon
 
 from logging_utils.logging_utils import create_logger
 from search_utils import get_saved_search, get_search_count
-from db_utils import insert_new_records
+from db_utils import Postgres
 
 # TODO: add get_search_area function to aid in managing quota
 # TODO: add remove_ids function
@@ -230,6 +231,9 @@ if __name__ == '__main__':
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
 
     scenes, search_name = select_scenes(search_id=search_id, dryrun=dryrun)
+    if len(scenes) == 0:
+        logger.warning('No scenes found. Exiting.')
+        sys.exit()
     if any([out_path, out_dir]):
         if out_dir:
             write_scenes(scenes, out_name=search_name, out_dir=out_dir)
@@ -237,4 +241,6 @@ if __name__ == '__main__':
             write_scenes(scenes, out_path=out_path)
 
     if to_tbl:
-        insert_new_records(scenes, table=to_tbl, unique_id=fld_id, dryrun=dryrun)
+        with Postgres('sandwich-pool.planet') as db:
+            db.insert_new_records(scenes, table=to_tbl, unique_id=fld_id,
+                                  date_cols=['acquired'], dryrun=dryrun)

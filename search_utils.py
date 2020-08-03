@@ -9,7 +9,7 @@ import geopandas as gpd
 
 from logging_utils.logging_utils import  create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # TODO: convert to search_session class (all fxns that take session)
 # TODO: Add filter: id NOT IN [list of existing IDs]
@@ -141,6 +141,7 @@ def create_saved_search(search_request, overwrite_saved=False):
                 logger.warning('Overwrite not specified, exiting')
                 sys.exit()
         # Create new saved search
+        logger.info('Creating new saved search: {}'.format(search_name))
         saved_search = s.post(SEARCH_URL, json=search_request)
         logger.debug('Search creation request status: {}'.format(saved_search.status_code))
         if saved_search.status_code == 200:

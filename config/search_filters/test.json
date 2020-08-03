@@ -1,0 +1,26 @@
+{"type": "AndFilter",
+  "config": [
+  {
+    "type": "StringInFilter",
+    "field_name": "quality_category",
+    "config": ["standard"]
+  },
+  {
+    "type": "AssetFilter",
+    "config": ["basic_analytic_dn"]
+  },
+  {
+    "type": "DateRangeFilter",
+    "field_name": "acquired",
+    "config": {
+      "gte": "2019-10-01T00:00:00.000Z"
+    }
+  },
+  {
+    "type": "DateRangeFilter",
+    "field_name": "acquired",
+    "config": {
+      "lte": "2019-10-31T00:00:00.000Z"
+  }
+            }]
+}

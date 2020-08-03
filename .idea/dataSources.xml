@@ -19,5 +19,11 @@
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/dem</jdbc-url>
     </data-source>
+    <data-source source="LOCAL" name="planet@localhost" uuid="c4a871aa-59db-4eb3-b09d-ae0e08f277b1">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://localhost:5432/planet</jdbc-url>
+    </data-source>
   </component>
 </project>

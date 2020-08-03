@@ -3,6 +3,7 @@ import re
 import os
 
 from sqlalchemy import create_engine
+from sqlalchemy.types import DateTime
 from geoalchemy2 import Geometry, WKTElement
 import psycopg2
 import pandas as pd
@@ -10,13 +11,18 @@ import geopandas as gpd
 
 from misc_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO')
+# Supress pandas SettingWithCopyWarning
+pd.set_option('mode.chained_assignment', None)
+
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 db_confs = {
     'sandwich-pool.dem': os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                       'config', 'sandwich-pool.dem.json'),
     'danco.footprint': os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                     'config', 'danco.footprint.json'),
+    'sandwich-pool.planet': os.path.join(os.path.dirname(__file__),
+                                         'config', 'sandwich-pool.planet.json'),
 }
 
 
@@ -85,8 +91,6 @@ class Postgres(object):
     _instance = None
 
     def __init__(self, db_name):
-        # self.connection = self._instance.connection
-        # self.cursor = self._instance.cursor
         config = load_db_config(db_confs[db_name])
         self.host = config['host']
         self.database = config['database']
@@ -119,21 +123,21 @@ class Postgres(object):
         self.connection.close()
 
     def list_db_tables(self):
-        # self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
-        # self.cursor.execute("""SELECT table_schema as schema_name,
-        #                               table_name as view_name
-        #                        FROM information_schema.views
-        #                        WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-        #                        ORDER BY schema_name, view_name""")
-        # # tables = self.cursor.fetchall()
-        # views = self.cursor.fetchall()
+        self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
+        self.cursor.execute("""SELECT table_schema as schema_name,
+                                      table_name as view_name
+                               FROM information_schema.views
+                               WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                               ORDER BY schema_name, view_name""")
+        # tables = self.cursor.fetchall()
+        views = self.cursor.fetchall()
         self.cursor.execute("""SELECT table_schema as schema_name,
                                       table_name as view_name
                                FROM information_schema.tables
                                WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
                                ORDER BY schema_name, view_name""")
         tables = self.cursor.fetchall()
-        # tables.extend(views)
+        tables.extend(views)
         tables = [x[1] for x in tables]
         tables = sorted(tables)
 
@@ -153,18 +157,24 @@ class Postgres(object):
 
         return count
 
+    def get_table_count(self, layer):
+        self.cursor.execute("SELECT COUNT(*) FROM {}".format(layer))
+        count = self.cursor.fetchall()[0][0]
+
+        return count
+
     def get_layer_columns(self, layer):
         self.cursor.execute("SELECT * FROM {} LIMIT 0".format(layer))
         columns = [d[0] for d in self.cursor.description]
 
         return columns
 
-    def get_values(self, layer, columns, distinct=False):
+    def get_values(self, layer, columns, distinct=False, table=False):
         if isinstance(columns, str):
             columns = [columns]
-        sql = generate_sql(layer=layer, columns=columns, distinct=distinct, table=True)
+        sql = generate_sql(layer=layer, columns=columns, distinct=distinct,)# table=True)
         values = self.execute_sql(sql)
-        # values = [a[0] for a in r]
+        values = [a[0] for a in values]
 
         return values
 
@@ -184,37 +194,61 @@ class Postgres(object):
 
         return df
 
-
-def insert_new_records(records, table, unique_id=None, dryrun=False):
-    logger.debug('Loading existing IDs..')
-    with Postgres() as pg:
-
-        if table in pg.list_db_tables():
-            existing_ids = pg.get_values(table, columns=[unique_id], distinct=True)
-            logger.debug('Removing any existing IDs from search results...')
+    def insert_new_records(self, records, table, unique_id=None,
+                           date_cols=None, date_format="%Y-%m-%dT%H:%M:%S.%fZ",
+                           dryrun=False):
+        logger.info('Inserting records into {}...'.format(table))
+        logger.debug('Loading existing IDs..')
+        if isinstance(records, gpd.GeoDataFrame):
+            has_geometry = True
         else:
-            logger.error('Table "{}" not found in database "{}"'.format(table, pg.db_name))
+            has_geometry = False
 
-        logger.debug('Existing unique IDs in table "{}": {:,}'.format(table, len(existing_ids)))
-        new = records[~records[unique_id].isin(existing_ids)].copy()
-        del records
+        if table in self.list_db_tables() and unique_id is not None:
+            existing_ids = self.get_values(layer=table, columns=[unique_id], distinct=True)
+            logger.debug('Removing any existing IDs from search results...')
+            logger.debug('Existing unique IDs in table "{}": {:,}'.format(table, len(existing_ids)))
+            logger.debug('Example ID: {}'.format(existing_ids[0]))
+            new = records[~records[unique_id].isin(existing_ids) == True]
+            del records
+        elif table not in self.list_db_tables():
+            logger.warning('Table "{}" not found in database "{}", creating new table'.format(table,
+                                                                                              self.database))
+            new = records
+        elif unique_id is None:
+            logger.warning('No unique ID provided. Exiting to avoid adding duplicates.')
+            # new = records
+            new = None
 
         logger.debug('Remaining IDs to add: {:,}'.format(len(new)))
 
-        # Get epsg code
-        srid = new.crs.to_epsg()
-        # Drop old format geometry column
-        geometry_name = new.geometry.name
-        new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
-        new.drop(columns=geometry_name, inplace=True)
+        if has_geometry:
+            # Get epsg code
+            srid = new.crs.to_epsg()
+            # Drop old format geometry column
+            geometry_name = new.geometry.name
+            new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
+            new.drop(columns=geometry_name, inplace=True)
+
         # Convert date column to datetime
-        new['acquired'] = pd.to_datetime(new['acquired'], format="%Y-%m-%dT%H:%M:%S.%fZ")
+        dtype = None
+        if date_cols:
+            for col in date_cols:
+                new[col] = pd.to_datetime(new[col], format=date_format)
 
         # logger.debug('Dataframe column types:\n{}'.format(new.dtypes))
         if len(new) != 0 and not dryrun:
-            logger.info('Writing new IDs to {}: {}'.format(table, len(new)))
-            new.to_sql(table, con=pg.get_engine(), if_exists='append', index=False,
-                       dtype={'geom': Geometry('POLYGON', srid=srid)})
+            logger.info('Writing new IDs to {}.{}: {:,}'.format(self.database, table, len(new)))
+            if date_cols:
+                dtype = {dc: DateTime() for dc in date_cols}
+            if has_geometry:
+                geom_dtype = {'geom': Geometry('POLYGON', srid=srid)}
+                dtype.update(geom_dtype)
+                new.to_sql(table, con=self.get_engine(), if_exists='append', index=False,
+                           dtype=dtype)
+            else:
+                new.to_sql(table, con=self.get_engine(), if_exists='append', index=False,
+                           dtype=dtype)
         else:
             logger.info('No new records to be written.')
 
