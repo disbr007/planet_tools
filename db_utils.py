@@ -14,7 +14,7 @@ from misc_utils.logging_utils import create_logger
 # Supress pandas SettingWithCopyWarning
 pd.set_option('mode.chained_assignment', None)
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 db_confs = {
     'sandwich-pool.dem': os.path.join(os.path.dirname(os.path.dirname(__file__)),
@@ -25,11 +25,31 @@ db_confs = {
                                          'config', 'sandwich-pool.planet.json'),
 }
 
+# Params
+stereo_pair_cand = 'stereo_candidates'
+fld_acq = 'acquired1'
+fld_ins = 'instrument'
+fld_ins1 = '{}1'.format(fld_ins)
+fld_ins2 = '{}2'.format(fld_ins)
+fld_date_diff = 'date_diff'
+fld_view_angle_diff = 'view_angle_diff'
+fld_ovlp_perc = 'ovlp_perc'
+fld_geom = 'ovlp_geom'
+
 
 def load_db_config(db_conf):
     params = json.load(open(db_conf))
 
     return params
+
+
+def check_where(where):
+    if where:
+        where += """ AND """
+    else:
+        where = ""
+
+    return where
 
 
 def encode_geom_sql(geom_col, encode_geom_col):
@@ -87,6 +107,61 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
     return sql
 
 
+def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
+                    date_diff=None, view_angle_diff=None,
+                    ovlp_perc_min=None, ovlp_perc_max=None,
+                    limit=None, orderby=False, orderby_asc=False,
+                    geom_col=fld_geom, columns='*'):
+    """Create SQL statment to select stereo pairs based on passed arguments."""
+    where = ""
+    if date_min:
+        where = check_where(where)
+        where += "{} >= '{}'".format(fld_acq, date_min)
+    if date_max:
+        where = check_where(where)
+        where += "{} <= '{}'".format(fld_acq, date_max)
+    if ins:
+        where = check_where(where)
+        where += "{0} = '{1}' AND {2} = '{1}'".format(fld_ins1, ins, fld_ins2)
+    if date_diff:
+        where = check_where(where)
+        where += "{} <= {}".format(fld_date_diff, date_diff)
+    if view_angle_diff:
+        where = check_where(where)
+        where += "{} >= {}".format(fld_view_angle_diff, view_angle_diff)
+    if ovlp_perc_min:
+        where = check_where(where)
+        where += "{} >= {}".format(fld_ovlp_perc, ovlp_perc_min)
+    if ovlp_perc_max:
+        where = check_where(where)
+        where += "{} >= {}".format(fld_ovlp_perc, ovlp_perc_max)
+    if isinstance(aoi, gpd.GeoDataFrame):
+        where = check_where(where)
+        where += intersect_aoi_where(aoi, geom_col=geom_col)
+
+    if columns != '*' and geom_col not in columns:
+        columns.append(geom_col)
+
+    sql = generate_sql(layer=stereo_pair_cand, columns=columns, where=where,
+                       limit=limit, orderby=orderby, orderby_asc=orderby_asc)
+
+    return sql
+
+
+def intersect_aoi_where(aoi, geom_col):
+    """Create a where statement for a PostGIS intersection between the geometry(s) in
+    the aoi geodataframe and a PostGIS table with geometry in geom_col"""
+    aoi_epsg = aoi.crs.to_epsg()
+    aoi_wkts = [geom.wkt for geom in aoi.geometry]
+    intersect_wheres = ["""ST_Intersects({}, ST_SetSRID('{}'::geometry, {}))""".format(geom_col,
+                                                                                       wkt,
+                                                                                       aoi_epsg,)
+                        for wkt in aoi_wkts]
+    aoi_where = " OR ".join(intersect_wheres)
+
+    return aoi_where
+
+
 class Postgres(object):
     _instance = None
 
@@ -123,21 +198,33 @@ class Postgres(object):
         self.connection.close()
 
     def list_db_tables(self):
-        self.cursor.execute("""SELECT table_name FROM information_schema.tables""")
-        self.cursor.execute("""SELECT table_schema as schema_name,
-                                      table_name as view_name
-                               FROM information_schema.views
-                               WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-                               ORDER BY schema_name, view_name""")
-        # tables = self.cursor.fetchall()
-        views = self.cursor.fetchall()
+        logger.debug('Listing tables...')
         self.cursor.execute("""SELECT table_schema as schema_name,
                                       table_name as view_name
                                FROM information_schema.tables
                                WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
                                ORDER BY schema_name, view_name""")
         tables = self.cursor.fetchall()
+        logger.debug('Tables: {}'.format(tables))
+
+        self.cursor.execute("""SELECT table_schema as schema_name,
+                                      table_name as view_name
+                               FROM information_schema.views
+                               WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                               ORDER BY schema_name, view_name""")
+
+        # tables = self.cursor.fetchall()
+        views = self.cursor.fetchall()
         tables.extend(views)
+        logger.debug('Views: {}'.format(views))
+
+        self.cursor.execute("""SELECT schemaname as schema_name, 
+                                      matviewname as view_name
+                               FROM pg_matviews""")
+        matviews = self.cursor.fetchall()
+        tables.extend(matviews)
+        logger.debug("Materialized views: {}".format(matviews))
+
         tables = [x[1] for x in tables]
         tables = sorted(tables)
 
@@ -208,7 +295,8 @@ class Postgres(object):
             existing_ids = self.get_values(layer=table, columns=[unique_id], distinct=True)
             logger.debug('Removing any existing IDs from search results...')
             logger.debug('Existing unique IDs in table "{}": {:,}'.format(table, len(existing_ids)))
-            logger.debug('Example ID: {}'.format(existing_ids[0]))
+            if len(existing_ids) != 0:
+                logger.debug('Example ID: {}'.format(existing_ids[0]))
             new = records[~records[unique_id].isin(existing_ids) == True]
             del records
         elif table not in self.list_db_tables():
@@ -253,16 +341,5 @@ class Postgres(object):
             logger.info('No new records to be written.')
 
 
-def intersect_aoi_where(aoi, geom_col):
-    """Create a where statement for a PostGIS intersection between the geometry(s) in
-    the aoi geodataframe and a PostGIS table with geometry in geom_col"""
-    aoi_epsg = aoi.crs.to_epsg()
-    aoi_wkts = [geom.wkt for geom in aoi.geometry]
-    intersect_wheres = ["""ST_Intersects({}, ST_SetSRID('{}'::geometry, {}))""".format(geom_col,
-                                                                                       wkt,
-                                                                                       aoi_epsg,)
-                        for wkt in aoi_wkts]
-    aoi_where = " OR ".join(intersect_wheres)
 
-    return aoi_where
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB
