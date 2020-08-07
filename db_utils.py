@@ -341,5 +341,4 @@ class Postgres(object):
             logger.info('No new records to be written.')
 
 
-
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB
