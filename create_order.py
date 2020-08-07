@@ -5,11 +5,15 @@ import os
 import geopandas as gpd
 
 from logging_utils.logging_utils import create_logger
+from db_utils import Postgres
 from order_utils import get_stereo_pairs, pairs_to_list, \
     create_order_request, place_order, poll_for_success, get_order_results
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+planet_db = 'sandwich-pool.planet'
+scenes_onhand_tbl = 'scenes_onhand'
+scene_id = 'id'
 
 def main(args):
     name = args.order_name
@@ -21,6 +25,7 @@ def main(args):
     ovlp_max = args.overlap_max
     date_diff = args.date_diff
     view_angle_diff = args.view_angle_diff
+    remove_onhand = not args.do_not_remove_onhand
     dryrun = args.dryrun
 
     if ids_path:
@@ -52,7 +57,19 @@ def main(args):
         stereo_ids = pairs_to_list(stereo_pairs)
         logger.info('Unique scenes: {}'.format(len(stereo_ids)))
 
+    logger.info('Removing onhand IDs...')
+    if remove_onhand:
+        with Postgres(planet_db) as db:
+            onhand = set(db.get_values(scenes_onhand_tbl, columns=[scene_id]))
+
+    stereo_ids = list(set(stereo_ids) - onhand)
+    logger.info('IDs remaining: {}'.format(len(stereo_ids)))
+
     # Limit to 250 per request
+    # TODO: Add parameters for concurrent orders and number per order
+    # TODO: FXN: get number of active orders:
+    # while less than number of orders, add new order
+    # https://developers.planet.com/docs/orders/ordering/#aggregate-orders-stats
     step = 250
     logger.debug('Chunking IDs into groups of {}...'.format(step))
     total = len(stereo_ids)
@@ -97,6 +114,8 @@ if __name__ == '__main__':
                         help='Minimum overlap percent to include.')
     parser.add_argument('--overlap_max', type=float,
                         help='Maximum overlap percent to include.')
+    parser.add_argument('--do_not_remove_onhand', action='store_true',
+                        help='On hand IDs are removed by default. Use this flag to not remove.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Create order request, but do not place.')
 
