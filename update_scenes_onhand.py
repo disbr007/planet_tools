@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import pathlib
@@ -12,14 +13,7 @@ from shapely.geometry import Polygon
 from logging_utils.logging_utils import create_logger, create_logfile_path
 from db_utils import Postgres
 
-# Args
-by_id = False
-by_order = True
-parse_directory = None
-
 logger = create_logger(__name__, 'sh', 'INFO')
-# logger = create_logger(__name__, 'fh', 'DEBUG',
-                       # filename=create_logfile_path(Path(__file__).stem))
 
 planet_db = 'sandwich-pool.planet'
 scenes_onhand_tbl = 'scenes_onhand'
@@ -28,6 +22,7 @@ order_id = 'order_id'
 data_directory = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data')
 item_types = ['PSScene3Band', 'PSScene4Band']
 date_cols = ['acquired']
+scene_suffix = r'1B_AnalyticMS.tif'
 
 windows = 'Windows'
 linux = 'Linux'
@@ -75,12 +70,18 @@ def linux2win(path):
 
 
 def metadata_path_from_scene(scene):
-    # TODO: redo this to take scene path -> scene_id -> metadata
     par_dir = scene.parent
     sid = id_from_scene(scene)
     metadata_path = par_dir / '{}_metadata.json'.format(sid)
 
     return metadata_path
+
+
+def scene_path_from_metadata(metadata):
+    # TODO: regex matching scenes but not udm.tif
+    scene_path = Path(str(metadata).replace("metadata.json", scene_suffix))
+
+    return scene_path
 
 
 def get_onhand_ids(by_id=False, by_order=False):
@@ -126,52 +127,91 @@ def get_scenes_noh(data_directory, by_order=False, by_id=False,):
 
 
 def gdf_from_metadata(metadata_paths: List[pathlib.PurePath]):
+    logger.info('Parsing metadata files to populate {}'.format(scenes_onhand_tbl))
     rows = []
     for mp in tqdm(metadata_paths):
-        logger.debug('Parsing metdata for: {}'.format(mp.stem))
+        scene_path = scene_path_from_metadata(mp)
+        logger.debug('Parsing metdata for: {}'.format(scene_path.stem))
         metadata = json.load(open(mp))
         properties = metadata['properties']
         oid = Path(mp).relative_to(data_directory).parts[0]
-        properties['id'] = metadata['id']
-        properties['order_id'] = oid
+        properties[scenes_id] = metadata['id']
+        properties[order_id] = oid
+        # TODO: Get the scene path, not the metadata path
         if platform.system() == windows:
-            properties[win_loc] = str(mp)
-            properties[tn_loc] = win2linux(str(mp))
+            properties[win_loc] = str(scene_path)
+            properties[tn_loc] = win2linux(str(scene_path))
+            if os.path.exists(properties[win_loc]):
+                add_row = True
+            else:
+                add_row = False
         elif platform.system() == linux:
-            properties[tn_loc] = str(mp)
-            properties[win_loc] = linux2win(str(mp))
+            properties[tn_loc] = str(scene_path)
+            properties[win_loc] = linux2win(str(scene_path))
+            if os.path.exists(properties[tn_loc]):
+                add_row = True
+            else:
+                logger.debug('.tif does not exist, skipping adding.')
+                add_row = False
         properties['geometry'] = Polygon(metadata['geometry']['coordinates'][0])
 
-        rows.append(properties)
+        if add_row:
+            rows.append(properties)
 
     gdf = gpd.GeoDataFrame(rows, geometry='geometry', crs='epsg:4326')
 
     return gdf
 
 
-# Get all scenes to parse
-scenes_to_parse = get_scenes_noh(data_directory=data_directory, by_order=True)
+def update_scenes_onhand(data_directory=data_directory, by_order=True, by_id=False, dryrun=False):
+    # Get all scenes to parse
+    scenes_to_parse = get_scenes_noh(data_directory=data_directory, by_order=True)
 
-# Get remaining directories to parse, just for reporting
-order_dirs = {f.relative_to(data_directory).parts[0] for f in scenes_to_parse}
-logger.info('Remaining order directories: {}'.format(len(order_dirs)))
+    # Get remaining directories to parse, just for reporting
+    order_dirs = {f.relative_to(data_directory).parts[0] for f in scenes_to_parse}
+    logger.info('New order directories to parse: {}'.format(len(order_dirs)))
 
-# Get metadata paths
-logger.info('Parsing metadata files...')
-metadata_paths = [metadata_path_from_scene(s) for s in scenes_to_parse]
-# Remove onhand
-metadata_paths = [m for m in metadata_paths if m.exists()]
+    # Get metadata paths
+    logger.info('Parsing metadata files...')
+    metadata_paths = [metadata_path_from_scene(s) for s in scenes_to_parse]
+    # Remove onhand
+    metadata_paths = [m for m in metadata_paths if m.exists()]
 
-# Parse metadata into rows to add to onhand table
-new_rows = gdf_from_metadata(metadata_paths)
+    # Parse metadata into rows to add to onhand table
+    new_rows = gdf_from_metadata(metadata_paths)
 
-# Insert new records
-with Postgres(planet_db) as db:
-    db.insert_new_records(new_rows, table=scenes_onhand_tbl,
-                          unique_id=scenes_id, date_cols=date_cols)
+    if not dryrun:
+        logger.info('Inserting new records to {}'.format(scenes_onhand_tbl))
+        # Insert new records
+        with Postgres(planet_db) as db:
+            db.insert_new_records(new_rows, table=scenes_onhand_tbl,
+                                  unique_id=scenes_id, date_cols=date_cols)
 
 
-# TODO: with argparse:
-if by_id and by_order:
-    logger.error('Cannot parse by both id and order, choose one.')
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
 
+    parser.add_argument('--by_order', action='store_true',
+                        help='Parse data directory by order - look only for order '
+                             'directories that have not been parased yet.')
+    parser.add_argument('--by_id', action='store_true',
+                        help='Parse by IDs. Look in all folders for any ID not in scenes_onhand.')
+    parser.add_argument('--logfile', type=os.path.abspath,
+                        help='Path to write logfile to.')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print actions without adding new records.')
+
+    args = parser.parse_args()
+
+    by_order = args.by_order
+    by_id = args.by_order
+    logfile = args.logfile
+    dryrun = args.dryrun
+
+    if not logfile:
+        logfile = create_logfile_path(Path(__file__).stem)
+    logger = create_logger(__name__, 'fh', 'DEBUG',
+                           filename=create_logfile_path(Path(__file__).stem))
+
+    update_scenes_onhand(data_directory=data_directory, by_order=by_order,
+                         by_id=by_id, dryrun=dryrun)
