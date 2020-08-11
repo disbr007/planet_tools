@@ -1,6 +1,9 @@
 import argparse
 import datetime
 import os
+import requests
+from retrying import retry
+import time
 
 import geopandas as gpd
 
@@ -14,6 +17,33 @@ logger = create_logger(__name__, 'sh', 'INFO')
 planet_db = 'sandwich-pool.planet'
 scenes_onhand_tbl = 'scenes_onhand'
 scene_id = 'id'
+
+
+@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
+def count_concurrent_orders():
+    # TODO: Move these to a config file
+    orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
+    PLANET_API_KEY = os.getenv('PL_API_KEY')
+    if not PLANET_API_KEY:
+        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+
+    with requests.Session() as s:
+        logger.error('Authorizing using Planet API key...')
+        s.auth = (PLANET_API_KEY, '')
+
+        res = s.get(orders_url)
+        if res.status_code == 200:
+            order_statuses = res.json()['user']
+            queued = order_statuses['queued_orders']
+            running = order_statuses['running_orders']
+            total = queued + running
+        else:
+            logger.error(res.status_code)
+            logger.error(res.reason)
+            raise Exception
+
+    return total
+
 
 def main(args):
     name = args.order_name
@@ -53,44 +83,53 @@ def main(args):
 
         logger.info('Finding stereopairs from stereo_candidates table...')
         stereo_pairs = get_stereo_pairs(**order_params)
-        logger.info('Stereopairs found: {}'.format(len(stereo_pairs)))
+        logger.info('Stereopairs found: {:,}'.format(len(stereo_pairs)))
         stereo_ids = pairs_to_list(stereo_pairs)
-        logger.info('Unique scenes: {}'.format(len(stereo_ids)))
+        logger.info('Unique scenes: {:,}'.format(len(stereo_ids)))
 
     logger.info('Removing onhand IDs...')
     if remove_onhand:
         with Postgres(planet_db) as db:
             onhand = set(db.get_values(scenes_onhand_tbl, columns=[scene_id]))
 
-    stereo_ids = list(set(stereo_ids) - onhand)
-    logger.info('IDs remaining: {}'.format(len(stereo_ids)))
+        stereo_ids = list(set(stereo_ids) - onhand)
+        logger.info('IDs remaining: {:,}'.format(len(stereo_ids)))
 
-    # Limit to 250 per request
-    # TODO: Add parameters for concurrent orders and number per order
-    # TODO: FXN: get number of active orders:
-    # while less than number of orders, add new order
-    # https://developers.planet.com/docs/orders/ordering/#aggregate-orders-stats
-    step = 250
-    logger.debug('Chunking IDs into groups of {}...'.format(step))
-    total = len(stereo_ids)
-    for i in range(0, total, step):
-        step_ids = stereo_ids[i: i+step]
-        step_name = '{}_{}'.format(name, i)
-        order_request = create_order_request(order_name=step_name, ids=step_ids)
+    # Limits are 500 ids per order, 80 concurrent orders
+    max_concur = 80
+    assets_per_order = 500
+    ids_chunks = [stereo_ids[i:i + assets_per_order]
+                  for i in range(0, len(stereo_ids), assets_per_order)]
 
-        if not dryrun:
-            logger.info('Placing order for IDs {} - {}'.format(i, i+step))
-            order_id, order_url = place_order(order_request=order_request)
-            logger.info('Order ID: {}'.format(order_id))
-            logger.info('Order URL: {}'.format(order_url))
-
-            success = poll_for_success(order_id=order_id)
-            if success:
-                logger.info("Order placed successfully.")
+    for i, ids in enumerate(ids_chunks):
+        order_name = '{}_{}'.format(name, i)
+        order_request = create_order_request(order_name=order_name, ids=ids)
+        order_submitted = False
+        while order_submitted is False:
+            concurrent_orders = count_concurrent_orders()
+            logger.info('Concurrent orders: {}'.format(concurrent_orders))
+            if concurrent_orders < max_concur:
+                # Submit
+                if not dryrun:
+                    logger.info('Submitting order: {}'.format(order_name))
+                    order_id, order_url = place_order(order_request=order_request)
+                    logger.info('Order ID: {}'.format(order_id))
+                    logger.info('Order URL: {}'.format(order_url))
+                    # success = poll_for_success(order_id=order_id)
+                    # if success:
+                    #     logger.info("Order placed successfully.")
+                    # else:
+                    #     logger.warning("Order placement did not finish.")
+                    order_submitted = True
+                else:
+                    logger.info('(dryrun) Order submitted: {}'.format(order_name))
+                    order_submitted = True
             else:
-                logger.warning("Order placement did not finish.")
+                logger.info('Concurrent orders reached ({}) waiting...'.format(max_concur))
+                time.sleep(10)
 
-        # results = get_order_results(order_url=order_url)
+        # Avoid submitting too fast
+        time.sleep(1)
 
 
 if __name__ == '__main__':

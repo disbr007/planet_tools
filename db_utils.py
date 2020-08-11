@@ -60,7 +60,8 @@ def encode_geom_sql(geom_col, encode_geom_col):
 
 def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False,
                  distinct=False, limit=False, offset=None,
-                 geom_col=None, encode_geom_col=None):
+                 geom_col=None, encode_geom_col=None,
+                 remove_id_tbl=None, remove_id_tbl_col=None, remove_id_src_cols=None):
     """
     geom_col not needed for PostGIS if loading SQL with geopandas -
         gpd can interpet the geometry column without encoding
@@ -81,6 +82,17 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
     if where:
         sql_where = " WHERE {}".format(where)
         sql = sql + sql_where
+    # REMOVE IDs found in another table
+    if remove_id_tbl and remove_id_tbl_col and remove_id_src_cols:
+        remove_wheres = ["""{} IN (SELECT {} FROM {}""".format(id_src_col,
+                                                               remove_id_tbl_col,
+                                                               remove_id_tbl)
+                         for id_src_col in remove_id_src_cols]
+        remove_where = """({})""".format(' AND '.join(remove_wheres))
+        if where:
+            sql += """ AND {}""".format(remove_where)
+        else:
+            sql += """ WHERE {}""".format(remove_where)
 
     # ORDERBY
     if orderby:
@@ -111,6 +123,7 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
                     date_diff=None, view_angle_diff=None,
                     ovlp_perc_min=None, ovlp_perc_max=None,
                     limit=None, orderby=False, orderby_asc=False,
+                    remove_id_tbl=None, remove_id_tbl_col=None, remove_id_src_cols=None,
                     geom_col=fld_geom, columns='*'):
     """Create SQL statment to select stereo pairs based on passed arguments."""
     where = ""
@@ -143,7 +156,9 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
         columns.append(geom_col)
 
     sql = generate_sql(layer=stereo_pair_cand, columns=columns, where=where,
-                       limit=limit, orderby=orderby, orderby_asc=orderby_asc)
+                       limit=limit, orderby=orderby, orderby_asc=orderby_asc,
+                       remove_id_tbl=remove_id_tbl, remove_id_tbl_col=remove_id_tbl_col,
+                       remove_id_src_cols=remove_id_src_cols)
 
     return sql
 

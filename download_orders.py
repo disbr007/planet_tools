@@ -23,6 +23,26 @@ bucket_name = 'pgc-data'
 prefix = r'jeff/planet'
 
 
+def get_oids():
+    s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
+                        aws_secret_access_key=aws_secret_access_key, )
+
+    bucket = s3.Bucket(bucket_name)
+
+    bucket_filter = bucket.objects.filter(Prefix=prefix)
+    oids = set()
+    logger.info('Getting order IDs to download...')
+    for i, bo in enumerate(bucket_filter):
+        key = Path(bo.key)
+        oid = key.relative_to(Path(prefix)).parent.parent
+        if str(oid) != '.':
+            oids.add(oid)
+
+    logger.info('Order IDs found: {}'.format(len(oids)))
+
+    return oids
+
+
 def download_orders(bucket_name, order_prefix, overwrite=False, dryrun=False):
     oid = order_prefix.split('/')[-1]
     logger.info('Downloading order: {}'.format(oid))
@@ -38,7 +58,7 @@ def download_orders(bucket_name, order_prefix, overwrite=False, dryrun=False):
     # For aligning errors in progress bar writing
     arrow_loc = max([len(x.key) for x in bucket_filter]) - len(order_prefix)
     # Set up progress bar
-    pbar = tqdm(bucket_filter, total=item_count, desc='Order: {}'.format(oid))
+    pbar = tqdm(bucket_filter, total=item_count, desc='Order: {}'.format(oid), position=1)
     logger.info('Downloading {:,} files to: {}'.format(item_count, order_dst_dir))
     for bo in pbar:
         # Determine source and destination full paths
@@ -69,7 +89,10 @@ def download_orders(bucket_name, order_prefix, overwrite=False, dryrun=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-oid', '--order_id', type=str, nargs='+',
+    mut_exc = parser.add_mutually_exclusive_group()
+    mut_exc.add_argument('-all', '--all_available', action='store_true',
+                        help='Download all available order IDs..')
+    mut_exc.add_argument('-oid', '--order_id', type=str, nargs='+',
                         help='Order ID(s) to download.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without downloading.')
@@ -82,6 +105,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    all_available = args.all_available
     order_ids = args.order_id
     dst_dir = args.destination
     dryrun = args.dryrun
@@ -101,15 +125,20 @@ if __name__ == '__main__':
     logger = create_logger(__name__, 'sh', 'INFO')
     logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
 
-    logger.info('Order IDs to download:\n{}'.format('\n'.join(order_ids)))
+    if all_available:
+        order_ids = get_oids()
 
-    for oid in order_ids:
+    logger.info('Order IDs to download:\n{}'.format('\n'.join([str(o) for o in order_ids])))
+    pbar = tqdm(order_ids, desc='Order ', position=0)
+    for i, oid in enumerate(pbar):
+        pbar.set_description('Order: {}/{}'.format(i, len(order_ids)))
         order_dst_dir = dst_dir / oid
         if not os.path.exists(order_dst_dir):
             os.makedirs(order_dst_dir)
         order_prefix = '{}/{}'.format(prefix, oid)
         download_orders(bucket_name=bucket_name, order_prefix=order_prefix,
                         dryrun=dryrun, overwrite=overwrite)
+        logger.debug('Order downloaded: {}'.format(oid))
         logger.info('\n\n')
 
 # TODO: Make cron:

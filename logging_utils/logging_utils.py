@@ -16,6 +16,7 @@ import sys
 
 from lib import get_config
 
+
 class CustomError(Exception):
     """pass"""
 
