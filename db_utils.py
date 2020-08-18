@@ -51,6 +51,8 @@ def check_where(where):
 
     return where
 
+def ids2sql(ids):
+    return str(ids)[1:-1]
 
 def encode_geom_sql(geom_col, encode_geom_col):
     geom_sql = """encode(ST_AsBinary({}), 'hex') AS {}""".format(geom_col, encode_geom_col)
