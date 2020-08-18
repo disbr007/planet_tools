@@ -6,14 +6,20 @@ Created on Tue May 28 13:05:51 2019
 """
 import subprocess, os
 import numpy as np
+import matplotlib.pyplot as plt
 
 from shapely.geometry import Point, Polygon
 import geopandas as gpd
 
+from db_utils import Postgres
 from logging_utils.logging_utils import create_logger
+
 
 ## Set up logger
 logger = create_logger(__name__, 'sh', 'INFO')
+
+# Plotting style
+plt.style.use('pycharm')
 
 
 def run_subprocess(command):
@@ -108,3 +114,62 @@ def get_count(geocells, fps, date_col=None):
     out = gpd.GeoDataFrame(out, geometry=out.geometry, crs=geocells.crs)
 
     return out
+
+
+def y_fmt(y,):
+    '''
+    Formatter for text of plots. Returns the number with appropriate suffix
+    y: value
+    '''
+    decades = [1e9, 1e6, 1e3, 1e0, 1e-3, 1e-6, 1e-9 ]
+    suffix  = ["G", "M", "k", "" , "m" , "u", "n"  ]
+    if y == 0:
+        return str(0)
+    for i, d in enumerate(decades):
+        if np.abs(y) >=d:
+            val = round(y/float(d))
+            signf = len(str(val).split(".")[1])
+            if signf == 0:
+                return '{val:d} {suffix}'.format(val=round(int(val)), suffix=suffix[i])
+            else:
+                if signf == 1:
+                    if str(val).split(".")[1] == "0":
+                       return '{val:d}{suffix}'.format(val=round(int(round(val))), suffix=suffix[i])
+                tx = "{"+"val:.{signf}f".format(signf = signf) +"} {suffix}"
+                return tx.format(val=val, suffix=suffix[i])
+
+    return y
+
+
+def sql2hist(sql, column, ax=None, bins=None,
+             title=None, xlabel=None, ylabel='Count'):
+    with Postgres('sandwich-pool.planet') as db:
+        tbl = db.sql2df(sql=sql)
+
+    if not ax:
+        fig, ax = plt.subplots(1,1)
+
+
+    counts, bins, patches = ax.hist(x=tbl['off_nadir_diff'], bins=bins, edgecolor='white')
+    bin_centers = 0.5 * np.diff(bins) + bins[:-1]
+    for count, patch in zip(counts, patches):
+        # Label the counts
+        height = patch.get_height()
+        ax.text(patch.get_x() + patch.get_width() / 2, height + 5, y_fmt(count),
+                ha='center', va='bottom')
+
+    ax.xaxis.set_ticks(np.append(bins[::2], 14))
+    if title:
+        ax.set_title(title)
+    if not xlabel:
+        ax.set_xlabel(column)
+    else:
+        ax.set_ylabel(xlabel)
+
+    ax.set_ylabel(ylabel)
+
+    if not ax:
+        fig.show()
+
+    return fig
+
