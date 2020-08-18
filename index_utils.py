@@ -53,7 +53,7 @@ def parse_xml(xml):
                     (instrument_node, insrument_renamer),
                     (mask_node,       mask_renamer)]
 
-    # Bands conflicting attribute names -> add band number
+    # Bands Node - conflicting attribute names -> add band number: "band1_radiometicScaleFactor"
     bands_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandSpecificMetadata'
     band_number_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandNumber'
 
@@ -84,8 +84,9 @@ def parse_xml(xml):
             band_uri, name = tag_uri_and_name(e)
             if name in band_renamer.keys():
                 name = band_renamer[name]
+
+            name = name.replace('"').replace("'")
             if e.text.strip() != '' and name != 'bandNumber':
-                # print(name, ': ', e.text)
                 attributes[name] = e.text
 
     # TODO: Remove quotes from keys
