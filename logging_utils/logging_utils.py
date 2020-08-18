@@ -14,7 +14,7 @@ from pathlib import Path
 import platform
 import sys
 
-from lib import get_config
+from get_config import get_config
 
 
 class CustomError(Exception):
