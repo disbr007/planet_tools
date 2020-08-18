@@ -1,21 +1,23 @@
 import argparse
 import os
 
-from tqdm import tqdm
-import pandas as pd
-import numpy as np
-
 from lib import write_gdf
 from db_utils import Postgres
 from logging_utils.logging_utils import create_logger
-import matplotlib.pyplot as plt
-from index_utils import parse_xml
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
+stereo_candidates_tbl = 'stereo_candidates'
+stereo_candidates_tbl_oh = 'stereo_candidates_oh'
 
-def select_xtrack(where, out_ids, out_footprint):
-    sql = """"SELECT * FROM {} WHERE {}""".format(where)
+
+def select_xtrack(where, out_ids=None, out_footprint=None, onhand=True):
+    if onhand:
+        stereo_tbl = stereo_candidates_tbl_oh
+    else:
+        stereo_tbl = stereo_candidates_tbl
+
+    sql = """"SELECT * FROM {} WHERE {}""".format(stereo_tbl, where)
 
     with Postgres('sandwich-pool.planet') as db:
         gdf = db.sql2gdf(sql=sql, geom_col='ovlp_geom')
@@ -50,11 +52,14 @@ if __name__ == '__main__':
                         help='Path to write text file of IDs to.')
     parser.add_argument('--out_footprint', type=os.path.abspath,
                         help='Path to write footprint to.')
+    parser.add_argument('-all', action='store_true',
+                        help='Select all pairs meeting where clause, not just on hand.')
 
     args = parser.parse_args()
 
     where = args.where
     out_ids = args.out_ids
     out_footprint = args.out_footprint
+    onhand = not args.all
 
-    select_xtrack(where=where, out_ids=out_ids, out_footprint=out_footprint)
+    select_xtrack(where=where, out_ids=out_ids, out_footprint=out_footprint, onhand=onhand)
