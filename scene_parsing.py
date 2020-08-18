@@ -86,7 +86,7 @@ def gdf_from_metadata(scene_md_paths, relative_directory,
             rl = Path(scene_path).relative_to(Path(relative_directory))
             if rel_loc_style == 'W' and platform.system() == 'Linux':
                 properties[relative_loc] = linux2win(str(rl))
-            elif relative_loc == 'L' and platform.system() == 'Windows':
+            elif rel_loc_style == 'L' and platform.system() == 'Windows':
                 properties[relative_loc] = win2linux(str(rl))
             else:
                 properties[relative_loc] = str(rl)
