@@ -9,7 +9,7 @@ import geopandas as gpd
 
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 def type_parser(filepath):
