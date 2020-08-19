@@ -11,6 +11,7 @@ from logging_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 if __name__ == '__main__':
+    # TODO: Make the arguments easier to enter (min_date, max_cc, aoi, etc)
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('-n', '--name', type=str, help='Name of search to create')

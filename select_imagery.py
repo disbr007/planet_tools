@@ -12,6 +12,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
+from lib import write_gdf
 from logging_utils.logging_utils import create_logger
 from search_utils import get_saved_search, get_search_count
 from db_utils import Postgres
@@ -99,7 +100,7 @@ def response2gdf(response):
 def get_search_page_urls(saved_search_id):
     # TODO: Speed this up, bottle neck - is it possible to speed up?
     # TODO: How much longer would it take to just process each page...?
-
+    # TODO: Rewrite as loop up to total number of scenes in search id
     def fetch_pages(search_url, all_pages):
         session = get_session()
         all_pages.append(search_url)
@@ -188,14 +189,11 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
         out_path = os.path.join(out_dir, '{}.geojson'.format(out_name))
     # TODO: Check if out_scenes exists (earlier) abort if not overwrite
     logger.info('Writing selected features to file: {}'.format(out_path))
-    scenes.to_file(out_path, driver='GeoJSON')
+    write_gdf(scenes, out_path)
 
-
-# scenes, out_name = select_scenes('a28b7eb3d49f46feab9dccc885ef0d67')
-# insert_scenes(scenes)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="""Get the footprints of a previously created search.""")
 
     parser.add_argument('-i', '--search_id', type=str,
                         help='The ID of a previously created search. Use create_saved_search.py to do so.')

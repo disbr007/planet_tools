@@ -28,9 +28,9 @@ def type_parser(filepath):
                 content = f.readlines()
                 for row in content[0]:
                     if len(row) == 1:
-                        file_type = 'id_only_txt' # txt or csv with just ids
+                        file_type = 'id_only_txt'  # txt or csv with just ids
                     elif len(row) > 1:
-                        file_type ='csv' # csv with columns
+                        file_type = 'csv'  # csv with columns
                     else:
                         logger.error('Error reading number of rows in csv.')
         elif ext == '.txt':
@@ -74,10 +74,10 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
                 else:
                     the_id = line.strip()
                 ids.append(the_id)
-                
+
     # csv
     elif file_type in ('csv'):
-        df = pd.read_csv(ids_file, sep=sep,)
+        df = pd.read_csv(ids_file, sep=sep, )
         ids = list(df[field])
 
     # dbf, gdf, dbf

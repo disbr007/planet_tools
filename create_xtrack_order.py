@@ -12,6 +12,7 @@ from db_utils import Postgres
 from order_utils import get_stereo_pairs, pairs_to_list, \
     create_order_request, place_order, poll_for_success, get_order_results
 
+# TODO: Change view_angle diff to off-nadir diff, add all parameters of updated query
 logger = create_logger(__name__, 'sh', 'INFO')
 
 planet_db = 'sandwich-pool.planet'

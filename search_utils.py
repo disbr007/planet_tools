@@ -203,7 +203,7 @@ def delete_saved_search(session, search_name=None, search_id=None, dryrun=False)
         if len(ids_names) == 0:
             logger.warning('No search with name {} found.'.format(search_name))
         elif len(ids_names) > 1:
-            logger.warning('Multiple searches fouind with name {}\n{}'.format(search_name, ids_names))
+            logger.warning('Multiple searches found with name {}\n{}'.format(search_name, ids_names))
         else:
             delete_id = ids_names[0]
         delete_url = "{}/{}".format(SEARCH_URL, delete_id)
@@ -234,6 +234,7 @@ def get_search_count(search_request):
         if not str(stats.status_code).startswith('2'):
             logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)))
         logger.debug(stats)
+        logger.debug(stats.reason)
 
     total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])
     logger.debug('Total count for search request "{}": {:,}'.format(name, total_count))
