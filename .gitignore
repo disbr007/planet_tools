@@ -138,3 +138,6 @@ clarie_repos
 # User config
 config/db_conf.json
 config/aws_creds.json
+
+# Development file
+scratch.py
