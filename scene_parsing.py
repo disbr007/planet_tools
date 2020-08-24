@@ -34,6 +34,15 @@ def linux2win(path):
     return wp
 
 
+def get_platform_location(path):
+    if platform.system() == 'Linux':
+        pl = win2linux(path)
+    elif platform.system() == 'Windows':
+        pl = linux2win(path)
+
+    return pl
+
+
 def id_from_scene(scene, scene_levels=['1B']):
     """scene : pathlib.Path"""
     if not isinstance(scene, pathlib.PurePath):

@@ -9,25 +9,18 @@ from tqdm import tqdm
 
 from db_utils import Postgres, ids2sql
 from lib import read_ids, write_gdf
+from scene_parsing import get_platform_location
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
-
-# Args
-# scene_ids_path = (r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-#                   r'\2020aug17\front_range_stereo_pairs2020aug17_scenes.txt')
-# footprint_path = r''
-# destination_path = r'V:\pgc\data\scratch\jeff\projects\planet\deliveries\2020aug17\scenes'
-# out_footprint = None
-# transfer_method = 'copy'
-
 
 # Params
 db = 'sandwich-pool.planet'
 scenes_onhand_table = 'scenes_onhand'
 scene_id = 'id'
 # TODO: Change this to 'location' and convert to platform specific path in script
-location = 'win_loc'
+location = 'location'
+platform_location = 'platform_location'
 opf = None
 required_fields = [scene_id, location]
 # Transfer methods
@@ -69,10 +62,12 @@ def load_selection(scene_ids_path=None, footprint_path=None):
 def locate_source_files(selection):
     # Locate scene files
     logger.info('Locating scene files...')
+    selection[platform_location] = selection[location].apply(lambda x: get_platform_location(x))
     # Create glob generators for each scene to find to all scene files (metadata, etc.)
     # e.g. "..\PSScene4Band\20191009_160416_100d*"
-    scene_path_globs = [Path(p).parent.glob('{}*'.format(sid)) for p, sid in zip(list(selection[location]),
+    scene_path_globs = [Path(p).parent.glob('{}*'.format(sid)) for p, sid in zip(list(selection[platform_location]),
                                                                                  list(selection[scene_id]))]
+    logger.info('Scene file globs: {}'.format(len(scene_path_globs)))
     src_files = []
     for g in tqdm(scene_path_globs):
         for f in g:
@@ -84,7 +79,7 @@ def locate_source_files(selection):
     return src_files
 
 
-def copy_files(src_files, destination_path, transfer_method=tm_copy):
+def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=False):
     # Create destination folder structure
     # TODO: Option to build directory tree the same way we will index (and other options, --opf)
     if opf:
@@ -101,16 +96,18 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy):
         if df.exists():
             logger.debug('Destination file exists, skipping: {}'.format(sf.name))
             continue
-        if transfer_method == tm_link:
-            os.symlink(sf, destination_path)
-        else:
-            shutil.copy2(sf, destination_path)
+        if not dryrun:
+            if transfer_method == tm_link:
+                os.symlink(sf, destination_path)
+            else:
+                shutil.copy2(sf, destination_path)
         pbar.write('Copied {} -> {}'.format(sf, df))
 
     logger.info('File transfer complete.')
 
 
-def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=None, out_footprint=None):
+def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=None, out_footprint=None,
+                    dryrun=False):
     # Convert string paths to pathlib.Path
     if scene_ids_path:
         scene_ids_path = Path(scene_ids_path)
@@ -124,7 +121,7 @@ def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=N
     # Locate source files
     src_files = locate_source_files(selection=selection)
     # Copy to destination
-    copy_files(src_files=src_files, destination_path=destination_path)
+    copy_files(src_files=src_files, destination_path=destination_path, dryrun=dryrun)
 
     if out_footprint:
         if footprint_path:
@@ -147,6 +144,8 @@ if __name__ == '__main__':
                         help='Path to directory to write scenes to.')
     parser.add_argument('--out_footprint', type=os.path.abspath,
                         help='Path to write footprint (only useful if providing a list of IDs.')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print actions without performing copy.')
 
     args = parser.parse_args()
 
@@ -154,7 +153,9 @@ if __name__ == '__main__':
     footprint_path = args.footprint
     destination_path = args.destination
     out_footprint = args.out_footprint
+    dryrun = args.dryrun
 
     scene_retreiver(scene_ids_path=scene_ids_path, footprint_path=footprint_path,
                     destination_path=destination_path,
-                    out_footprint=out_footprint)
+                    out_footprint=out_footprint,
+                    dryrun=dryrun)

@@ -1,26 +1,43 @@
 import argparse
 import os
 
+import geopandas as gpd
+
 from lib import write_gdf
-from db_utils import Postgres
+from db_utils import Postgres, intersect_aoi_where
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 stereo_candidates_tbl = 'stereo_candidates'
-stereo_candidates_tbl_oh = 'stereo_candidates_oh'
+stereo_candidates_tbl_oh = 'stereo_candidates_onhand'
+geom_col = 'ovlp_geom'
 
 
-def select_xtrack(where, out_ids=None, out_footprint=None, onhand=True):
+def select_xtrack(aoi_path=None, where=None, out_ids=None, out_footprint=None, onhand=True):
     if onhand:
         stereo_tbl = stereo_candidates_tbl_oh
     else:
         stereo_tbl = stereo_candidates_tbl
 
-    sql = """"SELECT * FROM {} WHERE {}""".format(stereo_tbl, where)
+    if not where:
+        where = ''
+
+    if aoi_path:
+        aoi = gpd.read_file(aoi_path)
+        aoi_where = intersect_aoi_where(aoi, geom_col=geom_col)
+        if where:
+            where += " AND ({})".format(aoi_where)
+        else:
+            where = aoi_where
+
+    sql = """SELECT * FROM {} WHERE {}""".format(stereo_tbl, where)
+    logger.debug('SQL for stereo selection:\n{}'.format(sql))
 
     with Postgres('sandwich-pool.planet') as db:
         gdf = db.sql2gdf(sql=sql, geom_col='ovlp_geom')
+
+    logger.info('Pairs found: {:,}'.format(len(gdf)))
 
     # Write footprint
     if out_footprint:
@@ -34,10 +51,10 @@ def select_xtrack(where, out_ids=None, out_footprint=None, onhand=True):
     # Write IDs
     if out_ids:
         all_sids = list(gdf['id1']) + list(gdf['id2'])
-        logger.info('Total IDs before removing duplicates: {}'.format(len(all_sids)))
+        logger.info('Total IDs before removing duplicates: {:,}'.format(len(all_sids)))
 
         all_sids = set(all_sids)
-        logger.info('Unique scene ids: {}'.format(len(all_sids)))
+        logger.info('Unique scene ids: {:,}'.format(len(all_sids)))
 
         with open(out_ids, 'w') as dst:
             for sid in all_sids:
@@ -65,4 +82,4 @@ if __name__ == '__main__':
     out_footprint = args.out_footprint
     onhand = not args.all
 
-    select_xtrack(aoi=aoi, where=where, out_ids=out_ids, out_footprint=out_footprint, onhand=onhand)
+    select_xtrack(aoi_path=aoi, where=where, out_ids=out_ids, out_footprint=out_footprint, onhand=onhand)
