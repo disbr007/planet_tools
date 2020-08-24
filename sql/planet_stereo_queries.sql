@@ -2,7 +2,7 @@
 SELECT * FROM xtrack_cc20 LIMIT 10;
 SELECT * FROM xml_metadata LIMIT 10;
 SELECT SUBSTR(identifier, 0, 21) FROM xml_metadata LIMIT 10;
-SELECT id FROM scenes LIMIT 10;
+SELECT id FROM scenes_onhand LIMIT 10;
 SELECT COUNT(acquired) FROM scenes WHERE cast(acquired as varchar(100)) LIKE '%-01-%';
 SELECT COUNT(DISTINCT id) FROM scenes;
 SELECT COUNT(*) FROM scenes_onhand;

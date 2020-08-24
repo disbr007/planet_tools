@@ -21,6 +21,7 @@ from db_utils import Postgres
 
 # TODO: add get_search_area function to aid in managing quota
 # TODO: add remove_ids function
+
 # logger = create_logger(__name__, 'sh', 'INFO')
 
 # API URLs
