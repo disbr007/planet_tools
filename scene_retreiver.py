@@ -63,11 +63,15 @@ def locate_source_files(selection):
     # Locate scene files
     logger.info('Locating scene files...')
     selection[platform_location] = selection[location].apply(lambda x: get_platform_location(x))
+    logger.debug('Platform location: {}'.format(selection[platform_location].values[0]))
+
     # Create glob generators for each scene to find to all scene files (metadata, etc.)
     # e.g. "..\PSScene4Band\20191009_160416_100d*"
     scene_path_globs = [Path(p).parent.glob('{}*'.format(sid)) for p, sid in zip(list(selection[platform_location]),
                                                                                  list(selection[scene_id]))]
     logger.info('Scene file globs: {}'.format(len(scene_path_globs)))
+    logger.debug(scene_path_globs[0])
+
     src_files = []
     for g in tqdm(scene_path_globs):
         for f in g:
