@@ -28,7 +28,8 @@ def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
         sp = Path(s)
         if 'udm' in sp.stem:
             continue
-        sid = '_'.join(sp.stem.split('_')[0:4])
+        # TODO: Improve finding SID / scene file, etc
+        sid = '_'.join(sp.stem.split('_')[0:3])
         year = sp.stem[0:4]
         month = sp.stem[4:6]
         year_mo_dir = dst_dir / year / month

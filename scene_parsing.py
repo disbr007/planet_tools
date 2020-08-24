@@ -148,6 +148,7 @@ def find_scene_files(data_directory):
     scenes_to_parse = []
     for root, dirs, files in os.walk(data_directory):
         for f in files:
+            # TODO: Improve this
             if f.endswith('.tif') and not f.endswith('_udm.tif'):
                 scene = Path(root) / f
                 scenes_to_parse.append(scene)
