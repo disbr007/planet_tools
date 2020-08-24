@@ -106,8 +106,8 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
     logger.info('File transfer complete.')
 
 
-def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=None, out_footprint=None,
-                    dryrun=False):
+def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=None,
+                    transfer_method=tm_copy, out_footprint=None, dryrun=False):
     # Convert string paths to pathlib.Path
     if scene_ids_path:
         scene_ids_path = Path(scene_ids_path)
@@ -121,7 +121,8 @@ def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=N
     # Locate source files
     src_files = locate_source_files(selection=selection)
     # Copy to destination
-    copy_files(src_files=src_files, destination_path=destination_path, dryrun=dryrun)
+    copy_files(src_files=src_files, destination_path=destination_path,
+               transfer_method=transfer_method, dryrun=dryrun)
 
     if out_footprint:
         if footprint_path:
@@ -144,6 +145,8 @@ if __name__ == '__main__':
                         help='Path to directory to write scenes to.')
     parser.add_argument('--out_footprint', type=os.path.abspath,
                         help='Path to write footprint (only useful if providing a list of IDs.')
+    parser.add_argument('-tm' '--tranfsfer_method', type=str, choice=[tm_copy, tm_link],
+                        help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing copy.')
 
@@ -153,9 +156,9 @@ if __name__ == '__main__':
     footprint_path = args.footprint
     destination_path = args.destination
     out_footprint = args.out_footprint
+    transfer_method = args.transfer_method
     dryrun = args.dryrun
 
     scene_retreiver(scene_ids_path=scene_ids_path, footprint_path=footprint_path,
-                    destination_path=destination_path,
-                    out_footprint=out_footprint,
-                    dryrun=dryrun)
+                    destination_path=destination_path, out_footprint=out_footprint,
+                    transfer_method=transfer_method, dryrun=dryrun)
