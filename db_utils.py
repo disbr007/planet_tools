@@ -334,9 +334,9 @@ class Postgres(object):
             geometry_name = new.geometry.name
             if not geometry_name:
                 geometry_name = 'geometry'
-            logger.info('New geometry:\n'.format('\n'.join(list(new.geometry))))
+            # logger.info('New geometry:\n'.format('\n'.join(list(new.geometry))))
             logger.info('Features: {}'.format(len(new)))
-            logger.info('Features with valid geom: {}'.format(len(new[new.geometry].isnull())))
+            # logger.info('Features with valid geom: {}'.format(len(new[new.geometry].isnull())))
             new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
             new.drop(columns=geometry_name, inplace=True)
 

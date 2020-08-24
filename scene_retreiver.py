@@ -69,15 +69,13 @@ def locate_source_files(selection):
     # e.g. "..\PSScene4Band\20191009_160416_100d*"
     scene_path_globs = [Path(p).parent.glob('{}*'.format(sid)) for p, sid in zip(list(selection[platform_location]),
                                                                                  list(selection[scene_id]))]
-    logger.info('Scene file globs: {}'.format(len(scene_path_globs)))
-    logger.debug(scene_path_globs[0])
 
     src_files = []
     for g in tqdm(scene_path_globs):
         for f in g:
             src_files.append(f)
 
-    logger.info('Source files found: {}'.format(len(src_files)))
+    logger.info('Source files found: {:,}'.format(len(src_files)))
     # TODO: Break down files found by extension
 
     return src_files
@@ -96,6 +94,8 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
     logger.info('Moving files...')
     pbar = tqdm(src_dsts, desc='Copying...')
     for sf, df in pbar:
+        logger.debug(sf)
+        logger.debug(df)
         # Check for existence of destination path
         if df.exists():
             logger.debug('Destination file exists, skipping: {}'.format(sf.name))
