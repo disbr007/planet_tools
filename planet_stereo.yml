@@ -3,27 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - affine=2.3.0=py_0
-  - attrs=19.3.0=py_0
-  - boost-cpp=1.72.0=h2ba7cf6_1
-  - brotlipy=0.7.0=py38h1e8a9f7_1000
-  - bzip2=1.0.8=hfa6e2cd_2
-  - ca-certificates=2020.6.20=hecda079_0
-  - certifi=2020.6.20=py38h32f6830_0
-  - cffi=1.14.0=py38ha419a9e_0
-  - cfitsio=3.470=he774522_5
-  - chardet=3.0.4=py38h32f6830_1006
-  - click=7.1.2=pyh9f0ad1d_0
-  - click-plugins=1.1.1=py_0
-  - cligj=0.5.0=py_0
-  - cryptography=2.9.2=py38hba49e27_0
-  - curl=7.69.1=h1dcc11c_0
-  - cycler=0.10.0=py_2
+ 
   - descartes=1.1.0=py_4
-  - expat=2.2.9=he025d50_2
-  - fiona=1.8.13=py38h41bf4fa_1
-  - freetype=2.10.2=hd328e21_0
-  - freexl=1.0.5=hd288d7e_1002
+
   - gdal=3.0.4=py38h3ba59e7_9
   - geoalchemy2=0.6.3=py_0
   - geopandas=0.7.0=py_1
