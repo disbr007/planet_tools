@@ -12,7 +12,7 @@ from lib import read_ids, write_gdf
 from scene_parsing import get_platform_location
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Params
 db = 'sandwich-pool.planet'
