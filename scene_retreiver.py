@@ -145,7 +145,7 @@ if __name__ == '__main__':
                         help='Path to directory to write scenes to.')
     parser.add_argument('--out_footprint', type=os.path.abspath,
                         help='Path to write footprint (only useful if providing a list of IDs.')
-    parser.add_argument('-tm' '--transfer_method', type=str, choices=[tm_copy, tm_link],
+    parser.add_argument('-tm', '--transfer_method', type=str, choices=[tm_copy, tm_link],
                         help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing copy.')
