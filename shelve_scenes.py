@@ -37,7 +37,7 @@ def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
 
         scene_files = Path(sp).parent.glob('{}*'.format(sid))
         for sf in scene_files:
-            df = year_mo_dir / sf.nam
+            df = year_mo_dir / sf.name
             if df.exists():
                 logger.debug('Destination file exists, skipping: {}'.format(sp.name))
                 continue
