@@ -1,6 +1,7 @@
 import argparse
 from copy import deepcopy
 import json
+import math
 import requests
 import os
 from multiprocessing.dummy import Pool as ThreadPool
@@ -11,6 +12,7 @@ import sys
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
+from tqdm import tqdm
 
 from lib import write_gdf
 from logging_utils.logging_utils import create_logger
@@ -19,7 +21,7 @@ from db_utils import Postgres
 
 # TODO: add get_search_area function to aid in managing quota
 # TODO: add remove_ids function
-logger = create_logger(__name__, 'sh', 'DEBUG')
+# logger = create_logger(__name__, 'sh', 'INFO')
 
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
@@ -97,28 +99,42 @@ def response2gdf(response):
     return gdf
 
 
-def get_search_page_urls(saved_search_id):
+def get_search_page_urls(saved_search_id, total_count):
     # TODO: Speed this up, bottle neck - is it possible to speed up?
     # TODO: How much longer would it take to just process each page...?
     # TODO: Rewrite as loop up to total number of scenes in search id
     def fetch_pages(search_url, all_pages):
+        # logger.debug('Fetching page...')
         session = get_session()
         all_pages.append(search_url)
         res = session.get(search_url)
         if res.status_code != 200:
             logger.error('Error connecting to search API: {}'.format(first_page_url))
             logger.error('Status code: {}'.format(res.status_code))
+            logger.error('Reason: {}'.format(res.reason))
             raise ConnectionError
         page = res.json()
         next_url = page['_links'].get('_next')
-        if next_url:
-            fetch_pages(next_url, all_pages)
+        logger.debug(next_url)
+
+        return next_url
+        # if next_url:
+        #     fetch_pages(next_url, all_pages)
+
+    # 250 is max page size
+    feat_per_page = 250
 
     logger.debug('Getting page urls for search...')
     all_pages = []
-    # 250 is max page size
-    first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, 250)
-    fetch_pages(first_page_url, all_pages=all_pages)
+
+    total_pages = math.ceil(total_count / feat_per_page) + 1
+    logger.debug('Total pages for search: {}'.format(total_pages))
+    pbar = tqdm(total=total_pages, desc='Parsing response pages')
+    first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, feat_per_page)
+    next_page = first_page_url
+    while next_page:
+        next_page = fetch_pages(next_page, all_pages=all_pages)
+        pbar.update(1)
     logger.debug('Pages: {}'.format(len(all_pages)))
 
     return all_pages
@@ -141,11 +157,11 @@ def process_page(page_url):
     return gdf
 
 
-def get_features(saved_search_id):
+def get_features(saved_search_id, total_count):
 
     master_footprints = gpd.GeoDataFrame()
 
-    all_pages = get_search_page_urls(saved_search_id=saved_search_id)
+    all_pages = get_search_page_urls(saved_search_id=saved_search_id, total_count=total_count)
 
     threads = 1
     thread_pool = ThreadPool(threads)
@@ -177,7 +193,7 @@ def select_scenes(search_id, dryrun=False):
     # Perform requests to API to return features, which are converted to footprints in a geodataframe
     master_footprints = gpd.GeoDataFrame()
     if not dryrun:
-        master_footprints = get_features(saved_search_id=search_id)
+        master_footprints = get_features(saved_search_id=search_id, total_count=total_count)
     logger.info('Total features processed: {:,}'.format(len(master_footprints)))
 
     return master_footprints, sr_name

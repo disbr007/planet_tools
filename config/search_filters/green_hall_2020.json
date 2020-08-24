@@ -1,0 +1,29 @@
+{
+  "name": "green_hall_2020",
+  "item_types": [
+    "PSScene4Band"
+  ],
+  "filter": {
+    "type": "AndFilter",
+    "config": [
+      {
+        "type": "DateRangeFilter",
+        "field_name": "acquired",
+        "config": {
+          "gte": "2020-01-01T00:00:00.000Z"
+        }
+      },
+      {
+        "type": "GeometryFilter",
+        "field_name": "geometry",
+        "config": {
+          "type": "Point",
+          "coordinates": [
+            -93.185287,
+            44.987322
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -47,6 +47,8 @@ def select_xtrack(where, out_ids=None, out_footprint=None, onhand=True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--aoi', type=os.path.abspath,
+                        help='AOI within which to select stereo pairs.')
     parser.add_argument('-w', '--where', type=str, help='The SQL WHERE clause to apply to the stereo candidates table.')
     parser.add_argument('--out_ids', type=os.path.abspath,
                         help='Path to write text file of IDs to.')
@@ -57,9 +59,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    aoi = args.aoi
     where = args.where
     out_ids = args.out_ids
     out_footprint = args.out_footprint
     onhand = not args.all
 
-    select_xtrack(where=where, out_ids=out_ids, out_footprint=out_footprint, onhand=onhand)
+    select_xtrack(aoi=aoi, where=where, out_ids=out_ids, out_footprint=out_footprint, onhand=onhand)

@@ -41,6 +41,8 @@ def type_parser(filepath):
             file_type = 'dbf'
         elif ext == '.shp':
             file_type = 'shp'
+        elif ext == '.geojson':
+            file_type = 'geojson'
     elif isinstance(fp, (gpd.GeoDataFrame, pd.DataFrame)):
         file_type = 'df'
     else:
@@ -57,7 +59,7 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     # Determine file type
     file_type = type_parser(ids_file)
 
-    if file_type in ('dbf', 'df', 'gdf', 'shp', 'csv', 'excel') and not field:
+    if file_type in ('dbf', 'df', 'gdf', 'shp', 'csv', 'excel', 'geojson') and not field:
         logger.error('Must provide field name with file type: {}'.format(file_type))
         sys.exit()
 
@@ -89,7 +91,10 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
     elif file_type == 'shp':
         df = gpd.read_file(ids_file)
         ids = list(df[field])
-
+    # GEOJSON
+    elif file_type == 'geojson':
+        df = gpd.read_file(ids_file, driver='GeoJSON')
+        ids = list(df[field])
     # GDF, DF
     elif file_type in ('gdf', 'df'):
         ids = list(ids_file[field])

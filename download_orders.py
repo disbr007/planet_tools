@@ -131,7 +131,7 @@ if __name__ == '__main__':
     logger.info('Order IDs to download:\n{}'.format('\n'.join([str(o) for o in order_ids])))
     pbar = tqdm(order_ids, desc='Order ', position=0)
     for i, oid in enumerate(pbar):
-        pbar.set_description('Order: {}/{}'.format(i, len(order_ids)))
+        pbar.set_description('Order: {}/{}'.format(i+1, len(order_ids)))
         order_dst_dir = dst_dir / oid
         if not os.path.exists(order_dst_dir):
             os.makedirs(order_dst_dir)

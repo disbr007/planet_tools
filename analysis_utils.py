@@ -150,7 +150,7 @@ def sql2hist(sql, column, ax=None, bins=None,
         fig, ax = plt.subplots(1,1)
 
 
-    counts, bins, patches = ax.hist(x=tbl['off_nadir_diff'], bins=bins, edgecolor='white')
+    counts, bins, patches = ax.hist(x=tbl[column], bins=bins, edgecolor='white')
     bin_centers = 0.5 * np.diff(bins) + bins[:-1]
     for count, patch in zip(counts, patches):
         # Label the counts
@@ -158,13 +158,12 @@ def sql2hist(sql, column, ax=None, bins=None,
         ax.text(patch.get_x() + patch.get_width() / 2, height + 5, y_fmt(count),
                 ha='center', va='bottom')
 
-    ax.xaxis.set_ticks(np.append(bins[::2], 14))
     if title:
         ax.set_title(title)
     if not xlabel:
         ax.set_xlabel(column)
     else:
-        ax.set_ylabel(xlabel)
+        ax.set_xlabel(xlabel)
 
     ax.set_ylabel(ylabel)
 

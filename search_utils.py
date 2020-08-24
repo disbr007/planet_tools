@@ -9,7 +9,7 @@ import geopandas as gpd
 
 from logging_utils.logging_utils import  create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # TODO: convert to search_session class (all fxns that take session)
 # TODO: Add filter: id NOT IN [list of existing IDs]
@@ -233,8 +233,9 @@ def get_search_count(search_request):
         stats = session.post(STATS_URL, json=stats_request)
         if not str(stats.status_code).startswith('2'):
             logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)))
+            logger.debug(stats.reason)
         logger.debug(stats)
-        logger.debug(stats.reason)
+
 
     total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])
     logger.debug('Total count for search request "{}": {:,}'.format(name, total_count))

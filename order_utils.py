@@ -7,6 +7,7 @@ from retrying import retry
 import pathlib
 import os
 import time
+import sys
 
 import pandas as pd
 import geopandas as gpd
@@ -117,6 +118,7 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
     if delivery == "aws":
         order_request.update(create_aws_delivery())
     # TODO: other cloud locations (Azure, Google)
+    # logger.info(order_request)
 
     return order_request
 
@@ -127,8 +129,10 @@ def place_order(order_request):
     if response.status_code != 202:
         logger.error("Error placing order '{}': {}".format(order_request["name"], response))
         logger.error("Response reason: {}".format(response.reason))
-        print(dir(response))
+        logger.error('Request:\n{}'.format(order_request))
+        sys.exit()
     order_id = response.json()["id"]
+    logger.debug('Request:\n{}'.format(order_request))
     logger.debug("Order ID: {}".format(order_id))
     order_url = "{}/{}".format(ORDERS_URL, order_id)
 

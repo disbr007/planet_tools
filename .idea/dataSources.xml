@@ -1,25 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="plt_fps" uuid="5bfe3f68-b05f-4d16-8122-444357aa9912">
-      <driver-ref>postgresql</driver-ref>
-      <synchronize>true</synchronize>
-      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
-      <jdbc-url>jdbc:postgresql://localhost:5432/plt_fps</jdbc-url>
-    </data-source>
-    <data-source source="LOCAL" name="danco" uuid="d71cb419-8cce-4d74-80b3-e6e6141d26bd">
+    <data-source source="LOCAL" name="danco" uuid="196850bd-ad11-44db-a58c-5a0cf72806ae">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://danco.pgc.umn.edu:5432/footprint</jdbc-url>
     </data-source>
-    <data-source source="LOCAL" name="sandwich-pool" uuid="d0033134-dd1d-4a18-9ff3-93d634b34908">
+    <data-source source="LOCAL" name="sandwich.dem" uuid="fb3840dd-90ce-4635-9c43-502285904c71">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/dem</jdbc-url>
     </data-source>
-    <data-source source="LOCAL" name="planet@localhost" uuid="c4a871aa-59db-4eb3-b09d-ae0e08f277b1">
+    <data-source source="LOCAL" name="planet" uuid="0b21490b-0453-40de-8a73-a721cbbd3d92">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>

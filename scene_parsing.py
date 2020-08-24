@@ -15,11 +15,11 @@ logger = create_logger(__name__, 'sh', 'INFO')
 
 windows = 'Windows'
 linux = 'Linux'
-tn_loc = 'tn_loc'
-win_loc = 'win_loc'
-relative_loc = 'location'
+location = 'location'
+relative_loc = 'rel_location'
 scenes_id = 'id'
 order_id = 'order_id'
+filename = 'filename'
 
 
 def win2linux(path):
@@ -50,8 +50,8 @@ def id_from_scene(scene, scene_levels=['1B']):
     return scene_id
 
 
-def gdf_from_metadata(scene_md_paths, relative_directory,
-                      relative_locs=True, pgc_locs=True,
+def gdf_from_metadata(scene_md_paths, relative_directory=None,
+                      relative_locs=False, pgc_locs=True,
                       rel_loc_style='W'):
     rows = []
     for sm in tqdm(scene_md_paths):
@@ -64,7 +64,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory,
         metadata = json.load(open(metadata_path))
         properties = metadata['properties']
 
-        # Create paths for both windows and linux
+        # Create paths for both Windows and linux
+        # Keep only Linux - Use windows for checking existence if code run on windows
         if platform.system() == windows:
             wl = str(scene_path)
             tn = win2linux(str(scene_path))
@@ -74,14 +75,13 @@ def gdf_from_metadata(scene_md_paths, relative_directory,
                 add_row = False
         elif platform.system() == linux:
             tn = str(scene_path)
-            wl = linux2win(str(scene_path))
+            # wl = linux2win(str(scene_path))
             if os.path.exists(tn):
                 add_row = True
             else:
                 add_row = False
         if pgc_locs:
-            properties[win_loc] = wl
-            properties[tn_loc] = tn
+            properties[location] = tn
         if relative_locs:
             rl = Path(scene_path).relative_to(Path(relative_directory))
             if rel_loc_style == 'W' and platform.system() == 'Linux':
@@ -90,18 +90,22 @@ def gdf_from_metadata(scene_md_paths, relative_directory,
                 properties[relative_loc] = win2linux(str(rl))
             else:
                 properties[relative_loc] = str(rl)
-        oid = Path(metadata_path).relative_to(relative_directory).parts[0]
+            oid = Path(metadata_path).relative_to(relative_directory).parts[0]
         properties[scenes_id] = metadata['id']
-        properties[order_id] = oid
+        # properties[order_id] = oid
+        properties[filename] = scene_path.name
 
         try:
+            # TODO: Figure out why some footprints are multipolygon
             if metadata['geometry']['type'] == 'Polygon':
                 properties['geometry'] = Polygon(metadata['geometry']['coordinates'][0])
             elif metadata['geometry']['type'] == 'MultiPolygon':
-                properties['geometry'] = MultiPolygon([Polygon(metadata['geometry']['coordinates'][i][0])
-                                                       for i in range(len(metadata['geometry']['coordinates']))])
+                logger.warning('Skipping MultiPolygon geometry')
+                add_row = False
+                # properties['geometry'] = MultiPolygon([Polygon(metadata['geometry']['coordinates'][i][0])
+                #                                        for i in range(len(metadata['geometry']['coordinates']))])
         except Exception as e:
-            # TODO: Look for geometry in scenes table if bad geom in metadat
+            # TODO: Look for geometry in scenes table if bad geom in metadata
             logger.error('Geometry error, skipping add scene: {}'.format(properties[scenes_id]))
             logger.error('Metadata file: {}'.format(metadata_path))
             logger.error('Geometry: {}'.format(metadata['geometry']))
@@ -112,7 +116,11 @@ def gdf_from_metadata(scene_md_paths, relative_directory,
             rows.append(properties)
         else:
             logger.warning('Scene could not be found (or had bad geometry), '
-                           'skipping adding: {}\n\tat {}'.format(metadata['id'], scene_path))
+                           'skipping adding:\n{}\tat {}'.format(metadata['id'], scene_path))
+
+    if len(rows) == 0:
+        # TODO: Address how to actually deal with not finding any features - sys.exit()?
+        logger.warning('No features to convert to GeoDataFrame.')
 
     gdf = gpd.GeoDataFrame(rows, geometry='geometry', crs='epsg:4326')
 
