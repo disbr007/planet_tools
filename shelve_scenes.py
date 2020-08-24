@@ -18,8 +18,11 @@ tm_copy = 'copy'
 def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
     data_dir = Path(src_dir)
     dst_dir = Path(dst_dir)
+
+    logger.info('Locating scene files...')
     scenes = data_dir.rglob('*.tif')
 
+    logger.info('Copying scenes to shelved locations...')
     pbar = tqdm(scenes)
     for s in pbar:
         sp = Path(s)

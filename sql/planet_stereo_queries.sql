@@ -55,6 +55,7 @@ CREATE MATERIALIZED VIEW scenes_metadata AS
            o.sat_satellite_azimuth_mean as azimuth,
            o.sat_off_nadir as off_nadir_unsigned,
            x."orbitDirection" as orbitDirection,
+           x.identifier as identifier,
            SIGN(o.sat_satellite_azimuth_mean)*o.sat_off_nadir as off_nadir_signed
            FROM scenes as s
 INNER JOIN off_nadir as o ON s.id = o.scene_name
@@ -115,6 +116,7 @@ WHERE off_nadir_diff > 5 AND
 CREATE UNIQUE INDEX idx_id_scenes on scenes(id);
 
 /* Create onhand candidates table */
+/* TODO: pairname_fn could come from xml_metadata upon creation of scenes_onhand */
 CREATE MATERIALIZED VIEW stereo_candidates_onhand AS
 SELECT s.*,
        so1.filename as filename1,
