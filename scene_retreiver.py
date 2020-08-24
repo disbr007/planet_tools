@@ -63,7 +63,6 @@ def locate_source_files(selection):
     # Locate scene files
     logger.info('Locating scene files...')
     selection[platform_location] = selection[location].apply(lambda x: get_platform_location(x))
-    logger.debug('Platform location: {}'.format(selection[platform_location].values[0]))
 
     # Create glob generators for each scene to find to all scene files (metadata, etc.)
     # e.g. "..\PSScene4Band\20191009_160416_100d*"
@@ -94,17 +93,15 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
     logger.info('Moving files...')
     pbar = tqdm(src_dsts, desc='Copying...')
     for sf, df in pbar:
-        logger.debug(sf)
-        logger.debug(df)
         # Check for existence of destination path
         if df.exists():
             logger.debug('Destination file exists, skipping: {}'.format(sf.name))
             continue
         if not dryrun:
             if transfer_method == tm_link:
-                os.symlink(sf, destination_path)
+                os.symlink(sf, df)
             else:
-                shutil.copy2(sf, destination_path)
+                shutil.copy2(sf, df)
         pbar.write('Copied {} -> {}'.format(sf, df))
 
     logger.info('File transfer complete.')
