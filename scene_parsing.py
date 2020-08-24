@@ -23,13 +23,13 @@ filename = 'filename'
 
 
 def win2linux(path):
-    lp = path.replace('\\', '/').replace('V:', 'mnt')
+    lp = path.replace('\\', '/').replace('V:', '/mnt')
 
     return lp
 
 
 def linux2win(path):
-    wp = path.replace('/', '\\').replace('mnt', 'V:')
+    wp = path.replace('/', '\\').replace('/mnt', 'V:')
 
     return wp
 
