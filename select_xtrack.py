@@ -7,7 +7,7 @@ from lib import write_gdf
 from db_utils import Postgres, intersect_aoi_where
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 stereo_candidates_tbl = 'stereo_candidates'
 stereo_candidates_tbl_oh = 'stereo_candidates_onhand'
@@ -21,6 +21,7 @@ geom_col = 'ovlp_geom'
 
 def select_xtrack(aoi_path=None, where=None, out_ids=None,
                   out_pairs_footprint=None, out_scene_footprint=None,
+                  out_pairs_csv=None,
                   onhand=True):
     if onhand:
         stereo_tbl = stereo_candidates_tbl_oh
@@ -60,7 +61,7 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
     # Write footprint of individual scenes
     if out_scene_footprint:
         all_sids = list(gdf[id1_col]) + list(gdf[id2_col])
-        logger.info('Total IDs before removing duplicates: {:,}'.format(len(all_sids)))
+        # logger.info('Total IDs before removing duplicates: {:,}'.format(len(all_sids)))
         all_sids = list(set(all_sids))
         logger.info('Unique scene ids: {:,}'.format(len(all_sids)))
 
@@ -84,6 +85,10 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
                 dst.write(sid)
                 dst.write('\n')
 
+    if out_pairs_csv:
+        logger.info('Writing pairs to CSV: {}'.format(out_pairs_csv))
+        gdf.drop(columns=gdf.geometry.name).to_csv(out_pairs_csv)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -94,6 +99,8 @@ if __name__ == '__main__':
                         help='Path to write text file of IDs to.')
     parser.add_argument('--out_pairs_footprint', type=os.path.abspath,
                         help='Path to write footprint of pairs (intersections) to.')
+    parser.add_argument('--out_pairs_csv', type=os.path.abspath,
+                        help='Path to write csv of pairs to.')
     parser.add_argument('--out_scene_footprint', type=os.path.abspath,
                         help='Path to write footprint of scenes to.')
     parser.add_argument('-all', action='store_true',
@@ -106,8 +113,10 @@ if __name__ == '__main__':
     out_ids = args.out_ids
     out_pairs_footprint = args.out_pairs_footprint
     out_scene_footprint = args.out_scene_footprint
+    out_pairs_csv = args.out_pairs_csv
     onhand = not args.all
 
     select_xtrack(aoi_path=aoi, where=where, out_ids=out_ids,
                   out_pairs_footprint=out_pairs_footprint,  out_scene_footprint=out_scene_footprint,
+                  out_pairs_csv=out_pairs_csv,
                   onhand=onhand)

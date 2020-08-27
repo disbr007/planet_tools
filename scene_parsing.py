@@ -43,7 +43,7 @@ def get_platform_location(path):
     return pl
 
 
-def id_from_scene(scene, scene_levels=['1B']):
+def id_from_scene(scene, scene_levels=['1B', '3B']):
     """scene : pathlib.Path"""
     if not isinstance(scene, pathlib.PurePath):
         scene = Path(scene)

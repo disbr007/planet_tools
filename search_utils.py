@@ -28,18 +28,130 @@ if not PLANET_API_KEY:
 filter_types = ('DateRangeFilter', 'RangeFilter', 'UpdateFilter',
                 'GeometryFilter', 'NumberInFilter', 'StringInFilter')
 
+# String keys values in filters
+ftype = 'type'
+and_filter = 'AndFilter'
+or_filter = 'OrFilter'
+filter_type = 'filter_type'
+field_name = 'field_name'
+config = 'config'
+operator = 'operator'
+drf = 'DateRangeFilter'
+gf = 'GeometryFilter'
+nif = 'NumberInFilter'
+rf = 'RangeFilter'
+sif = 'StringInFilter'
+lte = 'lte'
+gte = 'gte'
 
-def vector2geometry(vector_file):
+# For parsing attribute arguements
+attrib_arg_lut = {
+    'min_date':             {filter_type: drf, operator: gte,  field_name: 'acquired'},
+    'max_date':             {filter_type: drf, operator: lte,  field_name: 'acquired'},
+    'max_cc':               {filter_type: rf,  operator: lte,  field_name: 'cloud_cover',},
+    'min_ulx':              {filter_type: rf,  operator: gte,  field_name: 'origin_x'},
+    'max_ulx':              {filter_type: rf,  operator: lte,  field_name: 'origin_x'},
+    'min_uly':              {filter_type: rf,  operator: gte,  field_name: 'origin_y'},
+    'max_uly':              {filter_type: rf,  operator: lte,  field_name: 'origin_y'},
+    'provider':             {filter_type: sif, operator: None, field_name: 'provider'},
+    'satellite_id':         {filter_type: sif, operator: None, field_name: 'satellite_id'},
+    'instrument':           {filter_type: sif, operator: None, field_name: 'instrument'},
+    'strip_id':             {filter_type: sif, operator: None, field_name: 'strip_id'},
+    'min_sun_azimuth':      {filter_type: rf,  operator: gte,  field_name: 'sun_azimuth'},
+    'max_sun_azimuth':      {filter_type: rf,  operator: lte,  field_name: 'sun_azimuth'},
+    'min_sun_elevation':    {filter_type: rf,  operator: gte,  field_name: 'sun_elevation'},
+    'max_sun_elevation':    {filter_type: rf,  operator: lte,  field_name: 'sun_elevation'},
+    'quality_category':     {filter_type: sif, operator: None, field_name: 'quality_category'},
+    'max_usable_data':      {filter_type: rf,  operator: gte,  field_name: 'usable_data'},
+    'ground_control':       {filter_type: rf,  operator: gte,  field_name: 'ground_control'}
+}
+
+
+def create_master_geom_filter(vector_file):
+    # Read in AOI
+    aoi = gpd.read_file(vector_file)
+    # Create list of geometries to put in separate filters
+    geometries = aoi.geometry.values
+    json_geoms = [json.loads(gpd.GeoSeries([g]).to_json())['features'][0]['geometry']
+                  for g in geometries]
+    # Create each geometry filter
+    geom_filters = []
+    for jg in json_geoms:
+        geom_filter = {
+            ftype: gf,
+            field_name: 'geometry',
+            config: jg
+        }
+        geom_filters.append(geom_filter)
+    # If more than one, nest in OrFilter, otherwise return single GeometryFilter
+    if len(geom_filters) > 1:
+        master_geom_filter = {
+            ftype: or_filter,
+            config: geom_filters
+        }
+    else:
+        master_geom_filter = geom_filters[0]
+
+    return master_geom_filter
+
+
+def create_attribute_filter(arg_name, arg_value):
+    # Look up arg name, get filter type, field name, and comparison
+    filter_params = attrib_arg_lut[arg_name]
+    # If date (yyyy-mm-dd) provided, add time string to value
+    if filter_params[filter_type] == drf:
+        arg_value += "T00:00:00.000Z"
+
+    if filter_params[operator]:
+        arg_config = {filter_params[operator]: arg_value}
+    else:
+        arg_config = arg_value
+    # Create filter
+    filter = {
+        ftype: filter_params[filter_type],
+        field_name: filter_params[field_name],
+        config: arg_config
+    }
+
+    return filter
+
+
+def create_master_attribute_filter(attribute_args):
+    # Create an AND filter from all attribute arguments provided
+    # Remove arguments not provided
+    attribute_kwargs = [kwa for kwa in attribute_args._get_kwargs() if kwa[1]]
+    attribute_filters = []
+    for arg_name, arg_value in attribute_kwargs:
+        att_filter = create_attribute_filter(arg_name, arg_value)
+        attribute_filters.append(att_filter)
+
+    if len(attribute_filters) > 1:
+        master_attribute_filter = {
+            ftype: and_filter,
+            config: attribute_filters
+        }
+    else:
+        master_attribute_filter = attribute_filters[0]
+
+    return master_attribute_filter
+
+
+def vector2geometry_config(vector_file):
     """Convert vector file to geojson geometry"""
-    gdf = gpd.read_file(vector_file)
+    if type(vector_file) == str:
+        gdf = gpd.read_file(vector_file)
+    else:
+        # assume gdf
+        gdf = vector_file
+    geoms = gdf.geometry.values
     geom = gdf.geometry.values[0]
     gs = gpd.GeoSeries([geom])
-    geometry = json.loads(gs.to_json())['features'][0]['geometry']
+    config = json.loads(gs.to_json())['features'][0]['geometry']
 
-    return geometry
+    return config
 
 
-def split_filter_arg(filter_arg):
+def filter_from_arg(filter_arg):
     """Convert string of : separated arguments to form a filter
     to a formated search_filter dict"""
     # logger.debug('Filter arg: {}'.format(filter_arg))
@@ -79,8 +191,7 @@ def split_filter_arg(filter_arg):
             vector_file = filter_arg[2]
         logger.debug('Loading geometry from vector file: {}'.format(vector_file))
         assert os.path.exists(vector_file)
-        config = vector2geometry(vector_file=vector_file)
-
+        config = vector2geometry_config(vector_file=vector_file)
     else:
         field_name, config = filter_arg[1], filter_arg[2]
 
@@ -92,14 +203,19 @@ def split_filter_arg(filter_arg):
     # logger.debug('Created search filter:\nType: {}\nField: {}\nConfig: {}'.format(filter_type,
     #                                                                               field_name,
     #                                                                               config))
+
     return search_filter
 
 
 def create_master_filter(search_filters):
-    master_filter = {
-        "type": "AndFilter",
-        "config": search_filters
-    }
+    if len(search_filters) > 1:
+        master_filter = {
+            "type": "AndFilter",
+            "config": search_filters
+        }
+    else:
+        master_filter = search_filters[0]
+
     return master_filter
 
 

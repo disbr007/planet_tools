@@ -27,6 +27,7 @@ def main(args):
     scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
     logger.info('Found {:,} associated metadata files.'.format(len(scenes_metadatas)))
 
+    logger.info('Creating footprint from metadata files...')
     gdf = gdf_from_metadata(scenes_metadatas, relative_directory=relative_directory,
                             relative_locs=True, pgc_locs=False,
                             rel_loc_style=rel_loc_style)
@@ -49,5 +50,5 @@ if __name__ == '__main__':
                         help='System style for paths in footprint.')
 
     args = parser.parse_args()
-    print(args)
+
     main(args)

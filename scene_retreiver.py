@@ -99,7 +99,7 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
             continue
         if not dryrun:
             if transfer_method == tm_link:
-                os.symlink(sf, df)
+                os.link(sf, df)
             else:
                 shutil.copy2(sf, df)
         pbar.write('Copied {} -> {}'.format(sf, df))

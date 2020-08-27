@@ -113,6 +113,8 @@ def get_search_page_urls(saved_search_id, total_count):
             logger.error('Error connecting to search API: {}'.format(first_page_url))
             logger.error('Status code: {}'.format(res.status_code))
             logger.error('Reason: {}'.format(res.reason))
+            if res.status_code == 408:
+                logger.warning('Request timeout.')
             raise ConnectionError
         page = res.json()
         next_url = page['_links'].get('_next')
@@ -134,6 +136,7 @@ def get_search_page_urls(saved_search_id, total_count):
     first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, feat_per_page)
     next_page = first_page_url
     while next_page:
+        pbar.write('Parsing: {}'.format(next_page))
         next_page = fetch_pages(next_page, all_pages=all_pages)
         pbar.update(1)
     logger.debug('Pages: {}'.format(len(all_pages)))
@@ -141,16 +144,18 @@ def get_search_page_urls(saved_search_id, total_count):
     return all_pages
 
 
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
+@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000,
+       stop_max_delay=30000)
 def process_page(page_url):
     session = get_session()
     res = session.get(page_url)
     if res.status_code == 429:
         logger.debug('Response: {} - rate limited - retrying...'.format(res.status_code))
-        raise Exception("Rate limit error.")
+        raise Exception("Rate limit error. Retrying...")
     if res.status_code != 200:
         logger.error('Error connecting to search API: {}'.format(page_url))
         logger.error('Status code: {}'.format(res.status_code))
+        logger.error('Reason: {}'.format(res.reason))
         raise ConnectionError
 
     gdf = response2gdf(response=res)

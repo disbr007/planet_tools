@@ -44,10 +44,10 @@ def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
                 continue
             if not dryrun:
                 if transfer_method == tm_link:
-                    os.symlink(sf, df)
+                    os.link(sf, df)
                 else:
                     shutil.copy2(sf, df)
-            pbar.write('Copied {} ->\n\t{}'.format(sp, df))
+            pbar.write('Copied {} ->\n\t{}'.format(sf, df))
 
 
 if __name__ == '__main__':
@@ -57,7 +57,7 @@ if __name__ == '__main__':
                         help='Path to directory to shelve.')
     parser.add_argument('--dst_dir', type=os.path.abspath,
                         help='Path to destination directory')
-    parser.add_argument('-tm', '--transfer_method',
+    parser.add_argument('-tm', '--transfer_method', choices=[tm_copy, tm_link],
                         help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true')
     

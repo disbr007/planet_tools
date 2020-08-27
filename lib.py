@@ -1,3 +1,4 @@
+import argparse
 import copy
 import os
 import sys
@@ -146,3 +147,15 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
         logger.error('Unrecognized format: {}'.format(out_format))
 
     logger.info('Done.')
+
+
+def parse_group_args(parser, group_name):
+    # Get just arguments in given group from argparse.ArgumentParser() as Namespace object
+    args = parser.parse_args()
+    arg_groups = {}
+    for group in parser._action_groups:
+        group_dict = {a.dest: getattr(args, a.dest, None) for a in group._group_actions}
+        arg_groups[group.title] = argparse.Namespace(**group_dict)
+    parsed_attribute_args = arg_groups[group_name]
+
+    return parsed_attribute_args

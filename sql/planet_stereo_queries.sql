@@ -1,4 +1,5 @@
 /* Counting */
+SELECT max(cloud_cover) FROM scenes;
 SELECT * FROM xtrack_cc20 LIMIT 10;
 SELECT * FROM xml_metadata LIMIT 10;
 SELECT SUBSTR(identifier, 0, 21) FROM xml_metadata LIMIT 10;
