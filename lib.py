@@ -146,7 +146,7 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
     else:
         logger.error('Unrecognized format: {}'.format(out_format))
 
-    logger.info('Done.')
+    logger.debug('Writing complete.')
 
 
 def parse_group_args(parser, group_name):

@@ -5,13 +5,12 @@ import requests
 from retrying import retry
 import time
 
-import geopandas as gpd
-
 from lib import read_ids
 from logging_utils.logging_utils import create_logger
 from db_utils import Postgres
-from order_utils import get_stereo_pairs, pairs_to_list, \
-    create_order_request, place_order, poll_for_success, get_order_results
+from order_utils import create_order_request, place_order, remove_recent_ids
+
+#TODO: order compressed?
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -19,7 +18,7 @@ planet_db = 'sandwich-pool.planet'
 scenes_onhand_tbl = 'scenes_onhand'
 scene_id = 'id'
 
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
+@retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
 def count_concurrent_orders():
     # TODO: Move these to a config file
     orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
@@ -45,22 +44,22 @@ def count_concurrent_orders():
     return total
 
 
-def main(args):
-    name = args.order_name
-    ids_path = args.ids
-    selection_path = args.selection
-    orders_path = args.orders
-    product_bundle = args.product_bundle
-    remove_onhand = not args.do_not_remove_onhand
-    dryrun = args.dryrun
+def submit_order(name, ids_path, selection_path, product_bundle,
+                 orders_path=None, remove_onhand=True, dryrun=False):
 
     if ids_path:
         logger.info('Reading IDs from: {}'.format(ids_path))
         ids = list(set([x.strip() for x in open(ids_path, 'r')]))
-        logger.info('IDs found: {:,}'.format(len(ids)))
+
     elif selection_path:
         logger.info('Reading IDs from selection: {}'.format(selection_path))
         ids = read_ids(selection_path, field='id')
+
+    logger.info('IDs found: {:,}'.format(len(ids)))
+
+    # logger.info('Removing any recent IDs, per Planet limit on recent image ordering.')
+    # ids = remove_recent_ids(ids)
+    # logger.info('Remaining IDs: {}'.format(len(ids)))
 
     if remove_onhand:
         logger.info('Removing onhand IDs...')
@@ -77,8 +76,7 @@ def main(args):
                   for i in range(0, len(ids), assets_per_order)]
     more_than_one = len(ids_chunks) > 1
 
-    # Open file to write list of orders to
-    orders_txt = open(orders_path, 'w')
+    submitted_orders = []
     # Iterate over IDs in chunks, submitting each as an order
     for i, ids_chunk in enumerate(ids_chunks):
         if more_than_one:
@@ -89,14 +87,13 @@ def main(args):
         order_submitted = False
         while order_submitted is False:
             concurrent_orders = count_concurrent_orders()
-            logger.info('Concurrent orders: {}'.format(concurrent_orders))
+            logger.debug('Concurrent orders: {}'.format(concurrent_orders))
             if concurrent_orders < max_concur:
                 # Submit
                 if not dryrun:
                     logger.info('Submitting order: {}'.format(order_name))
                     order_id, order_url = place_order(order_request=order_request)
-                    orders_txt.write(order_id)
-                    orders_txt.write('\n')
+                    submitted_orders.append(order_id)
                     logger.info('Order ID: {}'.format(order_id))
                     logger.info('Order URL: {}'.format(order_url))
                     # success = poll_for_success(order_id=order_id)
@@ -115,7 +112,15 @@ def main(args):
         # Avoid submitting too fast
         time.sleep(1)
 
-    orders_txt.close()
+    if orders_path:
+        logger.info('Writing order IDs to file: {}'.format(orders_path))
+        with open(orders_path, 'w') as orders_txt:
+            for order_id in submitted_orders:
+                orders_txt.write(order_id)
+                orders_txt.write('\n')
+
+    return submitted_orders
+
 
 if __name__ == '__main__':
     # Choices
@@ -136,7 +141,7 @@ if __name__ == '__main__':
                         help='Path to selection of footprints to order, by ID.')
     parser.add_argument('--product_bundle', type=str, default='basic_analytic_dn',
                         choices=all_bundle_types,
-                        help='Assest types to include in order.')
+                        help='Product bundle types to include in order.')
     parser.add_argument('--orders', type=os.path.abspath, default=os.path.join(os.getcwd(), 'planet_orders.txt'),
                         help='Path to write order IDs to.')
     parser.add_argument('--do_not_remove_onhand', action='store_true',
@@ -146,6 +151,16 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    main(args)
+    name = args.order_name
+    ids_path = args.ids
+    selection_path = args.selection
+    orders_path = args.orders
+    product_bundle = args.product_bundle
+    remove_onhand = not args.do_not_remove_onhand
+    dryrun = args.dryrun
+
+    submit_order(name=name, ids_path=ids_path, selection_path=selection_path,
+                 orders_path=orders_path, product_bundle=product_bundle,
+                 remove_onhand=remove_onhand, dryrun=dryrun)
 
     logger.info('Done.')

@@ -2,9 +2,11 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
+import pathlib
 import os
 
 from tqdm import tqdm
+from retrying import retry, RetryError
 import boto3
 
 from logging_utils.logging_utils import create_logger, create_logfile_path
@@ -22,8 +24,16 @@ aws_path_prefix = aws_params["aws_path_prefix"]
 bucket_name = 'pgc-data'
 prefix = r'jeff/planet'
 
-# Default DL location -> move to config file
+# TODO: Default DL location -> move to config file
 default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
+
+
+logger = create_logger(__name__, 'sh', 'DEBUG')
+
+# TODO FIX THIS - bucket should not load on module loading - how to pass bucket around?
+s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key, )
+bucket = s3.Bucket(bucket_name)
 
 
 def get_oids():
@@ -47,14 +57,36 @@ def get_oids():
     return oids
 
 
-def dl_order(dst_dir, bucket_name, order_prefix, overwrite=False, dryrun=False):
+def manifest_exists(order_id, bucket=bucket):
+    """
+    Check if manifest for given order id exists
+    """
+    # Path to manifest for order
+    mani_path = prefix / Path(order_id) / 'manifest.json'
+    # Get files that match manifest path - should only be one
+    mani_filter = bucket.objects.filter(Prefix=mani_path.as_posix())
+    objs = list(mani_filter)
+    if len(objs) >= 1 and objs[0].key == mani_path.as_posix():
+        logger.debug('Manifest for {} exists.'.format(order_id))
+        mani_exists = True
+    else:
+        mani_exists = False
+
+    return mani_exists
+
+
+def non_dled_orders(oids_queue):
+    orders2dl = any([v for k, v in oids_queue.items()])
+
+    return orders2dl
+
+@retry(retry_on_result=non_dled_orders,
+       wait_exponential_multiplier=1000, wait_exponential_max=30000, stop_max_delay=3600000)
+def dl_order(dst_dir, order_prefix, bucket_name=bucket_name, overwrite=False, dryrun=False):
+    if not isinstance(dst_dir, pathlib.PurePath):
+        dst_dir = Path(dst_dir)
     oid = order_prefix.split('/')[-1]
     logger.info('Downloading order: {}'.format(oid))
-
-    s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
-                        aws_secret_access_key=aws_secret_access_key,)
-
-    bucket = s3.Bucket(bucket_name)
 
     bucket_filter = bucket.objects.filter(Prefix=order_prefix)
     # For setting progress bar length
@@ -63,26 +95,28 @@ def dl_order(dst_dir, bucket_name, order_prefix, overwrite=False, dryrun=False):
     arrow_loc = max([len(x.key) for x in bucket_filter]) - len(order_prefix)
     # Set up progress bar
     pbar = tqdm(bucket_filter, total=item_count, desc='Order: {}'.format(oid), position=1)
+
     logger.info('Downloading {:,} files to: {}'.format(item_count, dst_dir))
     for bo in pbar:
         # Determine source and destination full paths
         aws_loc = Path(bo.key)
-        dst_loc = dst_dir / aws_loc.relative_to(Path(prefix))
-        if os.path.exists(dst_loc) and not overwrite:
-            logger.debug('File exists at destination, skipping: {}'.format(dst_loc))
+        # Create path with order id subdirectory
+        oid_dir = dst_dir / aws_loc.relative_to(Path(prefix))
+        if os.path.exists(oid_dir) and not overwrite:
+            logger.debug('File exists at destination, skipping: {}'.format(oid_dir))
             # continue
 
-        if not os.path.exists(dst_loc.parent):
-            os.makedirs(dst_loc.parent)
+        if not os.path.exists(oid_dir.parent):
+            os.makedirs(oid_dir.parent)
 
         # Download
-        logger.debug('Downloading file: {}\n\t--> {}'.format(aws_loc, dst_loc))
+        logger.debug('Downloading file: {}\n\t--> {}'.format(aws_loc, oid_dir))
         pbar.write('Downloading: {}{}-> {}'.format(aws_loc.relative_to(*aws_loc.parts[:3]),
                                                    ' '*(arrow_loc - len(str(aws_loc.relative_to(*aws_loc.parts[:3])))),
-                                                   dst_loc.relative_to(*dst_dir.parts[:9])))
+                                                   oid_dir.relative_to(*dst_dir.parts[:9])))
         if not dryrun:
             try:
-                bucket.download_file(bo.key, dst_loc.absolute().as_posix())
+                bucket.download_file(bo.key, oid_dir.absolute().as_posix())
             except Exception as e:
                 logger.error('Error downloading: {}'.format(aws_loc))
                 logger.error(e)
@@ -108,28 +142,61 @@ def download_orders(order_ids, dst_par_dir, dryrun=False, overwrite=False):
     logger.info('Done')
 
 
-def manifest_exists(order_id, bucket):
-    """
-    Check if manifest for given order id exists
-    """
-    # Path to manifest for order
-    mani_path = prefix / Path(order_id) / 'manifest.json'
-    # Get files that match manifest path - should only be one
-    mani_filter = bucket.objects.filter(Prefix=mani_path.as_posix())
-    objs = list(mani_filter)
-    if len(objs) >= 1 and objs[0].key == mani_path.as_posix():
-        logger.debug('Manifest for {} exists.'.format(order_id))
-        mani_exists = True
-    else:
-        mani_exists = False
+# @retry(retry_on_result=non_dled_orders,
+#        wait_exponential_multiplier=1000, wait_exponential_max=30000, stop_max_delay=3600000)
+def download_ready_orders(oids_queue, dst_par_dir, dryrun=False):
+    logger.debug('Downloading ready orders...')
+    logger.debug(oids_queue)
+    for oid, dl_started in oids_queue.items():
+        if not dl_started:
+            # if not already downloaded, check for manifest
+            ready = manifest_exists(oid, bucket=bucket)
+            if ready:
+                logger.debug('Order ID ready to download: {}'.format(oid))
+                if not dryrun:
+                    order_prefix = '{}/{}'.format(prefix, oid)
+                    # Download
+                    logger.info('Downloading ...')
+                    dl_order(dst_dir=dst_par_dir, order_prefix=order_prefix, dryrun=dryrun)
+                    oids_queue[oid] = True
+            else:
+                logger.debug('Order ID NOT ready for download: {}'.format(oid))
+                print('Order ID NOT ready for download: {}'.format(oid))
+                if dryrun:
+                    logger.debug('(dryrun) - Marking OID as downloaded: {}'.format(oid))
+                    oids_queue[oid] = True
 
-    return mani_exists
+    logger.debug('Orders remaining to download: {}'.format(len([v for k, v in oids_queue.items() if not v])))
+
+    return oids_queue
 
 
-def non_dled_orders(oids_queue):
-    orders2dl = any([v for k, v in oids_queue.items()])
+def download_aws(oids, dst_par_dir=default_dst_parent, dryrun=False):
+    oids_queue = {oid: False for oid in oids}
+    try:
+        logger.info('Downloading ready orders and waiting for not ready...')
+        download_ready_orders(oids_queue, dst_par_dir=dst_par_dir, dryrun=dryrun)
+    except RetryError as retry_error:
+        # This error is raised when @retry hits its max number of retries
+        logger.error(retry_error)
+        logger.warning('All orders did not complete delivery to AWS in allocated time.')
 
-    return orders2dl
+    if dryrun:
+        # Turn all order status' back to False
+        oids_queue = {oid: False for oid, v in oids_queue.items()}
+
+
+
+    dl_started_oids = [oid for oid, dl_started in oids_queue.items() if dl_started]
+    dl_not_started_oids = [oid for oid, dl_started in oids_queue.items() if not dl_started]
+
+    logger.info('Started orders:\n{}'.format('\n'.join(dl_started_oids)))
+    logger.info('NOT Started orders:\n{}'.format('\n'.join(dl_not_started_oids)))
+    # for oid in dl_started_oids:
+    #     logger.info('Download started for order ID: {}'.format(oid))
+    # logger.info('+{}+'.format('-'*65))
+    # for oid in dl_not_started_oids:
+    #     logger.info('Download NOT started for ID: {}'.format(oid))
 
 
 if __name__ == '__main__':
@@ -164,11 +231,10 @@ if __name__ == '__main__':
     else:
         dst_parent = Path(dst_par_dir)
 
-    if not logfile:
-        logfile = create_logfile_path(Path(__file__).stem)
+    # if not logfile:
+    #     logfile = create_logfile_path(Path(__file__).stem)
 
-    logger = create_logger(__name__, 'sh', 'INFO')
-    logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
+    # logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
 
     if all_available:
         order_ids = get_oids()

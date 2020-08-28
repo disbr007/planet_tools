@@ -27,7 +27,7 @@ from logging_utils.logging_utils import create_logger
 # fld_ovlp_perc = "ovlp_perc"
 # fld_geom = "ovlp_geom"
 
-logger = create_logger(__name__, "sh", "DEBUG")
+logger = create_logger(__name__, "sh", "INFO")
 
 ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
 PLANET_API_KEY = os.getenv("PL_API_KEY")
@@ -56,6 +56,16 @@ if auth_resp.status_code != 200:
 logger.debug("Response: {}".format(auth_resp))
 
 headers = {"content-type": "application/json"}
+
+
+def remove_recent_ids(ids, num_days=31):
+    today = datetime.datetime.today()
+    max_date = today - datetime.timedelta(days=num_days)
+
+    removed = [x for x in ids if
+               datetime.datetime.strptime(x[:8], '%Y%m%d') < max_date]
+
+    return removed
 
 
 def get_stereo_pairs(**kwargs):
