@@ -16,7 +16,7 @@ SELECT COUNT(*) FROM stereo_candidates;
 SELECT COUNT(*) FROM stereo_candidates_onhand;
 SELECT COUNT(DISTINCT id2) FROM stereo_candidates_onhand;
 SELECT location FROM scenes_onhand;
-SELECT * FROM scenes WHERE acquired >= '2020-05-15';
+SELECT * FROM scenes WHERE EXTRACT(MONTH FROM acquired) = 01;
 
 SELECT * FROM xml_metadata LIMIT 10;
 SELECT * FROM scenes LIMIT 100;

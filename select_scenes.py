@@ -13,7 +13,7 @@ from logging_utils.logging_utils import create_logger
 scenes_tbl = 'scenes'
 
 
-def build_argument_sql(att_args=None, aoi_path=None, ):
+def build_argument_sql(att_args=None, months=None, aoi_path=None,):
     """Build SQL clause from supplied attribute arguements and AOI path
     att_args: tuple (attribute, value)
     aoi_path: os.path.abspath
@@ -32,6 +32,11 @@ def build_argument_sql(att_args=None, aoi_path=None, ):
                 arg_where = "{} {} {}".format(field_name, compare, value)
 
             where_statements.append(arg_where)
+
+    if months:
+        for month in months:
+            month_where = """EXTRACT(MONTH FROM acquired) = {}""".format(month)
+            where_statements.append(month_where)
 
     if aoi_path:
         # Build AOI sql
@@ -69,8 +74,8 @@ def make_selection(sql):
     return selection
 
 
-def select_scenes(att_args, aoi_path, out_selection=None, dryrun=False):
-    sql = build_argument_sql(att_args=att_args, aoi_path=aoi_path)
+def select_scenes(att_args, aoi_path, months=None, out_selection=None, dryrun=False):
+    sql = build_argument_sql(att_args=att_args, months=months, aoi_path=aoi_path)
     selection = make_selection(sql)
 
     if out_selection and not dryrun:
@@ -91,8 +96,9 @@ if __name__ == '__main__':
 
     attribute_args = parser.add_argument_group(att_group)
 
-    parser.add_argument('-n', '--name', type=str, help='Name of search to create')
-
+    # parser.add_argument('-n', '--name', type=str, help='Name of search to create')
+    parser.add_argument('--months', type=str, nargs='+',
+                                help='Month as zero-padded number, e.g. 04')
     attribute_args.add_argument('--min_date', type=str,)
     attribute_args.add_argument('--max_date', type=str,)
     attribute_args.add_argument('--max_cc', type=float, )
@@ -134,10 +140,11 @@ if __name__ == '__main__':
 
     out_selection = args.out_selection
     aoi_path = args.aoi
+    months = args.months
     attribute_args = parse_group_args(parser, att_group)
 
     supplied_att_args = [(kwa[0], kwa[1]) for kwa in attribute_args._get_kwargs()
                          if kwa[1]]
 
-    select_scenes(att_args=supplied_att_args, aoi_path=aoi_path,
+    select_scenes(att_args=supplied_att_args, months=months, aoi_path=aoi_path,
                   out_selection=out_selection, dryrun=args.dryrun)

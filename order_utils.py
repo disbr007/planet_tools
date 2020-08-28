@@ -27,7 +27,7 @@ from logging_utils.logging_utils import create_logger
 # fld_ovlp_perc = "ovlp_perc"
 # fld_geom = "ovlp_geom"
 
-logger = create_logger(__name__, "sh", "INFO")
+logger = create_logger(__name__, "sh", "DEBUG")
 
 ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
 PLANET_API_KEY = os.getenv("PL_API_KEY")
@@ -142,7 +142,7 @@ def place_order(order_request):
         logger.error('Request:\n{}'.format(order_request))
         sys.exit()
     order_id = response.json()["id"]
-    logger.debug('Request:\n{}'.format(order_request))
+    # logger.debug('Request:\n{}'.format(order_request))
     logger.debug("Order ID: {}".format(order_id))
     order_url = "{}/{}".format(ORDERS_URL, order_id)
 

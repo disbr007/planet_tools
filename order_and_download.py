@@ -10,7 +10,7 @@ import boto3
 from lib import read_ids
 from logging_utils.logging_utils import create_logger, create_logfile_path
 from submit_order import submit_order
-from download_utils import download_aws
+from download_utils import download_parallel
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
@@ -39,9 +39,10 @@ def order_and_download(order_name, order_ids_path,
         logger.info('Loading order IDs from file...')
         order_ids = read_ids(dl_orders)
         logger.info('Orders IDs: {}'.format(len(order_ids)))
-    logger.info('Downloading orders...')
-    download_aws(order_ids, dryrun=dryrun)
 
+    logger.info('Downloading orders...')
+    download_parallel(order_ids, dst_par_dir=download_par_dir,
+                      overwrite=overwrite_downloads, dryrun=dryrun)
 
 
 if __name__ == '__main__':
@@ -59,30 +60,33 @@ if __name__ == '__main__':
     download_args = parser.add_argument_group('DOWNLOADING')
 
     order_args.add_argument('-n', '--order_name', type=str,
-                        help='Name to attached to order.')
+                            help='Name to attached to order.')
     order_args.add_argument('--ids', type=os.path.abspath,
-                        help='Path to text file of IDs to order. All other parameters ignored.')
+                            help='Path to text file of IDs to order. All other parameters ignored.')
     order_args.add_argument('--selection', type=os.path.abspath,
-                        help='Path to selection of footprints to order, by ID.')
+                            help='Path to selection of footprints to order, by ID.')
     order_args.add_argument('--product_bundle', type=str, default='basic_analytic_dn',
-                        choices=all_bundle_types, metavar='',
-                        help='Product bundle types to include in order.')
-    order_args.add_argument('--orders', type=os.path.abspath, default=os.path.join(os.getcwd(), 'planet_orders.txt'),
-                        help='Path to write order IDs to.')
+                            choices=all_bundle_types, metavar='',
+                            help='Product bundle types to include in order.')
+    order_args.add_argument('--orders', type=os.path.abspath,
+                            default=os.path.join(os.getcwd(), 'planet_orders.txt'),
+                            help='Path to write order IDs to.')
     order_args.add_argument('--do_not_remove_onhand', action='store_true',
-                        help='On hand IDs are removed by default. Use this flag to not remove.')
+                            help='On hand IDs are removed by default. Use this flag to not remove.')
 
-    download_args.add_argument('--download_orders', type=os.path.abspath,)
+    download_args.add_argument('--download_orders', type=os.path.abspath,
+                               help='Skip ordering and begin downloading all order IDs in the '
+                                    'provided text file.')
     download_args.add_argument('-dpd', '--destination_parent_directory', type=os.path.abspath,
-                        help="""Directory to download imagery to. Subdirectories for each 
+                                help="""Directory to download imagery to. Subdirectories for each 
                                 order will be created here.""")
     # download_args.add_argument('-w', '--wait_max', type=int, default=3_600_000,
     #                            help='Maximum amount of time to wait for an order '
     #                                 'to arrive in AWS before skipping, in milliseconds.')
     download_args.add_argument('--overwrite', action='store_true',
-                        help='Overwrite files in destination. Otherwise duplicates are skipped.')
+                                help='Overwrite files in destination. Otherwise duplicates are skipped.')
     download_args.add_argument('-l', '--logfile', type=os.path.abspath,
-                        help='Location to write log to.')
+                                help='Location to write log to.')
 
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without downloading.')
@@ -116,6 +120,8 @@ if __name__ == '__main__':
         logfile = create_logfile_path(Path(__file__).stem)
 
     logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
+    sublogger1 = create_logger('download_parallel', 'fh', 'DEBUG', logfile)
+    sublogger2 = create_logger('submit_order', 'fh', 'DEBUG', logfile)
 
     # TODO: Add timings, clear logging, etc. to get times for arrive in AWS and times for downloading
 

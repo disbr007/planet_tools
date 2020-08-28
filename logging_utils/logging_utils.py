@@ -122,6 +122,7 @@ def create_logger(logger_name, handler_type,
 
     # Check if handlers already exists for logger
     handlers = logger.handlers
+    # print('handlers: {}'.format(handlers))
     handler = None
     # Parse input for requested handler type and level
     if handler_type == 'sh':
@@ -129,8 +130,8 @@ def create_logger(logger_name, handler_type,
     elif handler_type == 'fh':
         if not filename:
             print("""Error: Must provide a path to write log file to when using handler_type='fh'""")
-        if os.path.exists(filename):
-            os.remove(filename)
+        # if os.path.exists(filename):
+        #     os.remove(filename)
         ht = logging.FileHandler(filename)
     else:
         print('Unrecognized handler_type argument: {}'.format(handler_type))
@@ -141,14 +142,14 @@ def create_logger(logger_name, handler_type,
         if isinstance(h, type(ht)):
             # Check if existing handler is of right level
             existing_level = h.level
-
             if existing_level == desired_level:
-                handler = h
                 # print('handler exists, not adding')
+                handler = h
                 break
 
     # If no handler of specified type and level was found, create it
     if handler is None:
+        # print('new handler')
         handler = ht
         logger.setLevel(desired_level)
         # Create console handler with a higher log level
@@ -168,6 +169,7 @@ def create_logger(logger_name, handler_type,
 
 
 def project_path():
+    # TODO: This is hardcoded...
     if platform.system() == 'Windows':
         prj_path = r'C:\code\pgc-code-all'
     elif platform.system() == 'Linux':

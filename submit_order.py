@@ -18,6 +18,7 @@ planet_db = 'sandwich-pool.planet'
 scenes_onhand_tbl = 'scenes_onhand'
 scene_id = 'id'
 
+
 @retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
 def count_concurrent_orders():
     # TODO: Move these to a config file
