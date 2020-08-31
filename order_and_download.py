@@ -1,8 +1,9 @@
 import argparse
 import json
-from datetime import datetime
+import datetime
 from pathlib import Path
 import os
+import time
 
 from retrying import retry, RetryError
 import boto3
@@ -23,6 +24,7 @@ def order_and_download(order_name, order_ids_path,
                        out_orders_list,
                        order_product_bundle,
                        remove_onhand=True,
+                       initial_wait=600,
                        download_par_dir=default_dst_parent,
                        overwrite_downloads=False,
                        dl_orders=None,
@@ -40,7 +42,17 @@ def order_and_download(order_name, order_ids_path,
         order_ids = read_ids(dl_orders)
         logger.info('Orders IDs: {}'.format(len(order_ids)))
 
-    logger.info('Downloading orders...')
+    logger.info('Waiting {:,} seconds before checking AWS for orders...'.format(initial_wait))
+    now = datetime.datetime.now()
+    waiting_start = datetime.datetime.now()
+    resume_time = waiting_start + datetime.timedelta(seconds=initial_wait)
+    wait_interval = initial_wait / 10
+    while now < resume_time:
+        now = datetime.datetime.now()
+        logger.info('...waiting. {:,}s remain'.format(round((resume_time - now).total_seconds())))
+        time.sleep(wait_interval)
+
+    logger.info('Checking for ready orders...')
     download_parallel(order_ids, dst_par_dir=download_par_dir,
                       overwrite=overwrite_downloads, dryrun=dryrun)
 
@@ -74,6 +86,8 @@ if __name__ == '__main__':
     order_args.add_argument('--do_not_remove_onhand', action='store_true',
                             help='On hand IDs are removed by default. Use this flag to not remove.')
 
+    download_args.add_argument('--initial_wait', type=int, default=600,
+                               help='Initial period to wait before checking AWS for completed orders, in seconds.')
     download_args.add_argument('--download_orders', type=os.path.abspath,
                                help='Skip ordering and begin downloading all order IDs in the '
                                     'provided text file.')
@@ -102,6 +116,7 @@ if __name__ == '__main__':
     remove_onhand = not args.do_not_remove_onhand
 
     # Download args
+    initial_wait = args.initial_wait
     download_orders = args.download_orders
     download_par_dir = args.destination_parent_directory
     # wait_max = args.wait_max
@@ -130,6 +145,7 @@ if __name__ == '__main__':
                        out_orders_list=out_orders_list,
                        order_product_bundle=order_product_bundle,
                        remove_onhand=remove_onhand,
+                       initial_wait=initial_wait,
                        download_par_dir=download_par_dir,
                        # wait_max=wait_max,
                        dl_orders=download_orders,

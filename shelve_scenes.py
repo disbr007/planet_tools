@@ -1,72 +1,89 @@
-import argparse
-import os
-import pathlib
 from pathlib import Path
-import shutil
+import json
+import glob
+import datetime
+import os
 
 from tqdm import tqdm
 
+from index_utils import create_scene_manifests, verify_scene_md5, \
+    attributes_from_xml, bundle_item_types_from_manifest
+from scene_parsing import find_scene_meta_files
 from logging_utils.logging_utils import create_logger
 
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
-logger = create_logger(__name__, 'sh', 'INFO')
+directory = Path(r'E:\disbr007\projects\planet\data')
+planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')
 
-tm_link = 'link'
-tm_copy = 'copy'
-
-
-def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
-    data_dir = Path(src_dir)
-    dst_dir = Path(dst_dir)
-
-    logger.info('Locating scene files...')
-    scenes = data_dir.rglob('*.tif')
-
-    logger.info('Copying scenes to shelved locations...')
-    pbar = tqdm(scenes)
-    for s in pbar:
-        sp = Path(s)
-        if 'udm' in sp.stem:
-            continue
-        # TODO: Improve finding SID / scene file, etc
-        sid = '_'.join(sp.stem.split('_')[0:3])
-        year = sp.stem[0:4]
-        month = sp.stem[4:6]
-        year_mo_dir = dst_dir / year / month
-        if not year_mo_dir.exists():
-            os.makedirs(year_mo_dir)
-
-        scene_files = Path(sp).parent.glob('{}*'.format(sid))
-        for sf in scene_files:
-            df = year_mo_dir / sf.name
-            if df.exists():
-                logger.debug('Destination file exists, skipping: {}'.format(sp.name))
-                continue
-            if not dryrun:
-                if transfer_method == tm_link:
-                    os.link(sf, df)
-                else:
-                    shutil.copy2(sf, df)
-            pbar.write('Copied {} ->\n\t{}'.format(sf, df))
+# XML date format
+date_format = '%Y-%m-%dT%H:%M:%S+00:00'
+# XML attribute keys
+k_identifier = 'identifier'
+k_instrument = 'instrument'
+k_productType = 'productType'
+k_acquired = 'acquisitionDateTime'
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
 
-    parser.add_argument('--src_dir', type=os.path.abspath,
-                        help='Path to directory to shelve.')
-    parser.add_argument('--dst_dir', type=os.path.abspath,
-                        help='Path to destination directory')
-    parser.add_argument('-tm', '--transfer_method', choices=[tm_copy, tm_link],
-                        help='Transfer method to use.')
-    parser.add_argument('--dryrun', action='store_true')
-    
-    args = parser.parse_args()
 
-    src_dir = args.src_dir
-    dst_dir = args.dst_dir
-    transfer_method = args.transfer_method
-    dryrun = args.dryrun
+master_manifests = set(directory.rglob('manifest.json'))
+# Create manifests for each scene
+logger.info('Creating scene manifests...')
+pbar = tqdm(master_manifests, desc='Creating scene manifests...')
+for mm in pbar:
+    pbar.set_description('Creating scene manifests for: {}'.format(mm.parent))
+    create_scene_manifests(mm, overwrite=False)
 
-    shelve_scenes(src_dir=src_dir, dst_dir=dst_dir,
-                  transfer_method=transfer_method, dryrun=dryrun)
+# Get scene manifests (remove master manifests
+scene_manifests = set(directory.rglob('*manifest.json')) - master_manifests
+
+
+# Verify checksums
+logger.info('Verifying scene checksums...')
+scene_verification = []
+pbar = tqdm(scene_manifests, desc='Verifying scene checksums...')
+for sm in pbar:
+    scene, verified = verify_scene_md5(sm)
+    scene_verification.append((scene, verified))
+
+
+verified_scenes = [scene for scene, verified in scene_verification
+                   if verified]
+
+srcs_dsts = []
+for scene in verified_scenes:
+    # Find scene files
+    scene_meta_files = find_scene_meta_files(scene)
+    # TODO: Identify meta files with regex?
+    xml = [f for f in scene_meta_files if f.match('*.xml')][0]
+    manifest = [f for f in scene_meta_files if f.match('*manifest.json')][0]
+    # Get attributes
+    attributes = attributes_from_xml(xml)
+    strip_id = attributes[k_identifier].split('_')[1]
+    # Get asset type, bundle type
+    bundle_type, item_type = bundle_item_types_from_manifest(manifest)
+    # Get date
+    acquired_date = datetime.datetime.strptime(attributes[k_acquired],
+                                               date_format)
+    month_str = '{}_{}'.format(acquired_date.month,
+                               acquired_date.strftime('%b').lower())
+    # Create shelved destinations
+    dst_dir = planet_data_dir / Path(os.path.join(attributes[k_instrument],
+                                                  attributes[k_productType],
+                                                  bundle_type,
+                                                  item_type,
+                                                  acquired_date.strftime('%Y'),
+                                                  month_str,
+                                                  acquired_date.strftime('%d'),
+                                                  strip_id))
+
+    scene_files = [f for f in scene_meta_files]
+    scene_files.append(scene)
+    for src in scene_files:
+        dst = dst_dir / src.name
+        srcs_dsts.append((src, dst))
+
+    break
+
+

@@ -5,7 +5,7 @@ import pandas as pd
 
 from db_utils import Postgres
 from logging_utils.logging_utils import create_logger
-from index_utils import parse_xml
+from index_utils import attributes_from_xml
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -23,7 +23,7 @@ for root, dirs, files in os.walk(data_dir):
 logger.info('Parsing XML files...')
 all_atts = []
 for xml in tqdm(xmls):
-    attributes = parse_xml(xml)
+    attributes = attributes_from_xml(xml)
     all_atts.append(attributes)
 
 

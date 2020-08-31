@@ -1,4 +1,5 @@
 import argparse
+import glob
 import json
 import os
 import pathlib
@@ -53,8 +54,8 @@ def id_from_scene(scene, scene_levels=['1B', '3B']):
         if lvl in scene_name:
             scene_id = scene_name.split('_{}_'.format(lvl))[0]
     if not scene_id:
-        x=1
-        # logger.error('Could not parse scene ID with any level in {}: {}'.format(scene_levels, scene_name))
+        logger.error('Could not parse scene ID with any level '
+                     'in {} from {}'.format(scene_levels, scene_name))
 
     return scene_id
 
@@ -148,9 +149,19 @@ def find_scene_files(data_directory):
     scenes_to_parse = []
     for root, dirs, files in os.walk(data_directory):
         for f in files:
-            # TODO: Improve this
+            # TODO: Improve identification of scene files
             if f.endswith('.tif') and not f.endswith('_udm.tif'):
                 scene = Path(root) / f
                 scenes_to_parse.append(scene)
 
     return scenes_to_parse
+
+
+def find_scene_meta_files(scene):
+    meta_files = glob.glob("{}*".format(str(scene.parent / scene.stem)))
+    meta_files.append(metadata_path_from_scene(scene))
+    meta_files = [Path(p) for p in meta_files]
+    meta_files.remove(scene)
+
+    return meta_files
+
