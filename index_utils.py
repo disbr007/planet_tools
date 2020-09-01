@@ -1,12 +1,12 @@
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePath
 from tqdm import tqdm
 import xml.etree.ElementTree as ET
 
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # Manifest Keys
 k_files = 'files'
@@ -131,6 +131,8 @@ def write_scene_manifest(scene_manifest, master_manifest,
     elif exists and not overwrite:
         logger.debug('Scene manifest exists, skipping.')
 
+    return scene_mani_path
+
 
 def get_scene_manifests(master_manifest):
     """Parse a parent manifest file for the sections corresponding to
@@ -152,9 +154,14 @@ def create_scene_manifests(master_manifest, overwrite=False):
     logger.info('Locating scene manifests within master manifest: {}'.format(master_manifest))
     scene_manifests = get_scene_manifests(master_manifest)
     logger.info('Scene manifests found: {}'.format(len(scene_manifests)))
+
+    scene_manifest_files = []
     pbar = tqdm(scene_manifests, desc='Writing manifest.json files for each scene')
     for sm in pbar:
-        write_scene_manifest(sm, master_manifest, overwrite=overwrite)
+        scene_manifest_file = write_scene_manifest(sm, master_manifest, overwrite=overwrite)
+        scene_manifest_files.append(scene_manifest_file)
+
+    return scene_manifest_files
 
 
 def bundle_item_types_from_manifest(manifest_file):
@@ -181,8 +188,8 @@ def create_file_md5(fname):
 def verify_scene_md5(manifest_file):
     # TODO: Speed up -- parallel?
     with open(manifest_file, 'r') as src:
-        manifest_contents = json.load(src)
-        scene_file = manifest_file.parent / Path(manifest_contents[k_path]).name
+            manifest_contents = json.load(src)
+            scene_file = manifest_file.parent / Path(manifest_contents[k_path]).name
 
     # file_md5 = create_file_md5(scene_file)
     # manifest_md5 = manifest_contents[k_digests][k_md5]
