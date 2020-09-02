@@ -161,7 +161,7 @@ def find_scene_meta_files(scene):
     meta_files = glob.glob("{}*".format(str(scene.parent / scene.stem)))
     meta_files.append(metadata_path_from_scene(scene))
     meta_files = [Path(p) for p in meta_files]
-    print(meta_files)
+
     meta_files.remove(scene)
 
     return meta_files
