@@ -35,7 +35,6 @@ default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
-# TODO FIX THIS - bucket should not load on module loading - how to pass best bucket around?
 def connect_aws_bucket(bucket_name=bucket_name,
                        aws_access_key_id=aws_access_key_id,
                        aws_secret_access_key=aws_secret_access_key):

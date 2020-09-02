@@ -10,8 +10,8 @@ from lib import write_gdf, parse_group_args
 from search_utils import attrib_arg_lut
 from logging_utils.logging_utils import create_logger
 
-scenes_tbl = 'scenes'
 
+scenes_tbl = 'scenes'
 
 def build_argument_sql(att_args=None, months=None, aoi_path=None,):
     """Build SQL clause from supplied attribute arguements and AOI path

@@ -268,7 +268,6 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
                 # properties['geometry'] = MultiPolygon([Polygon(metadata['geometry']['coordinates'][i][0])
                 #                                        for i in range(len(metadata['geometry']['coordinates']))])
         except Exception as e:
-            # TODO: Look for geometry in scenes table if bad geom in metadata
             logger.error('Geometry error, skipping add scene: {}'.format(properties[k_scenes_id]))
             logger.error('Metadata file: {}'.format(metadata_path))
             logger.error('Geometry: {}'.format(metadata['geometry']))

@@ -219,9 +219,6 @@ def verify_scene_md5(manifest_file):
         logger.warning('Verification of md5 checksum failed: {} != {}'.format(file_md5, manifest_md5))
         verified = False
 
-    # TODO: Remove this - just for speed of debugging
-    # verified = True
-
     return scene_file, verified
 
 

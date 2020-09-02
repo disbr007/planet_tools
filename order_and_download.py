@@ -138,8 +138,6 @@ if __name__ == '__main__':
     sublogger1 = create_logger('download_parallel', 'fh', 'DEBUG', logfile)
     sublogger2 = create_logger('submit_order', 'fh', 'DEBUG', logfile)
 
-    # TODO: Add timings, clear logging, etc. to get times for arrive in AWS and times for downloading
-
     order_and_download(order_name=order_name, order_ids_path=order_ids_path,
                        order_selection_path=order_selection_path,
                        out_orders_list=out_orders_list,
