@@ -22,11 +22,6 @@ logger = create_logger(__name__, 'sh', 'INFO')
 plt.style.use('pycharm')
 
 
-def run_subprocess(command):
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    output, error = proc.communicate()
-
-
 def grid_aoi(aoi_path, n_pts_x=None, n_pts_y=None,
              x_space=None, y_space=None, aoi_crs=None):
     # Read in AOI - assumes only one feature

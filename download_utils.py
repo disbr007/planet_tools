@@ -25,27 +25,36 @@ aws_region = aws_params["aws_region"]
 aws_path_prefix = aws_params["aws_path_prefix"]
 
 bucket_name = 'pgc-data'
+# TODO: Update when NASA bucket created
 prefix = r'jeff/planet'
 
-# TODO: Default DL location -> move to config file
+# TODO: Default DL location -> finalize and move to config file
 default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
 
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
 # TODO FIX THIS - bucket should not load on module loading - how to pass best bucket around?
-s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
-                    aws_secret_access_key=aws_secret_access_key, )
-bucket = s3.Bucket(bucket_name)
-
-
-def get_oids():
-    """Get all immediate subdirectories of prefix in AWS -> these are Planet order ids."""
+def connect_aws_bucket(bucket_name=bucket_name,
+                       aws_access_key_id=aws_access_key_id,
+                       aws_secret_access_key=aws_secret_access_key):
     s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
                         aws_secret_access_key=aws_secret_access_key, )
-
     bucket = s3.Bucket(bucket_name)
+
+    return bucket
+
+
+def get_oids(prefix=prefix):
+    """
+    Get all immediate subdirectories of prefix in AWS, these are Planet order ids.
+    """
+    # s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
+    #                     aws_secret_access_key=aws_secret_access_key, )
+    # 
+    # bucket = s3.Bucket(bucket_name)
+    bucket = connect_aws_bucket()
 
     bucket_filter = bucket.objects.filter(Prefix=prefix)
     oids = set()
@@ -61,9 +70,11 @@ def get_oids():
     return oids
 
 
-def manifest_exists(order_id, bucket=bucket):
+def manifest_exists(order_id, bucket):
     """
-    Check if manifest for given order id exists
+    Check if manifest for given order id exists in AWS bucket.
+    Manifest is last file delivered for order and so presence
+    order is ready to download.
     """
     # Path to manifest for order
     mani_path = prefix / Path(order_id) / 'manifest.json'
@@ -84,48 +95,51 @@ def manifest_exists(order_id, bucket=bucket):
 #
 #     return orders2dl
 
-# @retry(retry_on_result=non_dled_orders,
-#        wait_exponential_multiplier=1000, wait_exponential_max=30000, stop_max_delay=3600000)
-def dl_order(oid, dst_par_dir, overwrite=False, dryrun=False):
-    # TODO: Be sure of the type being passed
-    if not isinstance(dst_par_dir, pathlib.PurePath):
-        dst_dir = Path(dst_par_dir)
 
+def dl_order(oid, dst_par_dir, bucket, overwrite=False, dryrun=False):
+    """Download an order id (oid) to destination parent directory, creating
+    a new subdirectory for the order id. Order ID is also name of subdirectory
+    in AWS bucket."""
     logger.info('Downloading order: {}'.format(oid))
 
-    # Filter the bucket for the order id
+    # Filter the bucket for the order id, removing any directory keys
     order_prefix = '{}/{}'.format(prefix, oid)
-    bucket_filter = bucket.objects.filter(Prefix=order_prefix)
+    bucket_filter = [bo for bo in bucket.objects.filter(Prefix=order_prefix)
+                     if not bo.key.endswith('/')]
 
-    # For setting progress bar length
-    item_count = len([x for x in bucket.objects.filter(Prefix=order_prefix)])
-    # For aligning arrows in progress bar writing
-    arrow_loc = max([len(x.key) for x in bucket_filter]) - len(order_prefix)
     # Set up progress bar
+    # For setting progress bar length
+    item_count = len([x for x in bucket_filter])
     pbar = tqdm(bucket_filter, total=item_count, desc='Order: {}'.format(oid), position=1)
+    # For aligning arrows in progress bar writing
+    # arrow_loc = max([len(x.key) for x in bucket_filter]) - len(order_prefix)
 
-    logger.info('Downloading {:,} files to: {}'.format(item_count, dst_par_dir))
+    oid_dir = dst_par_dir / oid
+    if not os.path.exists(oid_dir):
+        os.makedirs(oid_dir)
+
+    logger.info('Downloading {:,} files to: {}'.format(item_count, oid_dir))
     for bo in pbar:
         # Determine source and destination full paths
         aws_loc = Path(bo.key)
-        # Create path with order id subdirectory
-        oid_dir = dst_par_dir / aws_loc.relative_to(Path(prefix))
-        if os.path.exists(oid_dir) and not overwrite:
-            logger.debug('File exists at destination, skipping: {}'.format(oid_dir))
-            continue
-
-        if not os.path.exists(oid_dir.parent):
-            os.makedirs(oid_dir.parent)
+        # Create destination subdirectory path with order id as subdirectory
+        dst_path = dst_par_dir / aws_loc.relative_to(Path(prefix))
+        if not os.path.exists(dst_path.parent):
+            os.makedirs(dst_path.parent)
 
         # Download
-        logger.debug('Downloading file: {}\n\t--> {}'.format(aws_loc, oid_dir))
-        # pbar.write('Downloading: {}{}-> {}'.format(aws_loc.relative_to(*aws_loc.parts[:3]),
-        #                                            ' '*(arrow_loc - len(str(aws_loc.relative_to(*aws_loc.parts[:3])))),
-        #                                            oid_dir.relative_to(*dst_par_dir.parts[:9])))
+        if os.path.exists(dst_path) and not overwrite:
+            logger.debug('File exists at destination, skipping: {}'.format(dst_path))
+            continue
+        else:
+            logger.debug('Downloading file: {}\n\t--> {}'.format(aws_loc, dst_path.absolute()))
+            # pbar.write('Downloading: {}{}-> {}'.format(aws_loc.relative_to(*aws_loc.parts[:3]),
+            #                                            ' '*(arrow_loc - len(str(aws_loc.relative_to(*aws_loc.parts[:3])))),
+            #                                            oid_dir.relative_to(*dst_par_dir.parts[:9])))
         dl_issues = set()
         if not dryrun:
             try:
-                bucket.download_file(bo.key, oid_dir.absolute().as_posix())
+                bucket.download_file(bo.key, str(dst_path))
                 dl_issues.add(False)
             except Exception as e:
                 logger.error('Error downloading: {}'.format(aws_loc))
@@ -139,23 +153,35 @@ def dl_order(oid, dst_par_dir, overwrite=False, dryrun=False):
     return all_success
 
 
-def dl_order_when_ready(order_id, dst_par_dir, overwrite=False, dryrun=False,
-                        wait_start=2, wait_increase_exp=2,
-                        wait_max_interval=8, wait_max=3600):
+def dl_order_when_ready(order_id, dst_par_dir, bucket,
+                        overwrite=False, dryrun=False,
+                        wait_start=2, wait_interval=10,
+                        # wait_increase_exp=2,
+                        wait_max_interval=300, wait_max=3600):
+    """
+    Wrapper for dl_order that checks if manifest.json is present
+    in order subdirectory in AWS bucket before downloading. Checks
+    start every [wait_start] seconds, increasing by
+    [wait_start]**[wait_increase_exp] until [wait_max_interval]
+    is reached and then every [wait_max_interval] until [wait_max]
+    is reached at which pint the attempt to download is aborted.
+    """
     logger.info('Waiting for orders to arrive in AWS...')
     start_time = datetime.datetime.now()
     running_time = (datetime.datetime.now() - start_time).total_seconds()
     wait = wait_start
     start_dl = False
+    # Check for presence of manifest, sleeping between checks.
     while running_time < wait_max and not start_dl:
-        exists = manifest_exists(order_id)
+        exists = manifest_exists(order_id, bucket=bucket)
         if not exists:
             running_time = (datetime.datetime.now() - start_time).total_seconds()
             logger.debug('Manifest not present for order ID: {} :'
                          ' {}s remaining'.format(order_id, round(wait_max-running_time)))
             time.sleep(wait)
             if wait <= wait_max_interval:
-                wait = wait**wait_increase_exp
+                # wait = wait**wait_increase_exp
+                wait += wait_interval
             if wait > wait_max_interval:
                 wait = wait_max_interval
 
@@ -165,7 +191,8 @@ def dl_order_when_ready(order_id, dst_par_dir, overwrite=False, dryrun=False,
 
     if start_dl:
         logger.info('Started downloading: {}'.format(order_id))
-        all_success = dl_order(order_id, dst_par_dir=dst_par_dir, overwrite=overwrite, dryrun=dryrun)
+        all_success = dl_order(order_id, dst_par_dir=dst_par_dir, bucket=bucket,
+                               overwrite=overwrite, dryrun=dryrun)
     else:
         logger.info('Maximum wait reached, did not begin download: {}'.format(order_id))
 
@@ -173,87 +200,21 @@ def dl_order_when_ready(order_id, dst_par_dir, overwrite=False, dryrun=False,
 
 
 def download_parallel(order_ids, dst_par_dir, overwrite=False, dryrun=False, threads=4, wait_max=3600):
+    """
+    Download order ids in parallel.
+    """
+    bucket = connect_aws_bucket()
     pool = ThreadPool(threads)
-    results = pool.starmap(dl_order_when_ready, product(order_ids, [dst_par_dir],
+    results = pool.starmap(dl_order_when_ready, product(order_ids, [dst_par_dir], [bucket],
                                                         [dryrun], [overwrite]))
     pool.close()
     pool.join()
 
-    logger.info('Download statuses:\nOrder ID\t\tStarted\tSuccess\n{}'.format(
-        '\n'.join(["{} {}\t{}".format(oid, start_dl, status) for oid, start_dl, status in results])
+    logger.info('Download statuses:\nOrder ID\t\tStarted\t\tIssue\n{}'.format(
+        '\n'.join(["{} {}\t{}".format(oid, start_dl, issue) for oid, start_dl, issue in results])
     ))
 
     return results
-
-
-# def download_orders(order_ids, dst_par_dir, dryrun=False, overwrite=False):
-#     logger.info('Order IDs to download:\n{}'.format('\n'.join([str(o) for o in order_ids])))
-#     pbar = tqdm(order_ids, desc='Order ', position=0)
-#     for i, oid in enumerate(pbar):
-#         pbar.set_description('Order: {}/{}'.format(i+1, len(order_ids)))
-#         dl_order(dst_dir=dst_par_dir, bucket_name=bucket_name,
-#                  dryrun=dryrun, overwrite=overwrite)
-#         logger.debug('Order downloaded: {}'.format(oid))
-#         logger.info('\n\n')
-#
-#     logger.info('Done')
-
-
-# @retry(retry_on_result=non_dled_orders,
-#        wait_exponential_multiplier=1000, wait_exponential_max=30000, stop_max_delay=3600000)
-# def download_ready_orders(oids_queue, dst_par_dir, dryrun=False):
-#     logger.debug('Downloading ready orders...')
-#     logger.debug(oids_queue)
-#     for oid, dl_started in oids_queue.items():
-#         if not dl_started:
-#             # if not already downloaded, check for manifest
-#             ready = manifest_exists(oid, bucket=bucket)
-#             if ready:
-#                 logger.debug('Order ID ready to download: {}'.format(oid))
-#                 if not dryrun:
-#                     order_prefix = '{}/{}'.format(prefix, oid)
-#                     # Download
-#                     logger.info('Downloading ...')
-#                     dl_order(dst_dir=dst_par_dir, order_prefix=order_prefix, dryrun=dryrun)
-#                     oids_queue[oid] = True
-#             else:
-#                 logger.debug('Order ID NOT ready for download: {}'.format(oid))
-#                 print('Order ID NOT ready for download: {}'.format(oid))
-#                 if dryrun:
-#                     logger.debug('(dryrun) - Marking OID as downloaded: {}'.format(oid))
-#                     oids_queue[oid] = True
-#
-#     logger.debug('Orders remaining to download: {}'.format(len([v for k, v in oids_queue.items() if not v])))
-#
-#     return oids_queue
-#
-#
-# def download_aws(oids, dst_par_dir=default_dst_parent, dryrun=False):
-#     oids_queue = {oid: False for oid in oids}
-#     try:
-#         logger.info('Downloading ready orders and waiting for not ready...')
-#         download_ready_orders(oids_queue, dst_par_dir=dst_par_dir, dryrun=dryrun)
-#     except RetryError as retry_error:
-#         # This error is raised when @retry hits its max number of retries
-#         logger.error(retry_error)
-#         logger.warning('All orders did not complete delivery to AWS in allocated time.')
-#
-#     if dryrun:
-#         # Turn all order status' back to False
-#         oids_queue = {oid: False for oid, v in oids_queue.items()}
-#
-#
-#
-#     dl_started_oids = [oid for oid, dl_started in oids_queue.items() if dl_started]
-#     dl_not_started_oids = [oid for oid, dl_started in oids_queue.items() if not dl_started]
-#
-#     logger.info('Started orders:\n{}'.format('\n'.join(dl_started_oids)))
-#     logger.info('NOT Started orders:\n{}'.format('\n'.join(dl_not_started_oids)))
-    # for oid in dl_started_oids:
-    #     logger.info('Download started for order ID: {}'.format(oid))
-    # logger.info('+{}+'.format('-'*65))
-    # for oid in dl_not_started_oids:
-    #     logger.info('Download NOT started for ID: {}'.format(oid))
 
 
 if __name__ == '__main__':
@@ -270,8 +231,8 @@ if __name__ == '__main__':
                         help='Directory to download imagery to. Subdirectories for each order will be created here.')
     parser.add_argument('--overwrite', action='store_true',
                         help='Overwrite files in destination. Otherwise duplicates are skipped.')
-    # parser.add_argument('-l', '--logfile', type=os.path.abspath,
-    #                     help='Location to wrtie log to.')
+    parser.add_argument('-l', '--logfile', type=os.path.abspath,
+                        help='Location to wrtie log to.')
 
     args = parser.parse_args()
 
@@ -286,7 +247,7 @@ if __name__ == '__main__':
     if not dst_par_dir:
         dst_parent = Path(default_dst_parent)
     else:
-        dst_parent = Path(dst_par_dir)
+        dst_par_dir = Path(dst_par_dir)
 
     if all_available:
         order_ids = get_oids()

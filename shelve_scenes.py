@@ -1,12 +1,14 @@
 import argparse
 import datetime
-from pathlib import Path
 import os
+from pathlib import Path
+import platform
 import shutil
 import time
 
 from tqdm import tqdm
 
+from lib import linux2win
 from index_utils import create_scene_manifests, verify_scene_md5, \
                         attributes_from_xml, bundle_item_types_from_manifest
 from scene_parsing import find_scene_meta_files
@@ -20,6 +22,8 @@ data_directory = Path(r'E:\disbr007\projects\planet\data')
 
 # Constants
 planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')  # /planet?
+if platform.system() == 'Windows':
+    planet_data_dir = Path(linux2win(str(planet_data_dir)))
 # XML date format
 date_format = '%Y-%m-%dT%H:%M:%S+00:00'
 # XML attribute keys
@@ -30,31 +34,40 @@ k_acquired = 'acquisitionDateTime'
 
 
 def create_all_scene_manifests(directory):
+    """
+    Finds all master manifests ("*/manifest.json") in the given directory, then
+    parses each for the sections corresponding to scenes and creates new
+    scene-level ([identifier]_manifest.json) files for each scene.
+    """
     # Get all master manifests
     master_manifests = set(directory.rglob('manifest.json'))
     logger.info('Master manifests found: {}'.format(len(master_manifests)))
+    logger.debug('Master manifests found:\n{}'.format('\n'.join([str(m) for m in master_manifests])))
     # Create manifests for each scene
     logger.info('Creating scene manifests...')
-    pbar = tqdm(master_manifests, desc='Creating scene manifests...')
     scene_manifests = []
+    pbar = tqdm(master_manifests, desc='Creating scene manifests...')
     for mm in pbar:
         pbar.set_description('Creating scene manifests for: {}'.format(mm.parent.name))
-        sms = create_scene_manifests(mm, overwrite=True)
+        # This will return scene-level manifest paths, whether they were just
+        # created or already existed
+        sms = create_scene_manifests(mm, overwrite=False)
         scene_manifests.extend(sms)
 
-    # Get scene manifests (remove master manifests -- now done above
-    # scene_manifests = set(directory.rglob('*manifest.json')) - master_manifests
     logger.info('Scene manifests found: {}'.format(len(scene_manifests)))
 
     return scene_manifests
 
 
 def verify_scene_checksums(scene_manifests):
-    # Verify checksums
+    """
+    Scene manifests contain the checksum hash that the image should match. This
+    takes a list of scene manifests and calculates the checksum for the associated
+    scene files, then returns only those scenes that have checksums that match.
+    """
     logger.info('Verifying scene checksums: {}'.format(len(scene_manifests)))
     scene_verification = []
-    pbar = tqdm(scene_manifests, desc='Verifying scene checksums...')
-    for sm in pbar:
+    for sm in tqdm(scene_manifests, desc='Verifying scene checksums...'):
         scene, verified = verify_scene_md5(sm)
         scene_verification.append((scene, verified))
         # TODO: REMOVE time.sleep
@@ -66,7 +79,12 @@ def verify_scene_checksums(scene_manifests):
     return verified_scenes
 
 
-def create_move_list(verified_scenes, destination_directory):
+def create_move_list(verified_scenes, destination_directory=planet_data_dir):
+    """
+    Finds the files associated with each scene in verified scenes, then
+    creates tuples of (src, dst) according to storage schema:
+    intrument/productType/bundle_type/item_type/yyyy/mm_mmm/dd/strip_id
+    """
     logger.info('Creating destination filepaths...')
     # Create list of (source file path, destination file path)
     srcs_dsts = []
@@ -125,7 +143,7 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir):
                 logger.warning('Error copying: {}\n\t->{}'.format(src, dst))
                 raise
         else:
-            logger.debug('Destination exists, skipping: {}'.format(dst.relative_to(planet_data_dir)))
+            logger.debug('Destination exists, skipping: {}'.format(dst))
 
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon, MultiPolygon
 
 from logging_utils.logging_utils import create_logger
+from lib import win2linux, linux2win
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -23,16 +24,6 @@ order_id = 'order_id'
 filename = 'filename'
 
 
-def win2linux(path):
-    lp = path.replace('\\', '/').replace('V:', '/mnt')
-
-    return lp
-
-
-def linux2win(path):
-    wp = path.replace('/', '\\').replace('/mnt', 'V:')
-
-    return wp
 
 
 def get_platform_location(path):

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Manifest Keys
 k_files = 'files'
@@ -135,8 +135,10 @@ def write_scene_manifest(scene_manifest, master_manifest,
 
 
 def get_scene_manifests(master_manifest):
-    """Parse a parent manifest file for the sections corresponding to
-    scenes."""
+    """
+    Parse a parent manifest file for the sections corresponding
+    to scenes.
+    """
     with open(master_manifest, 'r') as src:
         mani = json.load(src)
 
@@ -151,6 +153,9 @@ def get_scene_manifests(master_manifest):
 
 
 def create_scene_manifests(master_manifest, overwrite=False):
+    """
+    Create scene manifest files for each scene section in the master manifest.
+    """
     logger.info('Locating scene manifests within master manifest: {}'.format(master_manifest))
     scene_manifests = get_scene_manifests(master_manifest)
     logger.info('Scene manifests found: {}'.format(len(scene_manifests)))
@@ -158,14 +163,23 @@ def create_scene_manifests(master_manifest, overwrite=False):
     scene_manifest_files = []
     pbar = tqdm(scene_manifests, desc='Writing manifest.json files for each scene')
     for sm in pbar:
+        sf = master_manifest.parent / Path(sm[k_path])
+        if not sf.exists():
+            # logger.warning('Scene file in manifest.json not found: {}'.format(sf))
+            continue
+        else:
+            logger.info('Scene file found')
         scene_manifest_file = write_scene_manifest(sm, master_manifest, overwrite=overwrite)
         scene_manifest_files.append(scene_manifest_file)
 
     return scene_manifest_files
 
 
-def bundle_item_types_from_manifest(manifest_file):
-    with open(manifest_file) as src:
+def bundle_item_types_from_manifest(scene_manifest_file):
+    """
+    Get bundle type and item type from scene manfest file.
+    """
+    with open(scene_manifest_file) as src:
         sm = json.load(src)
 
     # asset_type = sm[k_annotations][k_asset_type]
@@ -188,15 +202,18 @@ def create_file_md5(fname):
 def verify_scene_md5(manifest_file):
     # TODO: Speed up -- parallel?
     with open(manifest_file, 'r') as src:
-            manifest_contents = json.load(src)
-            scene_file = manifest_file.parent / Path(manifest_contents[k_path]).name
+        manifest_contents = json.load(src)
+        scene_file = manifest_file.parent / Path(manifest_contents[k_path]).name
 
-    # file_md5 = create_file_md5(scene_file)
-    # manifest_md5 = manifest_contents[k_digests][k_md5]
-    # if file_md5 == manifest_md5:
-    #     verified = True
-    # else:
-    #     logger.warning('Verification of md5 checksum failed: {} != {}'.format(file_md5, manifest_md5))
-    #     verified = False
-    verified = True
+    file_md5 = create_file_md5(scene_file)
+    manifest_md5 = manifest_contents[k_digests][k_md5]
+    if file_md5 == manifest_md5:
+        verified = True
+    else:
+        logger.warning('Verification of md5 checksum failed: {} != {}'.format(file_md5, manifest_md5))
+        verified = False
+
+    # TODO: Remove this - just for speed of debugging
+    # verified = True
+
     return scene_file, verified

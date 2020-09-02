@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
 
+# Python functions for determining stereo pairs -> now done in PostGRES
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 

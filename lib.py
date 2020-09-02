@@ -13,6 +13,18 @@ from logging_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 
+def win2linux(path):
+    lp = path.replace('V:', '/mnt').replace('\\', '/')
+
+    return lp
+
+
+def linux2win(path):
+    wp = path.replace('/mnt', 'V:').replace('/', '\\')
+
+    return wp
+
+
 def type_parser(filepath):
     '''
     takes a file path (or dataframe) in and determines whether it is a dbf,

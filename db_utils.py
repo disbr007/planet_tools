@@ -9,13 +9,14 @@ import psycopg2
 import pandas as pd
 import geopandas as gpd
 
-from misc_utils.logging_utils import create_logger
+from logging_utils.logging_utils import create_logger
 
 # Supress pandas SettingWithCopyWarning
 pd.set_option('mode.chained_assignment', None)
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+# Paths to config files for connecting to various DB's
 db_confs = {
     'sandwich-pool.dem': os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                       'config', 'sandwich-pool.dem.json'),
@@ -27,34 +28,43 @@ db_confs = {
 
 # Params
 stereo_pair_cand = 'stereo_candidates'
-fld_acq = 'acquired1'
+fld_acq = 'acquired'
+fld_acq1 = '{}1'.format(fld_acq)
 fld_ins = 'instrument'
 fld_ins1 = '{}1'.format(fld_ins)
 fld_ins2 = '{}2'.format(fld_ins)
 fld_date_diff = 'date_diff'
 fld_view_angle_diff = 'view_angle_diff'
+fld_off_nadir_diff = 'off_nadir_diff'
 fld_ovlp_perc = 'ovlp_perc'
 fld_geom = 'ovlp_geom'
 
 
 def load_db_config(db_conf):
+    """Load config params for connecting to PostGRES DB"""
     params = json.load(open(db_conf))
 
     return params
 
 
-def check_where(where):
+def check_where(where, join='AND'):
     if where:
-        where += """ AND """
+        where += """ {} """.format(join)
     else:
         where = ""
 
     return where
 
+
 def ids2sql(ids):
     return str(ids)[1:-1]
 
+
 def encode_geom_sql(geom_col, encode_geom_col):
+    """
+    SQL statement to encode geometry column in non-PostGIS PostGRES database for reading
+    by geopandas.read_postgis.
+    """
     geom_sql = """encode(ST_AsBinary({}), 'hex') AS {}""".format(geom_col, encode_geom_col)
 
     return geom_sql
@@ -122,8 +132,10 @@ def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=Fal
 
 
 def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
-                    date_diff=None, view_angle_diff=None,
+                    date_diff_min=None, date_diff_max=None,
+                    view_angle_diff=None,
                     ovlp_perc_min=None, ovlp_perc_max=None,
+                    off_nadir_diff_min=None, off_nadir_diff_max=None,
                     limit=None, orderby=False, orderby_asc=False,
                     remove_id_tbl=None, remove_id_tbl_col=None, remove_id_src_cols=None,
                     geom_col=fld_geom, columns='*'):
@@ -131,16 +143,25 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
     where = ""
     if date_min:
         where = check_where(where)
-        where += "{} >= '{}'".format(fld_acq, date_min)
+        where += "{} >= '{}'".format(fld_acq1, date_min)
     if date_max:
         where = check_where(where)
-        where += "{} <= '{}'".format(fld_acq, date_max)
+        where += "{} <= '{}'".format(fld_acq1, date_max)
     if ins:
         where = check_where(where)
         where += "{0} = '{1}' AND {2} = '{1}'".format(fld_ins1, ins, fld_ins2)
-    if date_diff:
+    if date_diff_max:
         where = check_where(where)
-        where += "{} <= {}".format(fld_date_diff, date_diff)
+        where += "{} <= {}".format(fld_date_diff, date_diff_max)
+    if date_diff_min:
+        where = check_where(where)
+        where += "{} <= {}".format(fld_date_diff, date_diff_min)
+    if off_nadir_diff_max:
+        where = check_where(where)
+        where += "{} <= {}".format(fld_off_nadir_diff, off_nadir_diff_max)
+    if off_nadir_diff_min:
+        where = check_where(where)
+        where += "{} >= {}".format(fld_off_nadir_diff, off_nadir_diff_min)
     if view_angle_diff:
         where = check_where(where)
         where += "{} >= {}".format(fld_view_angle_diff, view_angle_diff)
@@ -180,6 +201,13 @@ def intersect_aoi_where(aoi, geom_col):
 
 
 class Postgres(object):
+    """
+    Class for interacting with Postgres database using psycopg2. This
+    allows keeping a connection and cursor open while performing multiple
+    operations. Best used with a context manager, i.e.:
+    with Postgres(db_name) as db:
+        ...
+    """
     _instance = None
 
     def __init__(self, db_name):
@@ -301,6 +329,7 @@ class Postgres(object):
     def insert_new_records(self, records, table, unique_id=None,
                            date_cols=None, date_format="%Y-%m-%dT%H:%M:%S.%fZ",
                            dryrun=False):
+        """Add records to table, optionally using a unique_id to skip duplicates."""
         logger.info('Inserting records into {}...'.format(table))
         logger.debug('Loading existing IDs..')
         if isinstance(records, gpd.GeoDataFrame):
@@ -361,6 +390,5 @@ class Postgres(object):
                            dtype=dtype)
         else:
             logger.info('No new records to be written.')
-
 
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB
