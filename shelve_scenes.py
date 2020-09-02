@@ -9,9 +9,9 @@ import time
 from tqdm import tqdm
 
 from lib import linux2win
-from index_utils import create_scene_manifests, verify_scene_md5, \
+from index_utils import create_scene_manifests, scene_file_from_manifest, verify_scene_md5, \
                         attributes_from_xml, bundle_item_types_from_manifest
-from scene_parsing import find_scene_meta_files
+from lib import find_scene_meta_files
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -123,10 +123,19 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
     return srcs_dsts
 
 
-def shelve_scenes(data_directory, destination_directory=planet_data_dir):
+def shelve_scenes(data_directory, destination_directory=planet_data_dir,
+                  master_manifests=True, verify_checksums=True):
     data_directory = Path(data_directory)
-    scene_manifests = create_all_scene_manifests(data_directory)
-    verified_scenes = verify_scene_checksums(scene_manifests)
+    if master_manifests:
+        scene_manifests = create_all_scene_manifests(data_directory)
+    else:
+        # TODO: Is this an ok way to get all scene manifests?
+        scene_manifests = data_directory.rglob('*_manifest.json')
+    if verify_checksums:
+        verified_scenes = verify_scene_checksums(scene_manifests)
+    else:
+        verified_scenes = [scene_file_from_manifest(sm) for sm in scene_manifests]
+
     srcs_dsts = create_move_list(verified_scenes, destination_directory)
 
     logger.info('Copying scenes to shelved locations...')
@@ -154,7 +163,17 @@ if __name__ == '__main__':
     parser.add_argument('--destination_directory', type=os.path.abspath,
                         default=planet_data_dir,
                         help='Base directory upon which to build filepath.')
+    parser.add_argument('-sme', '--scene_manifests_exist', action='store_true',
+                        help='Use to specify that scene manifests and recreating is'
+                             'not necessary (or possible - no master manifests)')
+    parser.add_argument('--skip_checksums', action='store_true',
+                        help='Skip verifying checksums, all scenes found in '
+                             'data directory will be moved to destination.')
     
     args = parser.parse_args()
+    master_manifests = not args.scene_manifests_exist
+    verify_checksums = not args.skip_checksums
     
-    shelve_scenes(args.data_directory, args.destination_directory)
+    shelve_scenes(args.data_directory, args.destination_directory,
+                  master_manifests=master_manifests,
+                  verify_checksums=verify_checksums)

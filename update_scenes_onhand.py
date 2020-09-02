@@ -7,7 +7,7 @@ import sys
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger, create_logfile_path
-from scene_parsing import metadata_path_from_scene, gdf_from_metadata, scenes_id, order_id
+from lib import metadata_path_from_scene, gdf_from_metadata, scenes_id, order_id
 from db_utils import Postgres
 
 planet_db = 'sandwich-pool.planet'

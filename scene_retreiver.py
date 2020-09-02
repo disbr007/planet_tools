@@ -9,7 +9,8 @@ from tqdm import tqdm
 
 from db_utils import Postgres, ids2sql
 from lib import read_ids, write_gdf
-from scene_parsing import get_platform_location
+from lib import get_platform_location
+# from shelve_scenes import shelve_scenes
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
@@ -75,7 +76,6 @@ def locate_source_files(selection):
             src_files.append(f)
 
     logger.info('Source files found: {:,}'.format(len(src_files)))
-    # TODO: Break down files found by extension
 
     return src_files
 
@@ -83,11 +83,8 @@ def locate_source_files(selection):
 def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=False):
     # Create destination folder structure
     # TODO: Option to build directory tree the same way we will index (and other options, --opf)
-    if opf:
-        pass
-    else:
-        # Flat structure, just add the filename to the destination path
-        src_dsts = [(src, destination_path / src.name) for src in src_files]
+    # Flat structure, just add the filename to the destination path
+    src_dsts = [(src, destination_path / src.name) for src in src_files]
 
     # Move files
     logger.info('Moving files...')
@@ -137,7 +134,7 @@ def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=N
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=('Scene retriever for Planet data. Input can either be '
-                                                  'list of IDs of selection from onhand table.'))
+                                                  'list of IDs or selection from onhand table.'))
     parser.add_argument('--ids', type=os.path.abspath,
                         help='Path to list of IDs to retrieve.')
     parser.add_argument('--footprint', type=os.path.abspath,

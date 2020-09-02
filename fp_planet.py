@@ -4,7 +4,7 @@ from pathlib import Path
 
 from lib import write_gdf
 from logging_utils.logging_utils import create_logger
-from scene_parsing import find_scene_files, metadata_path_from_scene, gdf_from_metadata
+from lib import find_scene_files, metadata_path_from_scene, gdf_from_metadata
 
 logger = create_logger(__name__, 'sh', 'INFO')
 

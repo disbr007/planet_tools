@@ -24,8 +24,6 @@ order_id = 'order_id'
 filename = 'filename'
 
 
-
-
 def get_platform_location(path):
     if platform.system() == 'Linux':
         pl = win2linux(path)

@@ -115,6 +115,14 @@ def attributes_from_xml(xml):
     return attributes
 
 
+def scene_file_from_manifest(scene_manifest):
+    with open(scene_manifest, 'r') as src:
+        manifest_contents = json.load(src)
+        scene_file = scene_manifest.parent / Path(manifest_contents[k_path]).name
+
+    return scene_file
+
+
 def write_scene_manifest(scene_manifest, master_manifest,
                          manifest_suffix=manifest_suffix,
                          overwrite=False):
@@ -201,9 +209,7 @@ def create_file_md5(fname):
 
 def verify_scene_md5(manifest_file):
     # TODO: Speed up -- parallel?
-    with open(manifest_file, 'r') as src:
-        manifest_contents = json.load(src)
-        scene_file = manifest_file.parent / Path(manifest_contents[k_path]).name
+    scene_file_from_manifest(scene_manifest=manifest_file)
 
     file_md5 = create_file_md5(scene_file)
     manifest_md5 = manifest_contents[k_digests][k_md5]
@@ -217,3 +223,5 @@ def verify_scene_md5(manifest_file):
     # verified = True
 
     return scene_file, verified
+
+
