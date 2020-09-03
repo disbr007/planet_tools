@@ -92,7 +92,7 @@ if __name__ == '__main__':
     choices_instruments = ['PS2', 'PSB.SD', 'PS2.SD']
     choices_quality_category = ['standard', 'test']
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser("Select footprints by attribute or AOI from scenes table.")
 
     attribute_args = parser.add_argument_group(att_group)
 

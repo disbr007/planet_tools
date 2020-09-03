@@ -218,7 +218,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Get the footprints of a previously created search.""")
 
     parser.add_argument('-i', '--search_id', type=str,
-                        help='The ID of a previously created search. Use create_saved_search.py to do so.')
+                        help='The ID of a previously created search. Use create_search.py to do so.')
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
