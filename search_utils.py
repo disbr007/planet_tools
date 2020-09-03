@@ -1,4 +1,6 @@
 from copy import deepcopy
+from calendar import monthrange
+from datetime import datetime, timedelta
 import json
 import requests
 import os
@@ -7,7 +9,7 @@ from pprint import pprint
 
 import geopandas as gpd
 
-from logging_utils.logging_utils import  create_logger
+from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -154,6 +156,60 @@ def vector2geometry_config(vector_file):
     config = json.loads(gs.to_json())['features'][0]['geometry']
 
     return config
+
+
+def monthlist(start_date, end_date):
+    start, end = [datetime.strptime(_, "%Y-%m-%d") for _ in [start_date, end_date]]
+    total_months = lambda dt: dt.month + 12 * dt.year
+    mlist = []
+    for tot_m in range(total_months(start)-1, total_months(end)):
+        y, m = divmod(tot_m, 12)
+        year = datetime(y, m+1, 1).strftime("%Y")
+        month = datetime(y, m+1, 1).strftime("%m")
+        mlist.append((year, month))
+
+    return mlist
+
+
+def create_months_filter(months, min_date=None, max_date=None,
+                         month_min_days=None, month_max_dates=None):
+    """
+    Create an OrFilter which a subfilter that is a DateRangeFilter
+    """
+    time_suffix = "T00:00:00.00Z"
+    date_format = '%Y-%m-%d'
+    if not min_date:
+        min_date = '2015-01-01'
+        logger.warning('Using a minimum date of {} for creation of month filters.'.format(min_date))
+    if not max_date:
+        max_date = datetime.now().strftime(date_format)
+        logger.warning('Using a maximum date of {} for creation of month filters.'.format(max_date))
+    dates = [min_date, max_date]
+    all_months = monthlist(min_date, max_date)
+
+    # Select only months provided
+    selected_months = [(y, m) for y, m in all_months if m in months]
+    mfs = []
+    for year, month in selected_months:
+        _, last_day = monthrange(int(year), int(month))
+        month_begin = '{}-{}-01{}'.format(year, month, time_suffix)
+        month_end = '{}-{}-{}{}'.format(year, month, last_day, time_suffix)
+        mf = {
+            ftype: drf,
+            field_name: "acquired",
+            config: {
+                gte: month_begin,
+                lte: month_end
+            }
+        }
+        mfs.append(mf)
+
+    months_filters = {
+        ftype: or_filter,
+        config: mfs
+    }
+
+    return months_filters
 
 
 def filter_from_arg(filter_arg):
@@ -353,8 +409,9 @@ def get_search_count(search_request):
         session.auth = (PLANET_API_KEY, '')
         stats = session.post(STATS_URL, json=stats_request)
         if not str(stats.status_code).startswith('2'):
+            logger.error(stats.status_code)
+            logger.error(stats.reason)
             logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)))
-            logger.debug(stats.reason)
         logger.debug(stats)
 
 

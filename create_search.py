@@ -7,7 +7,7 @@ import geopandas as gpd
 
 from lib import parse_group_args
 from search_utils import filter_from_arg, create_search_request, create_saved_search, get_search_count, \
-    create_master_attribute_filter, create_master_geom_filter
+    create_master_attribute_filter, create_master_geom_filter, create_months_filter
 from logging_utils.logging_utils import create_logger
 
 
@@ -27,6 +27,8 @@ if __name__ == '__main__':
 
     parser.add_argument('-n', '--name', type=str, help='Name of search to create')
 
+    parser.add_argument('--months', type=str, nargs='+',
+                        help='Month as zero-padded number, e.g. 04')
     attribute_args.add_argument('--min_date', type=str,)
     attribute_args.add_argument('--max_date', type=str,)
     attribute_args.add_argument('--max_cc', type=float, )
@@ -89,6 +91,7 @@ if __name__ == '__main__':
     name = args.name
     aoi = args.aoi
     item_types = args.item_types
+    months = args.months
     filters = args.filters
     load_filter = args.load_filter
     get_count = args.get_count
@@ -102,13 +105,20 @@ if __name__ == '__main__':
     if any([kwa[1] for kwa in att_group_args._get_kwargs()]):
         master_attribute_filter = create_master_attribute_filter(att_group_args)
         search_filters.append(master_attribute_filter)
+
     # Parse AOI to filter
     if aoi:
         aoi_attribute_filter = create_master_geom_filter(vector_file=aoi)
         search_filters.append(aoi_attribute_filter)
+
     # Parse raw filters
     if filters:
         search_filters.extend([filter_from_arg(f) for f in filters])
+
+    if months:
+        mf = create_months_filter(months)
+        search_filters.append(mf)
+
     # Parse any provided filters
     if load_filter:
         addtl_filter = json.load(open(load_filter))
