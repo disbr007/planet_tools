@@ -136,7 +136,7 @@ def get_search_page_urls(saved_search_id, total_count):
     first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, feat_per_page)
     next_page = first_page_url
     while next_page:
-        pbar.write('Parsing: {}'.format(next_page))
+        # pbar.write('Parsing: {}'.format(next_page))
         next_page = fetch_pages(next_page, all_pages=all_pages)
         pbar.update(1)
     logger.debug('Pages: {}'.format(len(all_pages)))

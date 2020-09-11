@@ -6,10 +6,16 @@ import json
 import geopandas as gpd
 
 from lib import parse_group_args
-from search_utils import filter_from_arg, create_search_request, create_saved_search, get_search_count, \
-    create_master_attribute_filter, create_master_geom_filter, create_months_filter
+from search_utils import filter_from_arg, create_search_request, create_saved_search, \
+                         get_search_count, create_master_attribute_filter, \
+                         create_master_geom_filter, create_months_filter, \
+                         create_noh_filter
 from logging_utils.logging_utils import create_logger
 
+# Footprint table
+scenes = 'scenes'
+# On hand table
+scenes_onhand = 'scenes_onhand'
 
 if __name__ == '__main__':
     # Groups
@@ -29,6 +35,12 @@ if __name__ == '__main__':
 
     parser.add_argument('--months', type=str, nargs='+',
                         help='Month as zero-padded number, e.g. 04')
+    parser.add_argument('--month_min_day', nargs=2, action='append',
+                        help='Mimumum day to include in a given month: eg. 12 20'
+                             'Can be repeated multiple times.')
+    parser.add_argument('--month_max_day', nargs=2, action='append',
+                        help='Maximum day to include in a given month: eg. 12 20'
+                             'Can be repeated multiple times.')
     attribute_args.add_argument('--min_date', type=str,)
     attribute_args.add_argument('--max_date', type=str,)
     attribute_args.add_argument('--max_cc', type=float, )
@@ -67,6 +79,10 @@ if __name__ == '__main__':
                         'RangeFilter'     [field]      [compare] [value]""")
     parser.add_argument('-lf', '--load_filter', type=os.path.abspath,
                         help='Base filter to load, upon which any provided filters will be added.')
+    parser.add_argument('--not_on_hand', action='store_true',
+                        help='Remove on hand IDs from search.')
+    parser.add_argument('--fp_not_on_hand', action='store_true',
+                        help='Remove IDs from search if footprint is on hand.')
     parser.add_argument('--get_count', action='store_true',
                         help="Pass to get total count for the newly created saved search.")
     parser.add_argument('--overwrite_saved', action='store_true',
@@ -92,8 +108,12 @@ if __name__ == '__main__':
     aoi = args.aoi
     item_types = args.item_types
     months = args.months
+    month_min_day_args = args.month_min_day
+    month_max_day_args = args.month_max_day
     filters = args.filters
     load_filter = args.load_filter
+    not_on_hand = args.not_on_hand
+    fp_not_on_hand = args.fp_not_on_hand
     get_count = args.get_count
     overwrite_saved = args.overwrite_saved
     save_filter = args.save_filter
@@ -116,7 +136,14 @@ if __name__ == '__main__':
         search_filters.extend([filter_from_arg(f) for f in filters])
 
     if months:
-        mf = create_months_filter(months)
+        month_min_days = None
+        month_max_days = None
+        if month_min_day_args:
+            month_min_days = {month: day for month, day in month_min_day_args}
+        if month_max_day_args:
+            month_max_days = {month: day for month, day in month_max_day_args}
+        mf = create_months_filter(months, min_date=args.min_date, max_date=args.max_date,
+                                  month_min_days=month_min_days, month_max_days=month_max_days)
         search_filters.append(mf)
 
     # Parse any provided filters
@@ -124,7 +151,24 @@ if __name__ == '__main__':
         addtl_filter = json.load(open(load_filter))
         search_filters.append(addtl_filter)
 
-    # Create search request using the filters created abov
+    if not_on_hand:
+        noh_filter = create_noh_filter(tbl=scenes_onhand)
+        search_filters.append(noh_filter)
+
+    if fp_not_on_hand:
+        fp_noh_filter = create_noh_filter(tbl=scenes)
+        fp_noh_filter['config']['config'] = fp_noh_filter['config']['config'][:10000]
+        search_filters.append(fp_noh_filter)
+
+    # Create search request using the filters created above
+    from copy import deepcopy
+    for f in search_filters:
+        if f['type'] == 'NotFilter':
+            pf = deepcopy(f)
+            print(len(pf['config']['config']))
+            pf['config']['config'] = pf['config']['config'][:20]
+            pprint(pf)
+
     sr = create_search_request(name=name, item_types=item_types, search_filters=search_filters)
     if save_filter:
         if os.path.basename(save_filter) == 'default.json':

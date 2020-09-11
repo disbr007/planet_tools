@@ -6,6 +6,11 @@ SELECT SUBSTR(identifier, 0, 21) FROM xml_metadata LIMIT 10;
 SELECT id FROM scenes_onhand LIMIT 10;
 SELECT location from scenes_onhand LIMIT 10;
 SELECT COUNT(acquired) FROM scenes WHERE cast(acquired as varchar(100)) LIKE '%-01-%';
+SELECT EXTRACT(MONTH FROM acquired) FROM scenes;
+SELECT * FROM scenes
+WHERE EXTRACT(MONTH FROM acquired) = 12 AND
+      EXTRACT(DAY FROM acquired) > 15
+LIMIT 10;
 SELECT COUNT(DISTINCT id) FROM scenes;
 SELECT COUNT(*) FROM scenes_onhand;
 SELECT COUNT(*) FROM scenes_metadata;

@@ -25,6 +25,7 @@ def main(args):
     scene_files = find_scene_files(parse_directory)
     logger.info('Found {:,} scenes to parse...'.format(len(scene_files)))
 
+    # TODO: convert to using xml files to generate footprints
     scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
     logger.info('Found {:,} associated metadata files.'.format(len(scenes_metadatas)))
 

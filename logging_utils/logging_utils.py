@@ -212,6 +212,7 @@ def create_logfile_path(name, logdir=None):
     now = datetime.now().strftime('%Y%b%d_%H%m%S')
     logname = '{}_{}.log'.format(name, now)
     if not logdir:
+        # TODO: Change the value in the config file back to V: drive
         logdir = get_config("logdir")
     logfile = os.path.join(logdir, logname)
 

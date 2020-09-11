@@ -5,9 +5,6 @@ from pathlib import Path
 import os
 import time
 
-from retrying import retry, RetryError
-import boto3
-
 from lib import read_ids
 from logging_utils.logging_utils import create_logger, create_logfile_path
 from submit_order import submit_order
@@ -37,20 +34,19 @@ def order_and_download(order_name, order_ids_path,
         order_ids = submit_order(name=order_name, ids_path=order_ids_path, selection_path=order_selection_path,
                                  product_bundle=order_product_bundle, orders_path=out_orders_list,
                                  remove_onhand=remove_onhand, dryrun=dryrun)
+        logger.info('Waiting {:,} seconds before checking AWS for orders...'.format(initial_wait))
+        now = datetime.datetime.now()
+        waiting_start = datetime.datetime.now()
+        resume_time = waiting_start + datetime.timedelta(seconds=initial_wait)
+        wait_interval = initial_wait / 10
+        while now < resume_time:
+            now = datetime.datetime.now()
+            logger.info('...waiting. {:,}s remain'.format(round((resume_time - now).total_seconds())))
+            time.sleep(wait_interval)
     else:
         logger.info('Loading order IDs from file...')
         order_ids = read_ids(dl_orders)
         logger.info('Orders IDs: {}'.format(len(order_ids)))
-
-    logger.info('Waiting {:,} seconds before checking AWS for orders...'.format(initial_wait))
-    now = datetime.datetime.now()
-    waiting_start = datetime.datetime.now()
-    resume_time = waiting_start + datetime.timedelta(seconds=initial_wait)
-    wait_interval = initial_wait / 10
-    while now < resume_time:
-        now = datetime.datetime.now()
-        logger.info('...waiting. {:,}s remain'.format(round((resume_time - now).total_seconds())))
-        time.sleep(wait_interval)
 
     logger.info('Checking for ready orders...')
     download_parallel(order_ids, dst_par_dir=download_par_dir,
@@ -133,10 +129,14 @@ if __name__ == '__main__':
 
     if not logfile:
         logfile = create_logfile_path(Path(__file__).stem)
+    elif os.path.isdir(logfile):
+        logdir = logfile
+        logfile = create_logfile_path(Path(__file__).stem, logdir=logdir)
 
     logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
-    sublogger1 = create_logger('download_parallel', 'fh', 'DEBUG', logfile)
     sublogger2 = create_logger('submit_order', 'fh', 'DEBUG', logfile)
+    sublogger1 = create_logger('download_utils', 'fh', 'DEBUG', logfile)
+
 
     order_and_download(order_name=order_name, order_ids_path=order_ids_path,
                        order_selection_path=order_selection_path,

@@ -9,6 +9,7 @@ from pprint import pprint
 
 import geopandas as gpd
 
+from db_utils import Postgres
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -26,6 +27,9 @@ PLANET_API_KEY = os.getenv('PL_API_KEY')
 if not PLANET_API_KEY:
     logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
 
+# Tables
+oh_tbl = 'scenes_onhand'
+
 # To ensure passed filter type is valid
 filter_types = ('DateRangeFilter', 'RangeFilter', 'UpdateFilter',
                 'GeometryFilter', 'NumberInFilter', 'StringInFilter')
@@ -34,6 +38,7 @@ filter_types = ('DateRangeFilter', 'RangeFilter', 'UpdateFilter',
 ftype = 'type'
 and_filter = 'AndFilter'
 or_filter = 'OrFilter'
+not_filter = 'NotFilter'
 filter_type = 'filter_type'
 field_name = 'field_name'
 config = 'config'
@@ -50,6 +55,9 @@ op_symbol = 'op_symbol'
 sym_gte = '>='
 sym_lte = '<='
 sym_equal = '='
+
+# Fields
+f_id = 'id'
 
 # For parsing attribute arguements
 attrib_arg_lut = {
@@ -172,18 +180,36 @@ def monthlist(start_date, end_date):
 
 
 def create_months_filter(months, min_date=None, max_date=None,
-                         month_min_days=None, month_max_dates=None):
+                         month_min_days=None, month_max_days=None):
     """
-    Create an OrFilter which a subfilter that is a DateRangeFilter
+    Create an OrFilter which has a subfilter for each monnth that is a
+    DateRangeFilter for every year between min date and max date for
+    that month. Eg, if months = ['01']:
+        (acquired >= 2019-01-01 and acquired is <= 2019-01-31) OR
+        (acquired >= 2020-01-01 and acquired is <= 2020-01-31)
+    Parameters:
+        months : list
+        min_date: str
+            Date, like '2020-10-01'
+        max_date: str
+            Date, like '2020-10-31'
+        month_min_days: dict
+            {01: 10,
+             02: 15,
+             ...}
+        month_max_days: dict
+            {01: 25,
+             02: 23,
+             ...}
     """
     time_suffix = "T00:00:00.00Z"
     date_format = '%Y-%m-%d'
     if not min_date:
         min_date = '2015-01-01'
-        logger.warning('Using a minimum date of {} for creation of month filters.'.format(min_date))
+        logger.warning('Using default minimum date of {} for creation of month filters.'.format(min_date))
     if not max_date:
         max_date = datetime.now().strftime(date_format)
-        logger.warning('Using a maximum date of {} for creation of month filters.'.format(max_date))
+        logger.warning('Using default maximum date of {} for creation of month filters.'.format(max_date))
     dates = [min_date, max_date]
     all_months = monthlist(min_date, max_date)
 
@@ -191,9 +217,19 @@ def create_months_filter(months, min_date=None, max_date=None,
     selected_months = [(y, m) for y, m in all_months if m in months]
     mfs = []
     for year, month in selected_months:
-        _, last_day = monthrange(int(year), int(month))
-        month_begin = '{}-{}-01{}'.format(year, month, time_suffix)
+        # If limits on days are provided, use those
+        if month_min_days and month in month_min_days.keys():
+            first_day = month_min_days[month]
+        else:
+            first_day = '01'
+        if month_max_days and month in month_max_days.keys():
+            last_day = month_max_days[month]
+        else:
+            _, last_day = monthrange(int(year), int(month))
+
+        month_begin = '{}-{}-{}{}'.format(year, month, first_day, time_suffix)
         month_end = '{}-{}-{}{}'.format(year, month, last_day, time_suffix)
+
         mf = {
             ftype: drf,
             field_name: "acquired",
@@ -210,6 +246,24 @@ def create_months_filter(months, min_date=None, max_date=None,
     }
 
     return months_filters
+
+
+def create_noh_filter(tbl=oh_tbl):
+    with Postgres('sandwich-pool.planet') as db:
+        sql = "SELECT {} FROM {}".format(f_id, tbl)
+        oh_ids = list(set(list(db.sql2df(sql=sql, columns=[f_id])[f_id])))
+
+    sf = {
+        ftype: sif,
+        field_name: f_id,
+        config: oh_ids
+    }
+    nf = {
+        ftype: not_filter,
+        config: sf
+    }
+
+    return nf
 
 
 def filter_from_arg(filter_arg):
@@ -290,7 +344,7 @@ def create_search_request(name, item_types, search_filters):
         "item_types": item_types,
         "filter": master_filter
     }
-
+    print('length of search request: {:,}'.format(len(str(search_request))))
     return search_request
 
 
@@ -411,7 +465,8 @@ def get_search_count(search_request):
         if not str(stats.status_code).startswith('2'):
             logger.error(stats.status_code)
             logger.error(stats.reason)
-            logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)))
+            logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)[0:500]))
+            logger.debug(str(stats_request))
         logger.debug(stats)
 
 

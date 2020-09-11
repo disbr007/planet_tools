@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # Constants
 windows = 'Windows'

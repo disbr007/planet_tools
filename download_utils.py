@@ -32,7 +32,7 @@ prefix = r'jeff/planet'
 default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
 
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 
 def connect_aws_bucket(bucket_name=bucket_name,
@@ -99,6 +99,12 @@ def dl_order(oid, dst_par_dir, bucket, overwrite=False, dryrun=False):
     """Download an order id (oid) to destination parent directory, creating
     a new subdirectory for the order id. Order ID is also name of subdirectory
     in AWS bucket."""
+    # TODO: Resolve why at least dst_par dir is not coming in as PurePath
+    if not isinstance(oid, pathlib.PurePath):
+        oid = Path(oid)
+    if not isinstance(dst_par_dir, pathlib.PurePath):
+        dst_par_dir = Path(dst_par_dir)
+
     logger.info('Downloading order: {}'.format(oid))
 
     # Filter the bucket for the order id, removing any directory keys
@@ -204,8 +210,10 @@ def download_parallel(order_ids, dst_par_dir, overwrite=False, dryrun=False, thr
     """
     bucket = connect_aws_bucket()
     pool = ThreadPool(threads)
+    # TODO: Figure out the right wat to submit kwargs with starmap and product
     results = pool.starmap(dl_order_when_ready, product(order_ids, [dst_par_dir], [bucket],
-                                                        [dryrun], [overwrite]))
+                                                        [overwrite], [dryrun],
+                                                        [2], [10], [wait_max]))
     pool.close()
     pool.join()
 
