@@ -161,17 +161,15 @@ def dl_order(oid, dst_par_dir, bucket, overwrite=False, dryrun=False):
 def dl_order_when_ready(order_id, dst_par_dir, bucket,
                         overwrite=False, dryrun=False,
                         wait_start=2, wait_interval=10,
-                        # wait_increase_exp=2,
-                        wait_max_interval=300, wait_max=3600):
+                        wait_max_interval=300, wait_max=5400):
     """
     Wrapper for dl_order that checks if manifest.json is present
     in order subdirectory in AWS bucket before downloading. Checks
-    start every [wait_start] seconds, increasing by
-    [wait_start]**[wait_increase_exp] until [wait_max_interval]
-    is reached and then every [wait_max_interval] until [wait_max]
-    is reached at which pint the attempt to download is aborted.
+    every [wait_start] seconds, increasing by [wait_interval] until
+    [wait_max_interval] is reached and then every [wait_max_interval]
+    until [wait_max] is reached at which point the attempt to download is aborted.
     """
-    logger.info('Waiting for orders to arrive in AWS...')
+    logger.debug('Waiting for orders to arrive in AWS...')
     start_time = datetime.datetime.now()
     running_time = (datetime.datetime.now() - start_time).total_seconds()
     wait = wait_start
@@ -185,7 +183,6 @@ def dl_order_when_ready(order_id, dst_par_dir, bucket,
                          ' {}s remaining'.format(order_id, round(wait_max-running_time)))
             time.sleep(wait)
             if wait <= wait_max_interval:
-                # wait = wait**wait_increase_exp
                 wait += wait_interval
             if wait > wait_max_interval:
                 wait = wait_max_interval
@@ -259,5 +256,4 @@ if __name__ == '__main__':
     if all_available:
         order_ids = get_oids()
 
-    # download_orders(order_ids=order_ids, dst_par_dir=dst_par_dir, dryrun=dryrun, overwrite=overwrite)
     download_parallel(order_ids=order_ids, dst_par_dir=dst_par_dir, dryrun=dryrun)

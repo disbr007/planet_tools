@@ -23,6 +23,13 @@ SELECT COUNT(DISTINCT id2) FROM stereo_candidates_onhand;
 SELECT * FROM scenes_onhand;
 SELECT * FROM scenes WHERE EXTRACT(MONTH FROM acquired) = 01;
 
+SELECT location from scenes_onhand WHERE id IN ('20170303_030803_0e0f',
+                                                '20170303_030802_0e0f',
+                                                '20170303_030801_0e0f',
+                                                '20170303_030800_0e0f',
+                                                '20170303_125219_0e20',
+                                                '20170303_125218_0e20');
+
 SELECT * FROM xml_metadata LIMIT 10;
 SELECT * FROM scenes LIMIT 100;
 SELECT DISTINCT order_id FROM scenes_onhand;
@@ -172,3 +179,9 @@ DROP MATERIALIZED VIEW scenes_metadata CASCADE;
 
 -- DROP MATERIALIZED VIEW VIEW scenes_off_nadir;
 DROP MATERIALIZED VIEW stereo_candidates;
+
+
+select t1.datname AS db_name,
+       pg_size_pretty(pg_database_size(t1.datname)) as db_size
+from pg_database t1
+order by pg_database_size(t1.datname) desc

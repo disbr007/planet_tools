@@ -89,11 +89,12 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         help='Path to directory holding csvs exported by Planet.')
     parser.add_argument('-noh', '--not_on_hand', action='store_true',
-                        help='Use to load all new records found, not just those with a corresponding scene in "scene" table.')
+                        help='Use to load all new records found, not just those with '
+                             'a corresponding scene in "scene" table.')
     parser.add_argument('-all', '--all_records', action='store_true',
-                        help='Load all records found in directory, not just new.')
+                        help='Load all off-nadir files found in directory, not just new.')
     parser.add_argument('-ext', '--extension', type=str, nargs='+', default=['.csv'],
-                        help='Extension(s) of files to load.')
+                        help='Extension(s) of off-nadir files to load.')
     parser.add_argument('--logfile', type=os.path.abspath)
 
     args = parser.parse_args()

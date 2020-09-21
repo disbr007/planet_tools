@@ -322,6 +322,15 @@ def filter_from_arg(filter_arg):
     return search_filter
 
 
+def create_asset_filter(asset):
+    asset_filter = {
+        "type": "AssetFilter",
+        "config": [asset]
+    }
+
+    return asset_filter
+
+
 def create_master_filter(search_filters):
     if len(search_filters) > 1:
         master_filter = {
@@ -466,6 +475,8 @@ def get_search_count(search_request):
             logger.error(stats.status_code)
             logger.error(stats.reason)
             logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)[0:500]))
+            if len(str(stats_request)) > 500:
+                logger.error('...{}'.format(str(stats_request)[-500:]))
             logger.debug(str(stats_request))
         logger.debug(stats)
 

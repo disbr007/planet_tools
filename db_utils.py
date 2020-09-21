@@ -364,7 +364,7 @@ class Postgres(object):
             if not geometry_name:
                 geometry_name = 'geometry'
             # logger.info('New geometry:\n'.format('\n'.join(list(new.geometry))))
-            logger.info('Features: {}'.format(len(new)))
+            logger.info('Features to add: {}'.format(len(new)))
             # logger.info('Features with valid geom: {}'.format(len(new[new.geometry].isnull())))
             new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
             new.drop(columns=geometry_name, inplace=True)
@@ -390,5 +390,7 @@ class Postgres(object):
                            dtype=dtype)
         else:
             logger.info('No new records to be written.')
+            
+        logger.info('New count for {}.{}: {}'.format(self.database, table, self.get_table_count(table)))
 
 # TODO: Create overwrite scenes function that removes any scenes in the input before writing them to DB

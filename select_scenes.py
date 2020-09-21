@@ -12,11 +12,12 @@ from logging_utils.logging_utils import create_logger
 
 # logger = create_logger('lib', 'sh', 'INFO')
 scenes_tbl = 'scenes'
-
+scenes_onhand_tbl = 'scenes_onhand'
 
 def build_argument_sql(att_args=None, months=None,
                        month_min_days=None, month_max_days=None,
-                       aoi_path=None,):
+                       aoi_path=None,
+                       table=scenes_tbl):
     """Build SQL clause from supplied attribute arguements and AOI path
     att_args: tuple (attribute, value)
     aoi_path: os.path.abspath
@@ -69,7 +70,7 @@ def build_argument_sql(att_args=None, months=None,
             where = months_clause
 
 
-    sql = """SELECT * FROM {} WHERE {}""".format(scenes_tbl, where)
+    sql = """SELECT * FROM {} WHERE {}""".format(table, where)
 
     logger.debug('SQL: {}'.format(sql[:500]))
     if len(sql) > 500:
@@ -115,11 +116,13 @@ if __name__ == '__main__':
     choices_instruments = ['PS2', 'PSB.SD', 'PS2.SD']
     choices_quality_category = ['standard', 'test']
 
-    parser = argparse.ArgumentParser("Select footprints by attribute or AOI from scenes table.")
+    parser = argparse.ArgumentParser("Select footprints by attribute or AOI from scenes table "
+                                     "or from scenes_onhand table.")
 
     attribute_args = parser.add_argument_group(att_group)
 
-    # parser.add_argument('-n', '--name', type=str, help='Name of search to create')
+    parser.add_argument('--onhand', action='store_true',
+                        help='Select from scenes_onhand table.')
     parser.add_argument('--months', type=str, nargs='+',
                                 help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',

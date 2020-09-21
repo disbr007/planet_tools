@@ -13,7 +13,8 @@ from download_utils import download_parallel
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # TODO: Default DL location -> move to config file
-default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
+# default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
+default_dst_parent = r'E:\disbr007\projects\planet\data'
 
 
 def order_and_download(order_name, order_ids_path,
@@ -21,7 +22,7 @@ def order_and_download(order_name, order_ids_path,
                        out_orders_list,
                        order_product_bundle,
                        remove_onhand=True,
-                       initial_wait=600,
+                       initial_wait=1200,
                        download_par_dir=default_dst_parent,
                        overwrite_downloads=False,
                        dl_orders=None,

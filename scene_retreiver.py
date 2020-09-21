@@ -34,9 +34,9 @@ def load_selection(scene_ids_path=None, footprint_path=None):
     # Get scene ids
     if scene_ids_path:
         scene_ids = read_ids(scene_ids_path)
-        logger.info('Total IDs found: {}'.format(len(scene_ids)))
+        logger.info('Total IDs found: {:,}'.format(len(scene_ids)))
         scene_ids = set(scene_ids)
-        logger.info('Unique IDs found: {}'.format(len(scene_ids)))
+        logger.info('Unique IDs found: {:,}'.format(len(scene_ids)))
 
         sql = """
         SELECT * FROM {}
@@ -86,11 +86,14 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
     # Flat structure, just add the filename to the destination path
     src_dsts = [(src, destination_path / src.name) for src in src_files]
 
+    # Remove any destinations that exist
+    src_dsts = [s_d for s_d in src_dsts if not s_d[1].exists()]
+
     # Move files
     logger.info('Moving files...')
     pbar = tqdm(src_dsts, desc='Copying...')
     for sf, df in pbar:
-        # Check for existence of destination path
+        # Check for existence of destination path (can remove, done above)
         if df.exists():
             logger.debug('Destination file exists, skipping: {}'.format(sf.name))
             continue

@@ -131,6 +131,7 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir,
     else:
         # TODO: Is this an ok way to get all scene manifests?
         scene_manifests = data_directory.rglob('*_manifest.json')
+
     if verify_checksums:
         verified_scenes = verify_scene_checksums(scene_manifests)
     else:
@@ -164,8 +165,9 @@ if __name__ == '__main__':
                         default=planet_data_dir,
                         help='Base directory upon which to build filepath.')
     parser.add_argument('-sme', '--scene_manifests_exist', action='store_true',
-                        help='Use to specify that scene manifests and recreating is'
-                             'not necessary (or possible - no master manifests)')
+                        help='Use to specify that scene manifests exist'
+                             'and recreating is not necessary '
+                             '(or possible - no master manifests)')
     parser.add_argument('--skip_checksums', action='store_true',
                         help='Skip verifying checksums, all scenes found in '
                              'data directory will be moved to destination.')

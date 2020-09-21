@@ -259,7 +259,7 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
         properties[k_filename] = scene_path.name
 
         try:
-            # TODO: Figure out why some footprints are multipolygon
+            # TODO: Figure out why some footprints are multipolygon - handle better
             if metadata['geometry']['type'] == 'Polygon':
                 properties['geometry'] = Polygon(metadata['geometry']['coordinates'][0])
             elif metadata['geometry']['type'] == 'MultiPolygon':

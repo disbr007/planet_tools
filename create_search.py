@@ -9,7 +9,7 @@ from lib import parse_group_args
 from search_utils import filter_from_arg, create_search_request, create_saved_search, \
                          get_search_count, create_master_attribute_filter, \
                          create_master_geom_filter, create_months_filter, \
-                         create_noh_filter
+                         create_noh_filter, create_asset_filter
 from logging_utils.logging_utils import create_logger
 
 # Footprint table
@@ -68,7 +68,8 @@ if __name__ == '__main__':
 
     parser.add_argument('-it', '--item_types', nargs='*', required=True,
                         help='Item types to search. E.g.: PSScene3Band, PSScene4Band')
-    parser.add_argument('-af', '--asset_filter', )
+    parser.add_argument('-af', '--asset_filter', action='append',
+                        help='Asset filter to include.')
     parser.add_argument('-f', '--filters', action='append', nargs='*',
                         # metavar=('filter_type', 'field_name', 'config'),
                         help="""Add any raw filters. Filter types and syntax:\n
@@ -111,6 +112,7 @@ if __name__ == '__main__':
     month_min_day_args = args.month_min_day
     month_max_day_args = args.month_max_day
     filters = args.filters
+    asset_filters = args.asset_filter
     load_filter = args.load_filter
     not_on_hand = args.not_on_hand
     fp_not_on_hand = args.fp_not_on_hand
@@ -150,6 +152,12 @@ if __name__ == '__main__':
     if load_filter:
         addtl_filter = json.load(open(load_filter))
         search_filters.append(addtl_filter)
+
+    # Parse any asset filters
+    if asset_filters:
+        for af in asset_filters:
+            f = create_asset_filter(af)
+            search_filters.append(f)
 
     if not_on_hand:
         noh_filter = create_noh_filter(tbl=scenes_onhand)

@@ -7,12 +7,14 @@ import sys
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger, create_logfile_path
-from lib import metadata_path_from_scene, gdf_from_metadata, scenes_id, order_id
+from lib import metadata_path_from_scene, gdf_from_metadata, k_scenes_id, k_order_id
 from db_utils import Postgres
 
 planet_db = 'sandwich-pool.planet'
 scenes_onhand_tbl = 'scenes_onhand'
-data_directory = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data')
+# TODO: Switch to permanent order arrival location
+# data_directory = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data')
+data_directory = Path(r'E:\disbr007\projects\planet\data')
 item_types = ['PSScene3Band', 'PSScene4Band']
 date_cols = ['acquired']
 scene_suffix = r'1B_AnalyticMS.tif'
@@ -41,16 +43,16 @@ def get_onhand_ids():
             onhand = set()
         else:
             # Get all unique IDs
-            onhand = set(db.get_values(layer=scenes_onhand_tbl, columns=scenes_id))
+            onhand = set(db.get_values(layer=scenes_onhand_tbl, columns=k_scenes_id))
 
-    logger.info('Onhand IDs: {}'.format(len(onhand)))
-    logger.debug('\n{}'.format('\n'.join(onhand)))
+    logger.info('Onhand IDs: {:,}'.format(len(onhand)))
+    # logger.debug('\n{}'.format('\n'.join(onhand)))
 
     return onhand
 
 
 def get_scenes_noh(data_directory):
-    # Walk data dir, find all .tif files not on hand
+    # Walk data dir, find all .tif files not in onhand table
     scenes_to_parse = list()
     onhand = get_onhand_ids()
 
@@ -58,6 +60,7 @@ def get_scenes_noh(data_directory):
         for root, dirs, files in tqdm(os.walk(data_directory)):
             logger.debug('Removing onhand IDs from files to parse...')
             for f in files:
+                # TODO: Find a better way to identify imagery/scene tifs
                 if not f.startswith(tuple(onhand)) and f.endswith('.tif') and not f.endswith('_udm.tif'):
                     scenes_to_parse.append(Path(root) / f)
     else:
@@ -113,15 +116,15 @@ def update_scenes_onhand(data_directory=data_directory,
         # Insert new records
         with Postgres(planet_db) as db:
             db.insert_new_records(new_rows, table=scenes_onhand_tbl,
-                                  unique_id=scenes_id, date_cols=date_cols)
+                                  unique_id=k_scenes_id, date_cols=date_cols)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     method_args = parser.add_mutually_exclusive_group()
-    method_args.add_argument('--parse_orders', nargs='+', type=str,
-                        help='Specific order numbers (subdirectories) to parse.')
+    # method_args.add_argument('--parse_orders', nargs='+', type=str,
+    #                          help='Specific order numbers (subdirectories) to parse.')
     parser.add_argument('--logfile', type=os.path.abspath,
                         help='Path to write logfile to.')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -131,24 +134,25 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    parse_orders = args.parse_orders
+    # parse_orders = args.parse_orders
     logfile = args.logfile
     verbose = args.verbose
     dryrun = args.dryrun
 
+    # Logging
     if verbose:
         log_lvl = 'DEBUG'
     else:
         log_lvl = 'INFO'
 
     logger = create_logger(__name__, 'sh', log_lvl)
-
     if not logfile:
         logfile = create_logfile_path(Path(__file__).stem)
     logger = create_logger(__name__, 'fh', 'DEBUG',
                            filename=create_logfile_path(Path(__file__).stem))
 
+    # Main
     update_scenes_onhand(data_directory=data_directory,
-                         parse_orders=parse_orders,
+                         # parse_orders=parse_orders,
                          dryrun=dryrun)
 
