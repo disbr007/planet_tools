@@ -197,15 +197,29 @@ if __name__ == '__main__':
     parser.add_argument('-tm', '--transfer_method', choices=['link', 'copy'],
                         default='copy',
                         help='Method to use for transfer.')
+    parser.add_argument('--generate_manifests', action='store_true',
+                        help='Only generate scene manifests from master manifests, '
+                             'do not perform copy operation. This is done as part'
+                             'of the copy routine, but this flag can be used to '
+                             'create scene manifests independently.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
 
     args = parser.parse_args()
+
+    data_directory = args.data_directory
+    destination_directory = args.destination_directory
     master_manifests = not args.scene_manifests_exist
     verify_checksums = not args.skip_checksums
+    generate_manifests = args.generate_manifests
+    transfer_method = args.transfer_method
+    dryrun = args.dryrun
+
+    if generate_manifests:
+        create_all_scene_manifests(data_directory)
     
-    shelve_scenes(args.data_directory, args.destination_directory,
+    shelve_scenes(data_directory, destination_directory,
                   master_manifests=master_manifests,
                   verify_checksums=verify_checksums,
-                  transfer_method=args.transfer_method,
-                  dryrun=args.dryrun)
+                  transfer_method=transfer_method,
+                  dryrun=dryrun)
