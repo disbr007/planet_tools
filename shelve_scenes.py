@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import sys
 import time
 
 from tqdm import tqdm
@@ -216,7 +217,9 @@ if __name__ == '__main__':
     dryrun = args.dryrun
 
     if generate_manifests:
+        logger.info('Creating scene manifests for all master manifests in: {}'.format(data_directory))
         create_all_scene_manifests(data_directory)
+        sys.exit()
     
     shelve_scenes(data_directory, destination_directory,
                   master_manifests=master_manifests,
