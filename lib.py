@@ -309,11 +309,11 @@ def find_scene_files(data_directory):
     return scenes_to_parse
 
 
-def find_scene_meta_files(scene):
-    meta_files = glob.glob("{}*".format(str(scene.parent / scene.stem)))
-    meta_files.append(metadata_path_from_scene(scene))
-    meta_files = [Path(p) for p in meta_files]
+def find_scene_meta_files(scene, req_exts=None):
+    scene_meta_files = glob.glob("{}*".format(str(scene.parent / scene.stem)))
+    scene_meta_files.append(metadata_path_from_scene(scene))
+    scene_meta_files = [Path(p) for p in scene_meta_files]
 
-    meta_files.remove(scene)
+    scene_meta_files.remove(scene)
 
-    return meta_files
+    return scene_meta_files

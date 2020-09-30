@@ -91,43 +91,49 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
     # Create list of (source file path, destination file path)
     srcs_dsts = []
     for scene in tqdm(verified_scenes, desc='Creating destination filepaths'):
-        # Find scene files (*udm.tif, *manifest.json, *metadata.xml, *rpc.txt)
-        scene_files = find_scene_meta_files(scene)
-        scene_files.append(scene)
-        # TODO: Identify meta files with regex?
         try:
-            xml = [f for f in scene_files if f.match('*.xml')][0]
-        except IndexError as e:
-            logger.warning('XML file not found for scene: {}'.format(scene))
-            # logger.warning(e)
-        try:
-            manifest = [f for f in scene_files if f.match('*manifest.json')][0]
-        except IndexError as e:
-            logger.warning('Manifest not found for scene: {}'.format(scene))
-        # Get attributes from xml file
-        attributes = attributes_from_xml(xml)
-        strip_id = attributes[k_identifier].split('_')[1]
-        # Get asset type, bundle type
-        bundle_type, item_type = bundle_item_types_from_manifest(manifest)
-        # Get date
-        acquired_date = datetime.datetime.strptime(attributes[k_acquired],
-                                                   date_format)
-        # Create month str, like 08_aug
-        month_str = '{}_{}'.format(acquired_date.month,
-                                   acquired_date.strftime('%b').lower())
-        # Create shelved destinations
-        dst_dir = destination_directory / Path(os.path.join(attributes[k_instrument],
-                                                            attributes[k_productType],
-                                                            bundle_type,
-                                                            item_type,
-                                                            acquired_date.strftime('%Y'),
-                                                            month_str,
-                                                            acquired_date.strftime('%d'),
-                                                            strip_id))
+            # Find scene files (*udm.tif, *manifest.json, *metadata.xml, *rpc.txt)
+            scene_files = find_scene_meta_files(scene)
+            scene_files.append(scene)
 
-        for src in scene_files:
-            dst = dst_dir / src.name
-            srcs_dsts.append((src, dst))
+            # Locate XML and manifest files, if both are not found, skip adding to move list
+            try:
+                xml = [f for f in scene_files if f.match('*.xml')][0]
+            except IndexError as e:
+                logger.warning('XML file not found for scene, omitting from shelving: {}'.format(scene))
+                continue
+            try:
+                manifest = [f for f in scene_files if f.match('*manifest.json')][0]
+            except IndexError as e:
+                logger.warning('Manifest not found for scene, omitting from shelving: {}'.format(scene))
+                continue
+            # Get attributes from xml file
+            attributes = attributes_from_xml(xml)
+            strip_id = attributes[k_identifier].split('_')[1]
+            # Get asset type, bundle type
+            bundle_type, item_type = bundle_item_types_from_manifest(manifest)
+            # Get date
+            acquired_date = datetime.datetime.strptime(attributes[k_acquired],
+                                                       date_format)
+            # Create month str, like 08_aug
+            month_str = '{}_{}'.format(acquired_date.month,
+                                       acquired_date.strftime('%b').lower())
+            # Create shelved destinations
+            dst_dir = destination_directory / Path(os.path.join(attributes[k_instrument],
+                                                                attributes[k_productType],
+                                                                bundle_type,
+                                                                item_type,
+                                                                acquired_date.strftime('%Y'),
+                                                                month_str,
+                                                                acquired_date.strftime('%d'),
+                                                                strip_id))
+
+            for src in scene_files:
+                dst = dst_dir / src.name
+                srcs_dsts.append((src, dst))
+        except Exception as e:
+            logger.error('Error parsing scene files for: {}'.format(scene))
+            logger.error(e)
 
     return srcs_dsts
 
