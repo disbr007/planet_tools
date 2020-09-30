@@ -164,9 +164,9 @@ def create_scene_manifests(master_manifest, overwrite=False):
     """
     Create scene manifest files for each scene section in the master manifest.
     """
-    logger.info('Locating scene manifests within master manifest: {}'.format(master_manifest))
+    logger.info('Locating scene manifests within master manifest\n{}'.format(master_manifest))
     scene_manifests = get_scene_manifests(master_manifest)
-    logger.info('Scene manifests found: {}'.format(len(scene_manifests)))
+    logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
 
     scene_manifest_files = []
     pbar = tqdm(scene_manifests, desc='Writing manifest.json files for each scene')

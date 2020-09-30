@@ -56,7 +56,7 @@ def create_all_scene_manifests(directory):
         sms = create_scene_manifests(mm, overwrite=False)
         scene_manifests.extend(sms)
 
-    logger.info('Scene manifests found: {}'.format(len(scene_manifests)))
+    logger.info('Total scene manifests found: {:,}'.format(len(scene_manifests)))
 
     return scene_manifests
 
@@ -95,8 +95,15 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
         scene_files = find_scene_meta_files(scene)
         scene_files.append(scene)
         # TODO: Identify meta files with regex?
-        xml = [f for f in scene_files if f.match('*.xml')][0]
-        manifest = [f for f in scene_files if f.match('*manifest.json')][0]
+        try:
+            xml = [f for f in scene_files if f.match('*.xml')][0]
+        except IndexError as e:
+            logger.warning('XML file not found for scene: {}'.format(scene))
+            # logger.warning(e)
+        try:
+            manifest = [f for f in scene_files if f.match('*manifest.json')][0]
+        except IndexError as e:
+            logger.warning('Manifest not found for scene: {}'.format(scene))
         # Get attributes from xml file
         attributes = attributes_from_xml(xml)
         strip_id = attributes[k_identifier].split('_')[1]
