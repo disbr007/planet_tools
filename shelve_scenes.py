@@ -135,7 +135,7 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir,
     logger.info('Verify checksums: {}'.format(verify_checksums))
     logger.info('Transfer method: {}'.format(transfer_method))
     logger.info('Dryrun: {}\n'.format(dryrun))
-    data_directory = Path(data_directory)
+
     if master_manifests and not dryrun:
         scene_manifests = create_all_scene_manifests(data_directory)
     else:
@@ -208,8 +208,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    data_directory = args.data_directory
-    destination_directory = args.destination_directory
+    data_directory = Path(args.data_directory)
+    destination_directory = Path(args.destination_directory)
     master_manifests = not args.scene_manifests_exist
     verify_checksums = not args.skip_checksums
     generate_manifests = args.generate_manifests
