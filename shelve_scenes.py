@@ -125,9 +125,10 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
 
 
 def shelve_scenes(data_directory, destination_directory=planet_data_dir,
-                  master_manifests=True, verify_checksums=True):
+                  master_manifests=True, verify_checksums=True,
+                  transfer_method='copy', dryrun=False):
     data_directory = Path(data_directory)
-    if master_manifests:
+    if master_manifests and not dryrun:
         scene_manifests = create_all_scene_manifests(data_directory)
     else:
         # TODO: Is this an ok way to get all scene manifests?
@@ -141,24 +142,36 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir,
     srcs_dsts = create_move_list(verified_scenes, destination_directory)
 
     logger.info('Copying scenes to shelved locations...')
+    prev_order = None
     for src, dst in tqdm(srcs_dsts):
+        # Log the current order directory being parsed
+        current_order = src.relative_to(data_directory).parts[0]
+        if current_order != prev_order:
+            logger.info('Copying order directory: {}'.format(current_order))
+        # Go no further if dryrun
+        if dryrun:
+            continue
+        # Perform copy
         if not dst.parent.exists():
             os.makedirs(dst.parent)
         if not dst.exists():
-            # logger.debug('Copying {}\n\t->{}'.format(src, dst))
+            if platform.system() == 'Linux' and transfer_method == 'link':
+                copy_fxn = os.link
+            elif transfer_method == 'copy':
+                copy_fxn = shutil.copy2
             try:
-                # TODO: Add linking? Change to move
-                shutil.copy2(src, dst)
-                # TODO: Remove src?
-            except:
-                logger.warning('Error copying: {}\n\t->{}'.format(src, dst))
-                raise
+                copy_fxn(src, dst)
+            except Exception as e:
+                logger.error('Error copying:\n{}\n\t-->{}'.format(src, dst))
+                logger.error(e)
         else:
             logger.debug('Destination exists, skipping: {}'.format(dst))
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     
     parser.add_argument('--data_directory', type=os.path.abspath,
                         help='Directory holding data to shelve.')
@@ -167,16 +180,23 @@ if __name__ == '__main__':
                         help='Base directory upon which to build filepath.')
     parser.add_argument('-sme', '--scene_manifests_exist', action='store_true',
                         help='Use to specify that scene manifests exist '
-                             'and recreating is not necessary '
-                             '(or possible - no master manifests)')
+                             'and recreating is not necessary or not '
+                             'possible, i.e. there are no master manifests)')
     parser.add_argument('--skip_checksums', action='store_true',
-                        help='Skip verifying checksums, all scenes found in '
+                        help='Skip verifying checksums, all new scenes found in '
                              'data directory will be moved to destination.')
-    
+    parser.add_argument('-tm', '--transfer_method', choices=['link', 'copy'],
+                        default='copy',
+                        help='Method to use for transfer.')
+    parser.add_argument('--dryrun', action='store_true',
+                        help='Print actions without performing.')
+
     args = parser.parse_args()
     master_manifests = not args.scene_manifests_exist
     verify_checksums = not args.skip_checksums
     
     shelve_scenes(args.data_directory, args.destination_directory,
                   master_manifests=master_manifests,
-                  verify_checksums=verify_checksums)
+                  verify_checksums=verify_checksums,
+                  transfer_method=args.transfer_method,
+                  dryrun=args.dryrun)
