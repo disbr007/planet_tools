@@ -127,7 +127,13 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
 def shelve_scenes(data_directory, destination_directory=planet_data_dir,
                   master_manifests=True, verify_checksums=True,
                   transfer_method='copy', dryrun=False):
-    logger.info('Starting shelving routine...')
+    logger.info('Starting shelving routine...\n')
+    logger.info('Source data location: {}'.format(data_directory))
+    logger.info('Destination parent directory: {}'.format(destination_directory))
+    logger.info('Master manifests exists: {}'.format(master_manifests))
+    logger.info('Verify checksums: {}'.format(verify_checksums))
+    logger.info('Transfer method: {}'.format(transfer_method))
+    logger.info('Dryrun: {}\n'.format(dryrun))
     data_directory = Path(data_directory)
     if master_manifests and not dryrun:
         scene_manifests = create_all_scene_manifests(data_directory)
