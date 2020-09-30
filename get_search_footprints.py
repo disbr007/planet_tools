@@ -22,7 +22,7 @@ from db_utils import Postgres
 # TODO: add get_search_area function to aid in managing quota
 # TODO: add remove_ids function
 
-# logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # API URLs
 PLANET_URL = r'https://api.planet.com/data/v1'
@@ -214,6 +214,41 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
     write_gdf(scenes, out_path)
 
 
+def get_search_footprints(args, search_id=None):
+    if not search_id:
+        search_id = args.search_id
+    out_path = args.out_path
+    out_dir = args.out_dir
+    to_tbl = args.to_tbl
+    dryrun = args.dryrun
+    verbose = args.verbose
+
+    # Logging
+    if verbose:
+        log_lvl = 'DEBUG'
+        logger = create_logger(__name__, 'sh', log_lvl)
+
+    if not PLANET_API_KEY:
+        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+
+    scenes, search_name = select_scenes(search_id=search_id, dryrun=dryrun)
+    if len(scenes) == 0:
+        logger.warning('No scenes found. Exiting.')
+        sys.exit()
+    if any([out_path, out_dir]):
+        if out_dir:
+            write_scenes(scenes, out_name=search_name, out_dir=out_dir)
+        else:
+            write_scenes(scenes, out_path=out_path)
+
+    if to_tbl:
+        with Postgres('sandwich-pool.planet') as db:
+            db.insert_new_records(scenes, table=to_tbl, unique_id=fld_id,
+                                  date_cols=['acquired'], dryrun=dryrun)
+
+    return scenes
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""Get the footprints of a previously created search.""")
 
@@ -233,34 +268,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    search_id = args.search_id
-    out_path = args.out_path
-    out_dir = args.out_dir
-    to_tbl = args.to_tbl
-    dryrun = args.dryrun
-    verbose = args.verbose
-
-    # Logging
-    if verbose:
-        log_lvl = 'DEBUG'
-    else:
-        log_lvl = 'INFO'
-    logger = create_logger(__name__, 'sh', log_lvl)
-
-    if not PLANET_API_KEY:
-        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
-
-    scenes, search_name = select_scenes(search_id=search_id, dryrun=dryrun)
-    if len(scenes) == 0:
-        logger.warning('No scenes found. Exiting.')
-        sys.exit()
-    if any([out_path, out_dir]):
-        if out_dir:
-            write_scenes(scenes, out_name=search_name, out_dir=out_dir)
-        else:
-            write_scenes(scenes, out_path=out_path)
-
-    if to_tbl:
-        with Postgres('sandwich-pool.planet') as db:
-            db.insert_new_records(scenes, table=to_tbl, unique_id=fld_id,
-                                  date_cols=['acquired'], dryrun=dryrun)
+    get_search_footprints(args, search_id=None)

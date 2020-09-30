@@ -69,5 +69,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     structure_scenes(src_dir=args.src_directory, dst_dir=args.dst_directory,
-                     days=args.days,
+                     days=args.days, move=args.move,
                      dryrun=args.dryrun)

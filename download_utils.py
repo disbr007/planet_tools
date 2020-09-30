@@ -207,7 +207,8 @@ def download_parallel(order_ids, dst_par_dir, overwrite=False, dryrun=False, thr
     """
     bucket = connect_aws_bucket()
     pool = ThreadPool(threads)
-    # TODO: Figure out the right wat to submit kwargs with starmap and product
+    # Create a dl_order_when_ready call for each order id in order_ids,
+    # with the specified arguments
     results = pool.starmap(dl_order_when_ready, product(order_ids, [dst_par_dir], [bucket],
                                                         [overwrite], [dryrun],
                                                         [2], [10], [wait_max]))

@@ -17,7 +17,8 @@ from logging_utils.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # Args
-data_directory = Path(r'E:\disbr007\projects\planet\data')
+# TODO: Add location on V: and make terranova compatable
+# data_directory = Path(r'E:\disbr007\projects\planet\data')
 
 
 # Constants
@@ -146,7 +147,7 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir,
         if not dst.exists():
             # logger.debug('Copying {}\n\t->{}'.format(src, dst))
             try:
-                # TODO: Add linking?
+                # TODO: Add linking? Change to move
                 shutil.copy2(src, dst)
                 # TODO: Remove src?
             except:
@@ -165,7 +166,7 @@ if __name__ == '__main__':
                         default=planet_data_dir,
                         help='Base directory upon which to build filepath.')
     parser.add_argument('-sme', '--scene_manifests_exist', action='store_true',
-                        help='Use to specify that scene manifests exist'
+                        help='Use to specify that scene manifests exist '
                              'and recreating is not necessary '
                              '(or possible - no master manifests)')
     parser.add_argument('--skip_checksums', action='store_true',

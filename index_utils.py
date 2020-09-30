@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # Manifest Keys
 k_files = 'files'
@@ -176,7 +176,7 @@ def create_scene_manifests(master_manifest, overwrite=False):
             # logger.warning('Scene file in manifest.json not found: {}'.format(sf))
             continue
         else:
-            logger.info('Scene file found')
+            logger.debug('Scene file found')
         scene_manifest_file = write_scene_manifest(sm, master_manifest, overwrite=overwrite)
         scene_manifest_files.append(scene_manifest_file)
 
@@ -209,9 +209,12 @@ def create_file_md5(fname):
 
 def verify_scene_md5(manifest_file):
     # TODO: Speed up -- parallel?
-    scene_file_from_manifest(scene_manifest=manifest_file)
+    scene_file = scene_file_from_manifest(scene_manifest=manifest_file)
 
     file_md5 = create_file_md5(scene_file)
+
+    with open(manifest_file) as f:
+        manifest_contents = json.load(f)
     manifest_md5 = manifest_contents[k_digests][k_md5]
     if file_md5 == manifest_md5:
         verified = True

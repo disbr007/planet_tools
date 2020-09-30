@@ -1,135 +1,23 @@
-from pprint import pprint
 import argparse
 import os
-import json
+from pathlib import Path
 
-import geopandas as gpd
-
-from lib import parse_group_args
-from search_utils import filter_from_arg, create_search_request, create_saved_search, \
-                         get_search_count, create_master_attribute_filter, \
-                         create_master_geom_filter, create_months_filter, \
-                         create_noh_filter, create_asset_filter
+from create_search import create_search, parse_group_args
+from get_search_footprints import get_search_footprints
 from logging_utils.logging_utils import create_logger
 
-# Footprint table
-scenes = 'scenes'
-# On hand table
-scenes_onhand = 'scenes_onhand'
+logger = create_logger(__name__, 'sh', 'INFO',)
 
-
-def create_search(args, att_group_args):
-    if args.verbose:
-        log_lvl = 'DEBUG'
+def new_search_footprints(args, att_group_args):
+    logger.info('Creating search...')
+    ssid = create_search(args, att_group_args)
+    if ssid:
+        logger.info('Getting footprints')
+        get_search_footprints(args, search_id=ssid)
     else:
-        log_lvl = 'INFO'
-
-    logger = create_logger(__name__, 'sh', log_lvl)
-    logger.info('Creating saved search...')
-
-    name = args.name
-    aoi = args.aoi
-    item_types = args.item_types
-    months = args.months
-    month_min_day_args = args.month_min_day
-    month_max_day_args = args.month_max_day
-    filters = args.filters
-    asset_filters = args.asset_filter
-    load_filter = args.load_filter
-    not_on_hand = args.not_on_hand
-    fp_not_on_hand = args.fp_not_on_hand
-    # get_count = args.get_count
-    overwrite_saved = args.overwrite_saved
-    save_filter = args.save_filter
-    dryrun = args.dryrun
-
-    search_filters = []
-
-    if any([kwa[1] for kwa in att_group_args._get_kwargs()]):
-        master_attribute_filter = create_master_attribute_filter(att_group_args)
-        search_filters.append(master_attribute_filter)
-
-    # Parse AOI to filter
-    if aoi:
-        aoi_attribute_filter = create_master_geom_filter(vector_file=aoi)
-        search_filters.append(aoi_attribute_filter)
-
-    # Parse raw filters
-    if filters:
-        search_filters.extend([filter_from_arg(f) for f in filters])
-
-    if months:
-        month_min_days = None
-        month_max_days = None
-        if month_min_day_args:
-            month_min_days = {month: day for month, day in month_min_day_args}
-        if month_max_day_args:
-            month_max_days = {month: day for month, day in month_max_day_args}
-        mf = create_months_filter(months, min_date=args.min_date, max_date=args.max_date,
-                                  month_min_days=month_min_days, month_max_days=month_max_days)
-        search_filters.append(mf)
-
-    # Parse any provided filters
-    if load_filter:
-        addtl_filter = json.load(open(load_filter))
-        search_filters.append(addtl_filter)
-
-    # Parse any asset filters
-    if asset_filters:
-        for af in asset_filters:
-            f = create_asset_filter(af)
-            search_filters.append(f)
-
-    if not_on_hand:
-        noh_filter = create_noh_filter(tbl=scenes_onhand)
-        search_filters.append(noh_filter)
-
-    if fp_not_on_hand:
-        fp_noh_filter = create_noh_filter(tbl=scenes)
-        fp_noh_filter['config']['config'] = fp_noh_filter['config']['config'][:10000]
-        search_filters.append(fp_noh_filter)
-
-    # Create search request using the filters created above
-    from copy import deepcopy
-    for f in search_filters:
-        if f['type'] == 'NotFilter':
-            pf = deepcopy(f)
-            # print(len(pf['config']['config']))
-            pf['config']['config'] = pf['config']['config'][:20]
-            # pprint(pf)
-
-    sr = create_search_request(name=name, item_types=item_types, search_filters=search_filters)
-
-    if save_filter:
-        if os.path.basename(save_filter) == 'default.json':
-            save_filter = os.path.join(os.path.dirname(__file__), 'config', 'search_filters', '{}.json'.format(name))
-        logger.debug('Saving filter to: {}'.format(save_filter))
-        with open(save_filter, 'w') as src:
-            json.dump(sr, src)
-
-    if logger.level == 10:
-        # pprint was happening even when logger.level = 20 (INFO)
-        logger.debug('Search request:\n{}'.format(sr))
-
-    # if get_count:
-    total_count = get_search_count(sr)
-    logger.info('Count for new search "{}": {:,}'.format(name, total_count))
-
-    if not dryrun:
-        if total_count > 0:
-            # Submit search request as saved search
-            ss_id = create_saved_search(search_request=sr, overwrite_saved=overwrite_saved)
-            if ss_id:
-                logger.info('Successfully created new search. Search ID: {}'.format(ss_id))
-        else:
-            logger.warning('Search returned no results - skipping saving.')
-            ss_id = None
-    else:
-        ss_id = None
-
-    return ss_id
-
-
+        logger.warning('No saved search ID returned - no footprints to retrieve.')
+    
+    
 if __name__ == '__main__':
     # Groups
     att_group = 'Attributes'
@@ -203,13 +91,23 @@ if __name__ == '__main__':
                         help='Pass to overwrite a saved search of the same name.')
     parser.add_argument('--save_filter', nargs='?', type=os.path.abspath, const='default.json',
                         help='Path to save filter (json).')
+
+    # get_search_footprints args
+    parser.add_argument('-op', '--out_path', type=os.path.abspath,
+                        help='Path to write selected scene footprints to.')
+    parser.add_argument('-od', '--out_dir', type=os.path.abspath,
+                        help="""Directory to write scenes footprint to -
+                        the search request name will be used for the filename.""")
+    parser.add_argument('--to_tbl', type=str,
+                        help="""Insert search results into this table.""")
+
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')
-
 
     args = parser.parse_args()
     # Parse attribute arguments to filter
     att_group_args = parse_group_args(parser=parser, group_name=att_group)
 
-    create_search(args, att_group_args)
+    new_search_footprints(args, att_group_args)
+

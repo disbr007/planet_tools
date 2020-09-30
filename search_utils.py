@@ -344,7 +344,7 @@ def create_master_filter(search_filters):
 
 
 def create_search_request(name, item_types, search_filters):
-    # logger.debug('Creating search request...')
+    logger.debug('Creating search request...')
     # Create a master filter - all filters applied as AND
     master_filter = create_master_filter(search_filters=search_filters)
     # Create search request json
@@ -353,7 +353,9 @@ def create_search_request(name, item_types, search_filters):
         "item_types": item_types,
         "filter": master_filter
     }
-    print('length of search request: {:,}'.format(len(str(search_request))))
+    # print('length of search request: {:,}'.format(len(str(search_request))))
+    # print(search_request)
+
     return search_request
 
 
@@ -477,10 +479,11 @@ def get_search_count(search_request):
             logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)[0:500]))
             if len(str(stats_request)) > 500:
                 logger.error('...{}'.format(str(stats_request)[-500:]))
+
             logger.debug(str(stats_request))
         logger.debug(stats)
 
-
+    pprint(stats_request)
     total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])
     logger.debug('Total count for search request "{}": {:,}'.format(name, total_count))
 
