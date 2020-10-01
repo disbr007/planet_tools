@@ -1,5 +1,6 @@
 import argparse
 import copy
+import hashlib
 import json
 import glob
 import os
@@ -316,12 +317,17 @@ def find_scene_files(data_directory):
     """Locate scene files based on previously created scene level
     *_manifest.json files."""
     scene_files = []
-    for root, dirs, files in os.walk(data_directory):
-        pass
+    # Find all manifest files, using the underscore will prevent
+    # master manifests from being found.
+    all_manifests = Path(data_directory).rglob('*_manifest.json')
+    for manifest in all_manifests:
+        with open(str(manifest), 'r') as src:
+            data = json.load(src)
+            # Find the scene path within the manifest
+            scene_path = data['path']
+            scene_files.append(scene_path)
 
-data_directory = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data\00889167-0f83-441a-8122-481e45c01d54\PSScene4Band')
-data_directory.rglob('*_manifest.json')
-
+    return scene_files
 
 
 def find_scene_meta_files(scene, req_meta=['manifest.json', 'metadata.xml']):
@@ -340,9 +346,70 @@ def find_scene_meta_files(scene, req_meta=['manifest.json', 'metadata.xml']):
 
     return scene_meta_files
 
-scene = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data'
-             r'\69e80b73-4ddb-402e-a696-9d257977c7cd\PSScene4Band'
-             r'\20170118_200541_0e16_3B_AnalyticMS_SR.tif')
 
-mfs = find_scene_meta_files(scene)
-# print(mfs)
+def create_file_md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+
+    return hash_md5.hexdigest()
+
+
+def verify_scene_md5(manifest_md5, scene_file):
+    file_md5 = create_file_md5(scene_file)
+    if file_md5 == manifest_md5:
+        verified = True
+    else:
+        logger.warning('Verification of md5 checksum failed: {} != {}'.format(file_md5, manifest_md5))
+        verified = False
+
+    return verified
+
+
+class PlanetScene:
+    """Write"""
+    def __init__(self, manifest):
+        self.manifest = Path(manifest)
+        # Parse manifest for attributes
+        with open(str(self.manifest), 'r') as src:
+            data = json.load(src)
+            # Find the scene path within the manifest
+            _digests = data['digests']
+            _annotations = data['annotations']
+            self.scene_path = self.manifest.parent.parent / data['path']
+            self.media_type = data['size']
+            self.md5 = _digests['md5']
+            self.sha256 = _digests['sha256']
+            self.asset_type = _annotations['planet/asset_type']
+            self.bundle_type = _annotations['planet/bundle_type']
+            self.item_id = _annotations['planet/item_id']
+            self.item_type = _annotations['planet/item_type']
+        # Empty attributes calculated from methods
+        self.valid_md5 = None
+
+        # Bundle types that have been tested for compatibility with naming conventions
+        self.supported_bundle_types = ['analytic', 'analytic_sr',
+                                       'basic_analytic', 'basic_analytic_nitf',
+                                       'basic_uncalibrated_dn', 'basic_uncalibrated_dn_ntif',
+                                       'uncalibrated_dn']
+        # Ensure bundle_type has been tested
+        if self.bundle_type not in self.supported_bundle_types:
+            logger.error('Bundle type not tested: {}'.format(self.bundle_type))
+
+    def verify_checksum(self):
+        self.valid_md5 = verify_scene_md5(self.md5, self.scene_path)
+
+    def get_xml(self):
+        # First n chars * _metadata.xml
+        # Use bundle_type to determine filename
+        pass
+
+ps = PlanetScene(r'V:\pgc\data\scratch\jeff\projects\planet\data'
+                 r'\00889167-0f83-441a-8122-481e45c01d54\PSScene4Band'
+                 r'\20191009_160416_100d_1B_AnalyticMS_manifest.json')
+
+
+
+
+
