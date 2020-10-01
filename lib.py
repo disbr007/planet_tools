@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import pathlib
 import platform
+import re
 
 import pandas as pd
 import geopandas as gpd
@@ -298,6 +299,8 @@ def metadata_path_from_scene(scene):
 
 
 def find_scene_files(data_directory):
+    # TODO: search for manifest.json files and use those to locate scenes
+    # TODO: Pass in list of manifest files?
     scenes_to_parse = []
     for root, dirs, files in os.walk(data_directory):
         for f in files:
@@ -309,11 +312,37 @@ def find_scene_files(data_directory):
     return scenes_to_parse
 
 
-def find_scene_meta_files(scene, req_exts=None):
-    scene_meta_files = glob.glob("{}*".format(str(scene.parent / scene.stem)))
+def find_scene_files(data_directory):
+    """Locate scene files based on previously created scene level
+    *_manifest.json files."""
+    scene_files = []
+    for root, dirs, files in os.walk(data_directory):
+        pass
+
+data_directory = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data\00889167-0f83-441a-8122-481e45c01d54\PSScene4Band')
+data_directory.rglob('*_manifest.json')
+
+
+
+def find_scene_meta_files(scene, req_meta=['manifest.json', 'metadata.xml']):
+    # scene_meta_files = glob.glob("{}*".format(str(scene.parent / scene.stem)))
+    scene_meta_files = [f for f in scene.parent.rglob('{}*'.format(scene.stem))]
     scene_meta_files.append(metadata_path_from_scene(scene))
     scene_meta_files = [Path(p) for p in scene_meta_files]
 
+    print(scene_meta_files)
+    # This looks for matches with each req_meta suffix in the list of scene_meta_files
+    req_meta_matches = [list(filter(lambda x: re.match('.*{}'.format(s), str(x)), scene_meta_files)) for s in req_meta]
+    req_meta_matches = [f for matchlist in req_meta_matches for f in matchlist]
+    if len(req_meta_matches) != len(req_meta):
+        print('Missing meta files')
     scene_meta_files.remove(scene)
 
     return scene_meta_files
+
+scene = Path(r'V:\pgc\data\scratch\jeff\projects\planet\data'
+             r'\69e80b73-4ddb-402e-a696-9d257977c7cd\PSScene4Band'
+             r'\20170118_200541_0e16_3B_AnalyticMS_SR.tif')
+
+mfs = find_scene_meta_files(scene)
+# print(mfs)

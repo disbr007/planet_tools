@@ -180,8 +180,21 @@ DROP MATERIALIZED VIEW scenes_metadata CASCADE;
 -- DROP MATERIALIZED VIEW VIEW scenes_off_nadir;
 DROP MATERIALIZED VIEW stereo_candidates;
 
-
+/* Get table sizes */
 select t1.datname AS db_name,
        pg_size_pretty(pg_database_size(t1.datname)) as db_size
 from pg_database t1
 order by pg_database_size(t1.datname) desc
+
+
+/* Get all intersections */
+/* Use a grid of 1km by 1km, search for overlaps that cover at least x grid cells */
+SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+    SELECT a.id as src_id,
+           b.id AS int_id
+    FROM scenes_onhand a, scenes_onhand b
+    WHERE a.id < b.id AND ST_Intersects(a.geom, b.geom)
+LIMIT 1000) all_int
+GROUP BY 1
+LIMIT 50;
+
