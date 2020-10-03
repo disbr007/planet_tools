@@ -193,7 +193,11 @@ SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
     SELECT a.id as src_id,
            b.id AS int_id
     FROM scenes_onhand a, scenes_onhand b
-    WHERE a.id < b.id AND ST_Intersects(a.geom, b.geom)
+    WHERE a.id < b.id AND
+          a.cloud_cover < 0.20 AND
+          b.cloud_cover < 0.20 AND
+          ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+          ST_Intersects(a.geom, b.geom)
 LIMIT 1000) all_int
 GROUP BY 1
 LIMIT 50;
