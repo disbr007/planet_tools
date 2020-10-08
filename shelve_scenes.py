@@ -9,10 +9,10 @@ import time
 
 from tqdm import tqdm
 
-from lib import linux2win
-from index_utils import create_scene_manifests, scene_file_from_manifest, verify_scene_md5, \
-                        attributes_from_xml, bundle_item_types_from_manifest
-from lib import find_scene_meta_files
+from lib import linux2win, create_scene_manifests
+from index_utils import scene_file_from_manifest, #verify_scene_md5,
+                        #attributes_from_xml, bundle_item_types_from_manifest
+from lib import PlanetScene # find_scene_meta_files,
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -23,16 +23,20 @@ logger = create_logger(__name__, 'sh', 'INFO')
 
 
 # Constants
+# Destination directory for shelving
 planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')  # /planet?
 if platform.system() == 'Windows':
     planet_data_dir = Path(linux2win(str(planet_data_dir)))
-# XML date format
-date_format = '%Y-%m-%dT%H:%M:%S+00:00'
-# XML attribute keys
-k_identifier = 'identifier'
-k_instrument = 'instrument'
-k_productType = 'productType'
-k_acquired = 'acquisitionDateTime'
+# Location to move unshelveable data to
+unshelveable_data_dir = Path(r'/mnt/pgc/data/scratch/jeff/projects/planet/unshelveable')
+
+# # XML date format
+# date_format = '%Y-%m-%dT%H:%M:%S+00:00'
+# # XML attribute keys
+# k_identifier = 'identifier'
+# k_instrument = 'instrument'
+# k_productType = 'productType'
+# k_acquired = 'acquisitionDateTime'
 
 
 def create_all_scene_manifests(directory):
@@ -61,24 +65,24 @@ def create_all_scene_manifests(directory):
     return scene_manifests
 
 
-def verify_scene_checksums(scene_manifests):
-    """
-    Scene manifests contain the checksum hash that the image should match. This
-    takes a list of scene manifests and calculates the checksum for the associated
-    scene files, then returns only those scenes that have checksums that match.
-    """
-    logger.info('Verifying scene checksums: {}'.format(len(scene_manifests)))
-    scene_verification = []
-    for sm in tqdm(scene_manifests, desc='Verifying scene checksums...'):
-        scene, verified = verify_scene_md5(sm)
-        scene_verification.append((scene, verified))
-        # TODO: REMOVE time.sleep
-        time.sleep(0.001)
-
-    verified_scenes = [scene for scene, verified in scene_verification if verified]
-    logger.info('Verified scenes: {}'.format(len(verified_scenes)))
-    
-    return verified_scenes
+# def verify_scene_checksums(scene_manifests):
+#     """
+#     Scene manifests contain the checksum hash that the image should match. This
+#     takes a list of scene manifests and calculates the checksum for the associated
+#     scene files, then returns only those scenes that have checksums that match.
+#     """
+#     logger.info('Verifying scene checksums: {}'.format(len(scene_manifests)))
+#     scene_verification = []
+#     for sm in tqdm(scene_manifests, desc='Verifying scene checksums...'):
+#         scene, verified = verify_scene_md5(sm)
+#         scene_verification.append((scene, verified))
+#         # TODO: REMOVE time.sleep
+#         time.sleep(0.001)
+#
+#     verified_scenes = [scene for scene, verified in scene_verification if verified]
+#     logger.info('Verified scenes: {}'.format(len(verified_scenes)))
+#
+#     return verified_scenes
 
 
 def create_move_list(verified_scenes, destination_directory=planet_data_dir):
@@ -96,7 +100,8 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
             scene_files = find_scene_meta_files(scene)
             scene_files.append(scene)
 
-            # Locate XML and manifest files, if both are not found, skip adding to move list
+            # Locate XML and manifest files within list of scene files,
+            # if both are not found, skip adding to move list
             try:
                 xml = [f for f in scene_files if f.match('*.xml')][0]
             except IndexError as e:
@@ -107,6 +112,7 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
             except IndexError as e:
                 logger.warning('Manifest not found for scene, omitting from shelving: {}'.format(scene))
                 continue
+            # TODO: make this a function: create_shelved_destination(scene, xml, manifest)
             # Get attributes from xml file
             attributes = attributes_from_xml(xml)
             strip_id = attributes[k_identifier].split('_')[1]
@@ -140,7 +146,8 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
 
 def shelve_scenes(data_directory, destination_directory=planet_data_dir,
                   master_manifests=True, verify_checksums=True,
-                  transfer_method='copy', dryrun=False):
+                  transfer_method='copy', locate_unshelveable=False,
+                  dryrun=False):
     logger.info('Starting shelving routine...\n')
     logger.info('Source data location: {}'.format(data_directory))
     logger.info('Destination parent directory: {}'.format(destination_directory))
@@ -155,12 +162,36 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir,
         # TODO: Is this an ok way to get all scene manifests?
         scene_manifests = data_directory.rglob('*_manifest.json')
 
+    # TODO: Change from here to use PlanetScene class
+    scenes = [PlanetScene(sm) for sm in scene_manifests]
     if verify_checksums:
-        verified_scenes = verify_scene_checksums(scene_manifests)
+        logger.info('Verifying scene checksums...')
+        for ps in tqdm(scenes, desc='Verifying scene checksums...'):
+            ps.verify_checksum()
+    else:
+        logger.info('Skipping checksum verification...')
+        # Mark all as verified
+        for ps in scenes:
+            ps.valid_md5 = True
+
+    if locate_unshelveable:
+        logger.info('Locating unshelveable data...')
+        unshelveable = []
+        for ps in scenes:
+            if not ps.is_shelveable():
+                unshelveable.append(ps.scene_path)
+                unshelveable.append(ps.meta_files)
+
+
+
+    # TODO: Start PlanetScene ****
+    if verify_checksums:
+        verified_scenes = verify_scene_checksums([sm for sm in scene_manifests])
     else:
         verified_scenes = [scene_file_from_manifest(sm) for sm in scene_manifests]
 
     srcs_dsts = create_move_list(verified_scenes, destination_directory)
+    # TODO: End PlanetScene refac ***
 
     logger.info('Copying scenes to shelved locations...')
     prev_order = None
@@ -215,9 +246,17 @@ if __name__ == '__main__':
                         help='Only generate scene manifests from master manifests, '
                              'do not perform copy operation. This is done as part'
                              'of the copy routine, but this flag can be used to '
-                             'create scene manifests independently.')
+                             'create scene manifests without copying.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
+    # TODO: --include_pan
+    # TODO: --locate_unshelvable
+
+    sys.argv = ['shelve_scenes.py',
+                '--data_directory',
+                r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
+                r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
+                '--dryrun']
 
     args = parser.parse_args()
 
