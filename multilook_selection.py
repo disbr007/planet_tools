@@ -174,6 +174,12 @@ if __name__ == '__main__':
                         help='Path to write text file of all IDs in multilook footprint.')
     parser.add_argument('-mp', '--min_pairs', type=int, default=min_pairs)
     parser.add_argument('-ma', '--min_area', type=float, default=min_area)
+    parser.add_argument('-fn_pn', '--filename_pairname', action='store_true',
+                        help='Use to create a new field in the output footprint '
+                             'that is the pairname, but using filenames instead of '
+                             'ids: E.g.:'
+                             'Pairname: 20200618_152012_104e-20200623_152150_1020-20200623_152150_1020'
+                             'Filename_pairname: ')
     
     args = parser.parse_args()
 

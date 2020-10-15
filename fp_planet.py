@@ -5,6 +5,7 @@ from pathlib import Path
 from logging_utils.logging_utils import create_logger
 from lib import write_gdf, find_scene_files, \
                 metadata_path_from_scene, gdf_from_metadata
+from lib import PlanetScene
 
 logger = create_logger(__name__, 'sh', 'INFO')
 

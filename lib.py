@@ -464,9 +464,19 @@ def add_renamed_attributes(node, renamer, root, attributes):
 
 class PlanetScene:
     """A class to represent a Planet scene, including metadata
-    file paths, attributes, etc."""
-    def __init__(self, manifest):
+    file paths, attributes, etc.
+    Parameters
+    ---------
+    manifest : str
+        Path to scene-level manifest file
+    exclude_meta : list
+        Optional, list of strings used to remove files that
+        otherwise would be matched by self.metafiles.
+        E.g: ['_pan', '_metadata.json']
+    """
+    def __init__(self, manifest, exclude_meta=None):
         self.manifest = Path(manifest)
+        self.exclude_meta = exclude_meta
         if self.manifest.suffix != '.json':
             logger.error('Must pass *_manifest.json file.')
         # Parse manifest for attributes
@@ -475,7 +485,7 @@ class PlanetScene:
             # Find the scene path within the manifest
             _digests = data['digests']
             _annotations = data['annotations']
-            self.scene_path = self.manifest.parent.parent / data['path']
+            self.scene_path = self.manifest.parent.parent / Path(data['path']).name
             self.media_type = data['size']
             self.md5 = _digests['md5']
             self.sha256 = _digests['sha256']
@@ -553,6 +563,9 @@ class PlanetScene:
                 self._meta_files.append(self.metadata_json)
             else:
                 logger.debug('Metadata JSON not found for: {}'.format(self.scene_path))
+            if self.exclude_meta:
+                self._meta_files = [f for f in self._meta_files
+                                    if not any([em in str(f) for em in self.exclude_meta])]
         return self._meta_files
 
     @property
@@ -731,9 +744,3 @@ class PlanetScene:
     def shelved_location(self):
         return self.shelved_dir / self.scene_path.name
 
-
-
-# ps = PlanetScene(r'V:\pgc\data\scratch\jeff\projects\planet\data'
-#                  r'\69e80b73-4ddb-402e-a696-9d257977c7cd'
-#                  r'\PSScene4Band\20170118_200541_0e16_3B_AnalyticMS_SR_manifest.json')
-#
