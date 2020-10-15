@@ -4,8 +4,8 @@ from pathlib import Path
 
 from logging_utils.logging_utils import create_logger
 from lib import write_gdf, find_scene_files, \
-                metadata_path_from_scene, gdf_from_metadata
-from lib import PlanetScene
+                gdf_from_metadata
+from lib import PlanetScene, find_planet_scenes
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -23,8 +23,8 @@ def main(args):
         relative_directory = parse_directory
 
     logger.info('Searching for scenes in: {}'.format(parse_directory))
-    scene_files = find_scene_files(parse_directory)
-    logger.info('Found {:,} scenes to parse...'.format(len(scene_files)))
+    planet_scenes = find_planet_scenes(parse_directory)
+    logger.info('Found {:,} scenes to parse...'.format(len(planet_scenes)))
 
     # TODO: convert to using xml files to generate footprints
     scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]

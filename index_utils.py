@@ -114,19 +114,19 @@ image = 'image'  # start of media_type that indicates imagery
 #
 #     return attributes
 
-
-def scene_file_from_manifest(scene_manifest):
-    """Use the directory name of the scene manifest file + look up the path
-    to the scene file and use just the file name. Just the file name is
-    used as the path in the manifest is relative to the order directory,
-    which may not always be where the scene file is. Using the parent
-    directory of the manifest ensures the correct scene path is located
-    as long as the scene manifest is alongside the scene file."""
-    with open(scene_manifest, 'r') as src:
-        manifest_contents = json.load(src)
-        scene_file = scene_manifest.parent / Path(manifest_contents[k_path]).name
-
-    return scene_file
+#
+# def scene_file_from_manifest(scene_manifest):
+#     """Use the directory name of the scene manifest file + look up the path
+#     to the scene file and use just the file name. Just the file name is
+#     used as the path in the manifest is relative to the order directory,
+#     which may not always be where the scene file is. Using the parent
+#     directory of the manifest ensures the correct scene path is located
+#     as long as the scene manifest is alongside the scene file."""
+#     with open(scene_manifest, 'r') as src:
+#         manifest_contents = json.load(src)
+#         scene_file = scene_manifest.parent / Path(manifest_contents[k_path]).name
+#
+#     return scene_file
 
 
 

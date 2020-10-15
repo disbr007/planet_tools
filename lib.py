@@ -3,18 +3,18 @@ import copy
 import datetime
 import hashlib
 import json
-import glob
 import os
-import sys
 from pathlib import Path
 import pathlib
 import platform
 import re
+import sys
+import time
 import xml.etree.ElementTree as ET
 
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Polygon
+from shapely.geometry import Point, Polygon
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
@@ -367,57 +367,39 @@ def create_scene_manifests(master_manifest, overwrite=False):
     scene_manifests = get_scene_manifests(master_manifest)
     logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
 
+    received_date = time.strftime('%Y-%m-%dT%H:%M%SZ', time.localtime(os.path.getmtime(master_manifest)))
+
     scene_manifest_files = []
     pbar = tqdm(scene_manifests, desc='Writing manifest.json files for each scene')
     for sm in pbar:
         sf = master_manifest.parent / Path(sm[k_path])
         if not sf.exists():
-            # logger.warning('Scene file in manifest.json not found: {}'.format(sf))
+            logger.warning('Scene file location in manifest.json not found, skipping: {}'.format(sf))
             continue
         else:
             logger.debug('Scene file found')
+        sm['received_datetime'] = received_date
         scene_manifest_file = write_scene_manifest(sm, master_manifest, overwrite=overwrite)
         scene_manifest_files.append(scene_manifest_file)
 
     return scene_manifest_files
 
 
-def find_scene_files(data_directory):
-    """Locate scene files based on previously created scene level
-    *_manifest.json files."""
-    scene_files = []
-    # Find all manifest files, using the underscore will prevent
-    # master manifests from being found.
-    all_manifests = Path(data_directory).rglob('*_manifest.json')
-    for manifest in all_manifests:
-        with open(str(manifest), 'r') as src:
-            data = json.load(src)
-            # Find the scene path within the manifest
-            scene_path = data['path']
-            scene_files.append(scene_path)
-
-    return scene_files
-
-
-# def find_scene_meta_files(scene, req_meta=['manifest.json', 'metadata.xml']):
-#     # This assumes that meta files will start with the scene file name:
-#     # e.g.: 20191009_160416_100d_1B_AnalyticMS.tif -> 20191009_160416_100d_1B_AnalyticMS*
-#     scene_meta_files = [f for f in scene.parent.rglob('{}*'.format(scene.stem))]
-#     # This attempts to find the metadata.json files
-#     scene_meta_files.append(metadata_path_from_scene(scene))
-#     scene_meta_files = [Path(p) for p in scene_meta_files]
+# def find_scene_files(data_directory):
+#     """Locate scene files based on previously created scene level
+#     *_manifest.json files."""
+#     scene_files = []
+#     # Find all manifest files, using the underscore will prevent
+#     # master manifests from being found.
+#     all_manifests = Path(data_directory).rglob('*_manifest.json')
+#     for manifest in all_manifests:
+#         with open(str(manifest), 'r') as src:
+#             data = json.load(src)
+#             # Find the scene path within the manifest
+#             scene_path = data['path']
+#             scene_files.append(scene_path)
 #
-#     # This looks for matches with each req_meta suffix in the list of scene_meta_files
-#     req_meta_matches = [list(filter(lambda x: re.match('.*{}'.format(s), str(x)), scene_meta_files)) for s in req_meta]
-#     # Unpacks each meta file match list into a single flat list
-#     req_meta_matches = [f for matchlist in req_meta_matches for f in matchlist]
-#     if len(req_meta_matches) != len(req_meta):
-#         logger.debug('Required meta files not all found for scene: {}'.format(scene))
-#         logger.debug('Metadata files found: {}'.format(req_meta_matches))
-#
-#     scene_meta_files.remove(scene)
-#
-#     return scene_meta_files
+#     return scene_files
 
 
 def create_file_md5(fname):
@@ -442,6 +424,7 @@ def verify_scene_md5(manifest_md5, scene_file):
 
 
 def tag_uri_and_name(elem):
+    """Parse XML elements into uris and names"""
     if elem.tag[0] == '{':
         uri, _, name = elem.tag[1:].partition('}')
     else:
@@ -452,19 +435,21 @@ def tag_uri_and_name(elem):
 
 
 def add_renamed_attributes(node, renamer, root, attributes):
+    """Parse XML elements that would overwrite other attributes
+    renaming them before adding them to the attributes dict"""
     elems = root.find('.//{}'.format(node))
     for e in elems:
         uri, name = tag_uri_and_name(e)
         if name in renamer.keys():
             name = renamer[name]
         if e.text.strip() != '':
-            # print('{}: {}'.format(name, e.text))
             attributes[name] = e.text
 
 
 class PlanetScene:
     """A class to represent a Planet scene, including metadata
     file paths, attributes, etc.
+
     Parameters
     ---------
     manifest : str
@@ -485,7 +470,7 @@ class PlanetScene:
             # Find the scene path within the manifest
             _digests = data['digests']
             _annotations = data['annotations']
-            self.scene_path = self.manifest.parent.parent / Path(data['path']).name
+            self.scene_path = self.manifest.parent / Path(data['path']).name
             self.media_type = data['size']
             self.md5 = _digests['md5']
             self.sha256 = _digests['sha256']
@@ -493,6 +478,7 @@ class PlanetScene:
             self.bundle_type = _annotations['planet/bundle_type']
             self.item_id = _annotations['planet/item_id']
             self.item_type = _annotations['planet/item_type']
+            self.received_datetime = data['received_datetime']
 
         # Determine "scene name" - the scene name without post processing suffixes,
         # used when searching for metadata files
@@ -503,7 +489,6 @@ class PlanetScene:
             self.scene_name = '_'.join(self.scene_path.stem.split('_')[0:5])
 
         # Empty attributes calculated from methods
-        # TODO: convert fxns that populate to use @property for lazy eval
         self._shelveable = None
         # self.shelved_dir = None
         # self.shelved_location = None
@@ -515,15 +500,20 @@ class PlanetScene:
         self._xml_attributes = None # Keep?
         # Attributes from .xml
         self._identifier = None
-        self._acquired_date = None
-        self._instrument = None
+        self._acquistion_type = None
         self._product_type = None
-        # self.center_x = None
-        # self.center_y = None
+        self._instrument = None
+        self._acquisition_datetime = None
+        self._geometry = None
+        self._centroid = None
+        self._center_x = None
+        self._center_y = None
         # Attributes from _metadata.json
         self._strip_id = None
         # Misc.
         self.skip_checksum = None
+        self._index_row = None
+        self._footprint_row = None
 
         # Bundle types that have been tested for compatibility with naming conventions
         self.supported_bundle_types = ['analytic', 'analytic_sr',
@@ -553,12 +543,15 @@ class PlanetScene:
 
     @property
     def meta_files(self):
+        """Locate metadata files for the scene, not including the scene itself and
+        excluding any subtrings passed in self.exlude_meta"""
         if self._meta_files is None:
             logger.debug('Locating metadata files for: {}'.format(self.scene_path))
             self._meta_files = [f for f in
                                 self.scene_path.parent.rglob(
                                     '{}*'.format(self.scene_name)
-                                )]
+                                )
+                                if f != self.scene_path]
             if self.metadata_json.exists():
                 self._meta_files.append(self.metadata_json)
             else:
@@ -585,7 +578,7 @@ class PlanetScene:
     @property
     def scene_files(self):
         if self._scene_files is None:
-            self._scene_files = self.meta_files + [self.scene_path, self.metadata_json]
+            self._scene_files = self.meta_files + [self.scene_path]
         return self._scene_files
 
     @property
@@ -619,12 +612,15 @@ class PlanetScene:
                 '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}ProductInformation',
                 '{http://earth.esa.int/opt}cloudCoverPercentage',
                 '{http://earth.esa.int/opt}cloudCoverPercentageQuotationMode',
-                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}unusableDataPercentage']
+                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}unusableDataPercentage',
+                ]
 
             # Nodes with repeated attribute names -> rename according to dicts
             platform_node = '{http://earth.esa.int/eop}Platform'
             instrument_node = '{http://earth.esa.int/eop}Instrument'
             mask_node = '{http://earth.esa.int/eop}MaskInformation'
+            geom_node = '{http://www.opengis.net/gml}LinearRing'
+            centroid_node = '{http://www.opengis.net/gml}Point'
 
             platform_renamer = {'shortName': 'platform'}
             insrument_renamer = {'shortName': 'instrument'}
@@ -632,10 +628,14 @@ class PlanetScene:
                             'type': 'mask_type',
                             'format': 'mask_format',
                             'referenceSystemIdentifier': 'mask_referenceSystemIdentifier'}
+            geom_renamer = {'coordinates': 'geometry'}
+            centroid_renamer = {'pos': 'centroid'}
 
             rename_nodes = [(platform_node, platform_renamer),
                             (instrument_node, insrument_renamer),
-                            (mask_node, mask_renamer)]
+                            (mask_node, mask_renamer),
+                            (geom_node, geom_renamer),
+                            (centroid_node, centroid_renamer)]
 
             # Bands Node - conflicting attribute names -> add band number: "band1_radiometicScaleFactor"
             bands_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandSpecificMetadata'
@@ -643,6 +643,7 @@ class PlanetScene:
 
             attributes = dict()
             # Add attributes that are processed as-is
+
             for node in nodes_process_all:
                 elems = root.find('.//{}'.format(node))
                 for e in elems:
@@ -672,6 +673,18 @@ class PlanetScene:
                     if e.text.strip() != '' and name != 'bandNumber':
                         attributes[name] = e.text
 
+            # Convert geometry to shapely Polygon
+            points = attributes['geometry'].split()
+            pts = [(pt.split(',')) for pt in points]
+            pts = [tuple(pt.split(',')) for pt in points]
+            pts = [tuple(float(x) for x in p) for p in pts]
+            self._geometry = Polygon(pts)
+
+            # Convert center point to shapely Point
+            self._centroid = Point(float(x) for x in attributes['centroid'].split())
+            self._center_x = self._centroid.x
+            self._center_y = self._centroid.y
+
             self._xml_attributes = attributes
             self._identifier = attributes[k_identifier]
             self._acquired_date = datetime.datetime.strptime(attributes[k_acquired], date_format)
@@ -681,12 +694,42 @@ class PlanetScene:
         return self._xml_attributes
 
     @property
-    def acquired_date(self):
-        if self._acquired_date is None:
-            self._acquired_date = datetime.datetime.strptime(
-                                    self.xml_attributes['acquisitionDateTime'],
-                                    '%Y-%m-%dT%H:%M:%S+00:00')
-        return self._acquired_date
+    def geometry(self):
+        if self._geometry is None:
+            self._geometry = self.xml_attributes['geometry']
+        return self._geometry
+
+    @property
+    def centroid(self):
+        if self._centroid is None:
+            self._centroid = self.xml_attributes['centroid']
+        return self._centroid
+
+    @property
+    def center_x(self):
+        if self._center_x is None:
+            self._center_x = self.xml_attributes['centroid'].x
+        return self._center_x
+
+    @property
+    def center_y(self):
+        if self._center_y is None:
+            self.center_y = self.xml_attributes['centroid'].y
+        return self._center_y
+
+    @property
+    def identifier(self):
+        if self._identifier is None:
+            self._identifier = self.xml_attributes['identifier']
+        return self._identifier
+
+    @property
+    def acquisition_datetime(self):
+        if self._acquisition_datetime is None:
+            self._acquisition_datetime = datetime.datetime.strptime(
+                                         self.xml_attributes['acquisitionDateTime'],
+                                         '%Y-%m-%dT%H:%M:%S+00:00')
+        return self._acquisition_datetime
 
     @property
     def instrument(self):
@@ -699,12 +742,6 @@ class PlanetScene:
         if self._product_type is None:
             self._product_type = self.xml_attributes['productType']
         return self._product_type
-
-    @ property
-    def strip_id(self):
-        if self._strip_id is None:
-            self._strip_id = self.xml_attributes['identifier']
-        return self._strip_id
 
     @property
     def shelveable(self):
@@ -726,11 +763,11 @@ class PlanetScene:
 
     @property
     def shelved_dir(self, destination_parent=planet_data_dir):
-        acquired_year = self.acquired_date.strftime('%Y')
+        acquired_year = self.acquisition_datetime.strftime('%Y')
         # Create month str, like 08_aug
-        month_str = '{}_{}'.format(self.acquired_date.month,
-                                   self.acquired_date.strftime('%b').lower())
-        acquired_day = self.acquired_date.strftime('%d')
+        month_str = '{}_{}'.format(self.acquisition_datetime.month,
+                                   self.acquisition_datetime.strftime('%b').lower())
+        acquired_day = self.acquisition_datetime.strftime('%d')
         return destination_parent / Path(os.path.join(self.instrument,
                                                       self.product_type,
                                                       self.bundle_type,
@@ -743,4 +780,38 @@ class PlanetScene:
     @property
     def shelved_location(self):
         return self.shelved_dir / self.scene_path.name
+
+    @property
+    def index_row(self):
+        if self._index_row is None:
+            self._index_row = copy.deepcopy(self.xml_attributes)
+            self._index_row['id'] = self.item_id
+            self._index_row['bundle_type'] = self.bundle_type
+            self._index_row['geometry'] = self.geometry.wkt
+            self._index_row['centroid'] = self.centroid.wkt
+            self._index_row['center_x'] = self._center_x
+            self._index_row['center_y'] = self._center_y
+            self._index_row['received_datetime'] = self.received_datetime
+            self._index_row['shelved_loc'] = self.shelved_location
+            self._index_row['loc'] = self.scene_path
+        return self._index_row
+
+    @property
+    def footprint_row(self):
+        # TODO: write, such that this only includes attributes
+        #  we want in footprints
+        if self._footprint_row is None:
+            self._footprint_row = copy.deepcopy(self.index_row)
+        return self._footprint_row
+
+
+def find_planet_scenes(directory, exclude_meta=None):
+    if not isinstance(directory, pathlib.PurePath):
+        directory = Path(directory)
+    manifest_files = directory.rglob('*_manifest.json')
+
+    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta) for mf in manifest_files]
+
+    return planet_scenes
+
 
