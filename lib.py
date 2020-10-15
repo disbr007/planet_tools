@@ -21,6 +21,12 @@ from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+# Shelve parent directory
+# TODO: move this to a config file?
+planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')  # /planet?
+# if platform.system() == 'Windows':
+#     planet_data_dir = Path(linux2win(str(planet_data_dir)))
+
 # Constants
 windows = 'Windows'
 linux = 'Linux'
@@ -44,7 +50,7 @@ k_md5 = 'md5'
 # Manifest Constants
 manifest_suffix = 'manifest'  # suffix to append ti filenames for individual manifest files
 udm = 'udm'  # included in unusable data mask files paths
-image = 'image'  # start of media_type that indicates imagery
+image = 'image'  # start of media_type that indicates imagery in master manifest
 
 def win2linux(path):
     lp = path.replace('V:', '/mnt').replace('\\', '/')
@@ -180,7 +186,7 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
     # Remove datetime - specifiy datetime if desired format
     if not gdf.select_dtypes(include=['datetime64']).columns.empty:
         datetime2str_df(gdf, date_format=date_format)
-    logger.info('Writing to file: {}'.format(out_footprint))
+    logger.debug('Writing to file: {}'.format(out_footprint))
     if not out_format:
         out_format = out_footprint.suffix.replace('.', '')
         if not out_format:
@@ -346,7 +352,7 @@ def get_scene_manifests(master_manifest):
     # Get metadata for all images
     scene_manifests = []
     for f in mani[k_files]:
-        # TODO: Identify imagery dictionaries better
+        # TODO: Identify imagery sections better
         if f[k_media_type].startswith(image) and udm not in f[k_path]:
             scene_manifests.append(f)
 
@@ -424,6 +430,7 @@ def create_file_md5(fname):
 
 
 def verify_scene_md5(manifest_md5, scene_file):
+    logger.debug('Verifying md5 checksum for scene: {}'.format(scene_file))
     file_md5 = create_file_md5(scene_file)
     if file_md5 == manifest_md5:
         verified = True
@@ -476,156 +483,220 @@ class PlanetScene:
             self.bundle_type = _annotations['planet/bundle_type']
             self.item_id = _annotations['planet/item_id']
             self.item_type = _annotations['planet/item_type']
+
+        # Determine "scene name" - the scene name without post processing suffixes,
+        # used when searching for metadata files
+        # e.g.: _SR
+        if len(self.scene_path.stem.split('_')) < 6:
+            self.scene_name = self.scene_path.stem
+        elif len(self.scene_path.stem.split('_')) == 6:
+            self.scene_name = '_'.join(self.scene_path.stem.split('_')[0:5])
+
         # Empty attributes calculated from methods
-        self.shelveable = None
-        self.valid_md5 = None
-        self.meta_files = None
-        self.xml_path = None
-        self.xml_attributes = None # Keep?
-        # Attributes from xml
-        self.strip_id = None
-        self.acquired_date = None
-        self.instrument = None
-        self.product_type = None
-        # All filepaths associated with scene
-        self.file_paths = None
+        # TODO: convert fxns that populate to use @property for lazy eval
+        self._shelveable = None
+        # self.shelved_dir = None
+        # self.shelved_location = None
+        self._meta_files = None
+        self._metadata_json = None
+        self._xml_path = None
+        self._scene_files = None
+        self._valid_md5 = None
+        self._xml_attributes = None # Keep?
+        # Attributes from .xml
+        self._identifier = None
+        self._acquired_date = None
+        self._instrument = None
+        self._product_type = None
+        # self.center_x = None
+        # self.center_y = None
+        # Attributes from _metadata.json
+        self._strip_id = None
+        # Misc.
+        self.skip_checksum = None
 
         # Bundle types that have been tested for compatibility with naming conventions
         self.supported_bundle_types = ['analytic', 'analytic_sr',
                                        'basic_analytic', 'basic_analytic_nitf',
                                        'basic_uncalibrated_dn', 'basic_uncalibrated_dn_ntif',
                                        'uncalibrated_dn']
-        # Ensure bundle_type has been tested
+        # Ensure bundle_type is suppported
         if self.bundle_type not in self.supported_bundle_types:
             logger.error('Bundle type not tested: {}'.format(self.bundle_type))
 
-    def get_metadata_json(self):
-        metadata_json = self.scene_path.parent \
-                        / '{}_metadata.json'.format(id_from_scene(self.scene_path))
+    @property
+    def metadata_json(self):
+        if self._metadata_json is None:
+            self._metadata_json = self.scene_path.parent \
+                                 / '{}_metadata.json'.format(id_from_scene(self.scene_path))
 
-        return metadata_json
+        return self._metadata_json
 
-    def get_meta_files(self):
-        if self.meta_files is None:
-            self.meta_files = [f for f in
-                               self.scene_path.parent.rglob(
-                                   '{}*'.format(self.scene_path.stem)
-                               )]
-            metadata_json = self.get_metadata_json()
-            if metadata_json.exists():
-                self.meta_files.append(metadata_json)
+    @ property
+    def strip_id(self):
+        if self._strip_id is None:
+            if self.metadata_json.exists():
+                with open(self.metadata_json) as src:
+                    content = json.load(src)
+                    self._strip_id = content['properties']['strip_id']
+        return self._strip_id
+
+    @property
+    def meta_files(self):
+        if self._meta_files is None:
+            logger.debug('Locating metadata files for: {}'.format(self.scene_path))
+            self._meta_files = [f for f in
+                                self.scene_path.parent.rglob(
+                                    '{}*'.format(self.scene_name)
+                                )]
+            if self.metadata_json.exists():
+                self._meta_files.append(self.metadata_json)
             else:
                 logger.debug('Metadata JSON not found for: {}'.format(self.scene_path))
+        return self._meta_files
 
-    def get_xml(self):
-        if not self.meta_files:
-            self.get_meta_files()
-        xml_expr = re.compile('.*.xml')
-        xml_matches = list(p for p in self.meta_files if xml_expr.match(str(p)))
-        if len(xml_matches) == 1:
-            self.xml_path = xml_matches[0]
-        elif len(xml_matches) == 0:
-            logger.warning('XML not located.')
-        else:
-            logger.warning('Multiple potential XML matches '
-                           'found for scene: {}'.format(self.scene_path))
+    @property
+    def xml_path(self):
+        if self._xml_path is None:
+            xml_expr = re.compile('.*.xml')
+            xml_matches = list(p for p in self.meta_files if xml_expr.match(str(p)))
+            if len(xml_matches) == 1:
+                self._xml_path = xml_matches[0]
+            elif len(xml_matches) == 0:
+                logger.warning('XML not located.')
+            else:
+                logger.warning('Multiple potential XML matches '
+                               'found for scene: {}'.format(self.scene_path))
+        return self._xml_path
 
-    def verify_checksum(self):
-        self.valid_md5 = verify_scene_md5(self.md5, self.scene_path)
+    @property
+    def scene_files(self):
+        if self._scene_files is None:
+            self._scene_files = self.meta_files + [self.scene_path, self.metadata_json]
+        return self._scene_files
 
-    def attributes_from_xml(self):
-        # XML date format
-        date_format = '%Y-%m-%dT%H:%M:%S+00:00'
-        # XML attribute keys
-        k_identifier = 'identifier'
-        k_instrument = 'instrument'
-        k_productType = 'productType'
-        k_acquired = 'acquisitionDateTime'
+    @property
+    def valid_md5(self):
+        if self._valid_md5 is None and not self.skip_checksum:
+            self._valid_md5 = verify_scene_md5(self.md5, self.scene_path)
+        return self._valid_md5
 
-        with open(self.xml_path, 'rt') as src:
-            tree = ET.parse(self.xml_path)
-            root = tree.getroot()
+    @property
+    def xml_attributes(self):
+        if self._xml_attributes is None:
+            # XML date format
+            date_format = '%Y-%m-%dT%H:%M:%S+00:00'
+            # XML attribute keys
+            k_identifier = 'identifier'
+            k_instrument = 'instrument'
+            k_productType = 'productType'
+            k_acquired = 'acquisitionDateTime'
 
-        # Nodes where all values can be processed as-is
-        nodes_process_all = [
-            '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}EarthObservationMetaData',
-            '{http://www.opengis.net/gml}TimePeriod',
-            '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}Sensor',
-            '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}Acquisition',
-            '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}ProductInformation',
-            '{http://earth.esa.int/opt}cloudCoverPercentage',
-            '{http://earth.esa.int/opt}cloudCoverPercentageQuotationMode',
-            '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}unusableDataPercentage']
+            logger.debug('Parsing attributes from xml: {}'.format(self.xml_path))
+            with open(self.xml_path, 'rt') as src:
+                tree = ET.parse(self.xml_path)
+                root = tree.getroot()
 
-        # Nodes with repeated attribute names -> rename according to dicts
-        platform_node = '{http://earth.esa.int/eop}Platform'
-        instrument_node = '{http://earth.esa.int/eop}Instrument'
-        mask_node = '{http://earth.esa.int/eop}MaskInformation'
+            # Nodes where all values can be processed as-is
+            nodes_process_all = [
+                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}EarthObservationMetaData',
+                '{http://www.opengis.net/gml}TimePeriod',
+                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}Sensor',
+                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}Acquisition',
+                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}ProductInformation',
+                '{http://earth.esa.int/opt}cloudCoverPercentage',
+                '{http://earth.esa.int/opt}cloudCoverPercentageQuotationMode',
+                '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}unusableDataPercentage']
 
-        platform_renamer = {'shortName': 'platform'}
-        insrument_renamer = {'shortName': 'instrument'}
-        mask_renamer = {'fileName': 'mask_filename',
-                        'type': 'mask_type',
-                        'format': 'mask_format',
-                        'referenceSystemIdentifier': 'mask_referenceSystemIdentifier'}
+            # Nodes with repeated attribute names -> rename according to dicts
+            platform_node = '{http://earth.esa.int/eop}Platform'
+            instrument_node = '{http://earth.esa.int/eop}Instrument'
+            mask_node = '{http://earth.esa.int/eop}MaskInformation'
 
-        rename_nodes = [(platform_node, platform_renamer),
-                        (instrument_node, insrument_renamer),
-                        (mask_node, mask_renamer)]
+            platform_renamer = {'shortName': 'platform'}
+            insrument_renamer = {'shortName': 'instrument'}
+            mask_renamer = {'fileName': 'mask_filename',
+                            'type': 'mask_type',
+                            'format': 'mask_format',
+                            'referenceSystemIdentifier': 'mask_referenceSystemIdentifier'}
 
-        # Bands Node - conflicting attribute names -> add band number: "band1_radiometicScaleFactor"
-        bands_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandSpecificMetadata'
-        band_number_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandNumber'
+            rename_nodes = [(platform_node, platform_renamer),
+                            (instrument_node, insrument_renamer),
+                            (mask_node, mask_renamer)]
 
-        attributes = dict()
-        # Add attributes that are processed as-is
-        for node in nodes_process_all:
-            elems = root.find('.//{}'.format(node))
-            for e in elems:
-                uri, name = tag_uri_and_name(e)
-                if e.text.strip() != '':
-                    # print('{}: {}'.format(name, e.text))
-                    attributes[name] = e.text
+            # Bands Node - conflicting attribute names -> add band number: "band1_radiometicScaleFactor"
+            bands_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandSpecificMetadata'
+            band_number_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandNumber'
 
-        # Add attributes that require renaming
-        for node, renamer in rename_nodes:
-            add_renamed_attributes(node, renamer, root=root, attributes=attributes)
+            attributes = dict()
+            # Add attributes that are processed as-is
+            for node in nodes_process_all:
+                elems = root.find('.//{}'.format(node))
+                for e in elems:
+                    uri, name = tag_uri_and_name(e)
+                    if e.text.strip() != '':
+                        # print('{}: {}'.format(name, e.text))
+                        attributes[name] = e.text
 
-        # Process band metadata
-        bands_elems = root.findall('.//{}'.format(bands_node))
-        for band in bands_elems:
-            band_uri = '{{{}}}'.format(tag_uri_and_name(band)[0])
-            band_number = band.find('.//{}'.format(band_number_node)).text
-            band_renamer = {tag_uri_and_name(e)[1]: 'band{}_{}'.format(band_number, tag_uri_and_name(e)[1])
-                            for e in band
-                            if tag_uri_and_name(e)[1] != 'bandNumber'}
-            for e in band:
-                band_uri, name = tag_uri_and_name(e)
-                if name in band_renamer.keys():
-                    name = band_renamer[name]
-                # Remove quotes from field names (some have them, some do not)
-                name = name.replace('"', '').replace("'", '')
-                if e.text.strip() != '' and name != 'bandNumber':
-                    attributes[name] = e.text
+            # Add attributes that require renaming
+            for node, renamer in rename_nodes:
+                add_renamed_attributes(node, renamer, root=root, attributes=attributes)
 
-        self.xml_attributes = attributes
-        self.strip_id = attributes[k_identifier]
-        self.acquired_date = datetime.datetime.strptime(attributes[k_acquired],
-                                                        date_format)
-        self.instrument = attributes[k_instrument]
-        self.product_type = attributes[k_productType]
+            # Process band metadata
+            bands_elems = root.findall('.//{}'.format(bands_node))
+            for band in bands_elems:
+                band_uri = '{{{}}}'.format(tag_uri_and_name(band)[0])
+                band_number = band.find('.//{}'.format(band_number_node)).text
+                band_renamer = {tag_uri_and_name(e)[1]: 'band{}_{}'.format(band_number, tag_uri_and_name(e)[1])
+                                for e in band
+                                if tag_uri_and_name(e)[1] != 'bandNumber'}
+                for e in band:
+                    band_uri, name = tag_uri_and_name(e)
+                    if name in band_renamer.keys():
+                        name = band_renamer[name]
+                    # Remove quotes from field names (some have them, some do not)
+                    name = name.replace('"', '').replace("'", '')
+                    if e.text.strip() != '' and name != 'bandNumber':
+                        attributes[name] = e.text
 
-        return attributes
+            self._xml_attributes = attributes
+            self._identifier = attributes[k_identifier]
+            self._acquired_date = datetime.datetime.strptime(attributes[k_acquired], date_format)
+            self._instrument = attributes[k_instrument]
+            self._product_type = attributes[k_productType]
 
-    def is_shelveable(self):
-        if self.valid_md5 is None:
-            self.verify_checksum()
-        if self.xml_path is None:
-            self.get_xml()
-        if self.xml_path and self.xml_attributes is None:
-            self.attributes_from_xml()
+        return self._xml_attributes
 
-        required_atts = [self.valid_md5, self.xml_path,
+    @property
+    def acquired_date(self):
+        if self._acquired_date is None:
+            self._acquired_date = datetime.datetime.strptime(
+                                    self.xml_attributes['acquisitionDateTime'],
+                                    '%Y-%m-%dT%H:%M:%S+00:00')
+        return self._acquired_date
+
+    @property
+    def instrument(self):
+        if self._instrument is None:
+            self._instrument = self.xml_attributes['instrument']
+        return self._instrument
+
+    @property
+    def product_type(self):
+        if self._product_type is None:
+            self._product_type = self.xml_attributes['productType']
+        return self._product_type
+
+    @ property
+    def strip_id(self):
+        if self._strip_id is None:
+            self._strip_id = self.xml_attributes['identifier']
+        return self._strip_id
+
+    @property
+    def shelveable(self):
+        required_atts = [(self.valid_md5 or self.skip_checksum),
+                         self.xml_path.exists(),
                          self.instrument, self.product_type,
                          self.bundle_type, self.item_type,
                          self.acquired_date, self.strip_id]
@@ -634,14 +705,35 @@ class PlanetScene:
             for ra in required_atts:
                 if not ra:
                     logger.warning("{}: {}".format(ra, ra is True))
-            self.shelveable = False
+            self._shelveable = False
         else:
-            self.shelveable = True
+            self._shelveable = True
 
-        return self.shelveable
+        return self._shelveable
+
+    @property
+    def shelved_dir(self, destination_parent=planet_data_dir):
+        acquired_year = self.acquired_date.strftime('%Y')
+        # Create month str, like 08_aug
+        month_str = '{}_{}'.format(self.acquired_date.month,
+                                   self.acquired_date.strftime('%b').lower())
+        acquired_day = self.acquired_date.strftime('%d')
+        return destination_parent / Path(os.path.join(self.instrument,
+                                                      self.product_type,
+                                                      self.bundle_type,
+                                                      self.item_type,
+                                                      acquired_year,
+                                                      month_str,
+                                                      acquired_day,
+                                                      self.strip_id))
+
+    @property
+    def shelved_location(self):
+        return self.shelved_dir / self.scene_path.name
+
+
 
 # ps = PlanetScene(r'V:\pgc\data\scratch\jeff\projects\planet\data'
 #                  r'\69e80b73-4ddb-402e-a696-9d257977c7cd'
 #                  r'\PSScene4Band\20170118_200541_0e16_3B_AnalyticMS_SR_manifest.json')
 #
-# ps.is_shelveable()

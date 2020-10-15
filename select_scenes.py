@@ -14,9 +14,10 @@ from logging_utils.logging_utils import create_logger
 scenes_tbl = 'scenes'
 scenes_onhand_tbl = 'scenes_onhand'
 
+
 def build_argument_sql(att_args=None, months=None,
                        month_min_days=None, month_max_days=None,
-                       aoi_path=None,
+                       aoi_path=None, ids=None, ids_field='id',
                        table=scenes_tbl):
     """Build SQL clause from supplied attribute arguements and AOI path
     att_args: tuple (attribute, value)
@@ -69,6 +70,12 @@ def build_argument_sql(att_args=None, months=None,
         else:
             where = months_clause
 
+    if ids:
+        ids_where = '{} IN ({})'.format(ids_field, str(ids)[1:-1])
+        if where:
+            where += " AND ({})".format(ids_where)
+        else:
+            where = ids_where
 
     sql = """SELECT * FROM {} WHERE {}""".format(table, where)
 
@@ -94,12 +101,22 @@ def make_selection(sql):
     return selection
 
 
-def select_scenes(att_args, aoi_path, months=None,
+def select_scenes(att_args, aoi_path=None, ids=None, ids_field='id', months=None,
                   month_min_days=None, month_max_days=None,
-                  out_selection=None, dryrun=False):
-    sql = build_argument_sql(att_args=att_args, months=months,
+                  out_selection=None, onhand=False, dryrun=False):
+    if onhand:
+        tbl = scenes_onhand_tbl
+    else:
+        tbl = scenes_tbl
+
+    if ids:
+        with open(ids, 'r') as src:
+            selection_ids = src.readlines()
+            selection_ids = [i.strip() for i in selection_ids]
+
+    sql = build_argument_sql(att_args=att_args, months=months, ids=selection_ids, ids_field=ids_field,
                              month_min_days=month_min_days, month_max_days=month_max_days,
-                             aoi_path=aoi_path)
+                             aoi_path=aoi_path, table=tbl)
     selection = make_selection(sql)
 
     if out_selection and not dryrun:
@@ -124,7 +141,7 @@ if __name__ == '__main__':
     parser.add_argument('--onhand', action='store_true',
                         help='Select from scenes_onhand table.')
     parser.add_argument('--months', type=str, nargs='+',
-                                help='Month as zero-padded number, e.g. 04')
+                        help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',
                         help='Mimumum day to include in a given month: eg. 12 20'
                              'Can be repeated multiple times.')
@@ -156,7 +173,11 @@ if __name__ == '__main__':
     # TODO: Add multi-aoi support - join aoi_wheres with ' OR '
     parser.add_argument('--aoi', type=os.path.abspath,
                         help='Path to AOI vector file to use for selection.')
-
+    parser.add_argument('--ids', type=os.path.abspath,
+                        help='Path to text file of IDs to include.')
+    parser.add_argument('--ids_field', type=str, default='id',
+                        help='The name of the field in the table being searched to '
+                             'locate ids.')
     parser.add_argument('-o', '--out_selection', type=os.path.abspath,
                         help='Path to write selection to')
     parser.add_argument('--dryrun', action='store_true')
@@ -172,7 +193,10 @@ if __name__ == '__main__':
     logger = create_logger(__name__, 'sh', log_lvl)
 
     out_selection = args.out_selection
+    onhand = args.onhand
     aoi_path = args.aoi
+    ids = args.ids
+    ids_field = args.ids_field
     months = args.months
     month_min_day_args = args.month_min_day
     month_max_day_args = args.month_max_day
@@ -181,14 +205,15 @@ if __name__ == '__main__':
     supplied_att_args = [(kwa[0], kwa[1]) for kwa in attribute_args._get_kwargs()
                          if kwa[1]]
 
+    month_min_days = None
+    month_max_days = None
     if months:
-        month_min_days = None
-        month_max_days = None
         if month_min_day_args:
             month_min_days = {month: day for month, day in month_min_day_args}
         if month_max_day_args:
             month_max_days = {month: day for month, day in month_max_day_args}
 
     select_scenes(att_args=supplied_att_args, months=months, aoi_path=aoi_path,
+                  ids=ids, ids_field=ids_field, onhand=onhand,
                   month_min_days=month_min_days, month_max_days=month_max_days,
                   out_selection=out_selection, dryrun=args.dryrun)

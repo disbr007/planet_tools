@@ -15,7 +15,10 @@ tm_link = 'link'
 tm_copy = 'copy'
 
 
-def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
+def sort_scene_by_date(src_dir, dst_dir,
+                       year_dir=True, month_dir=True, day_dir=True,
+                       hour_dir=False, minute_dir=False, second_dir=False,
+                       transfer_method=tm_copy, dryrun=False):
     data_dir = Path(src_dir)
     dst_dir = Path(dst_dir)
 
@@ -32,13 +35,31 @@ def shelve_scenes(src_dir, dst_dir, transfer_method=tm_copy, dryrun=False):
         sid = '_'.join(sp.stem.split('_')[0:3])
         year = sp.stem[0:4]
         month = sp.stem[4:6]
-        year_mo_dir = dst_dir / year / month
-        if not year_mo_dir.exists():
-            os.makedirs(year_mo_dir)
+        day = sp.stem[6:8]
+        hour = sp.stem[10:12]
+        minute = sp.stem[12:14]
+        second = sp.stem[14:16]
+        subdir = dst_dir
+        if year_dir:
+            subdir = subdir / year
+        if month_dir:
+            subdir = subdir / month
+        if day_dir:
+            subdir = subdir / day
+        if hour_dir:
+            subdir = subdir / hour
+        if minute_dir:
+            subdir = subdir / minute
+        if second_dir:
+            subdir = subdir / second
 
+        if not subdir.exists():
+            os.makedirs(subdir)
+
+        # TODO: Change this to use PlanetScene.scene_files
         scene_files = Path(sp).parent.glob('{}*'.format(sid))
         for sf in scene_files:
-            df = year_mo_dir / sf.name
+            df = subdir / sf.name
             if df.exists():
                 logger.debug('Destination file exists, skipping: {}'.format(sp.name))
                 continue

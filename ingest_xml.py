@@ -23,7 +23,7 @@ for root, dirs, files in os.walk(data_dir):
 logger.info('Parsing XML files...')
 all_atts = []
 for xml in tqdm(xmls):
-    attributes = attributes_from_xml(xml)
+    attributes = attributes_from_xml(xml)sc
     all_atts.append(attributes)
 
 

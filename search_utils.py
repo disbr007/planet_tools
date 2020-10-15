@@ -61,24 +61,25 @@ f_id = 'id'
 
 # For parsing attribute arguements
 attrib_arg_lut = {
-    'min_date':             {filter_type: drf, operator: gte,  op_symbol:sym_gte, field_name: 'acquired'},
-    'max_date':             {filter_type: drf, operator: lte,  op_symbol:sym_lte, field_name: 'acquired'},
-    'max_cc':               {filter_type: rf,  operator: lte,  op_symbol:sym_lte, field_name: 'cloud_cover',},
-    'min_ulx':              {filter_type: rf,  operator: gte,  op_symbol:sym_gte, field_name: 'origin_x'},
-    'max_ulx':              {filter_type: rf,  operator: lte,  op_symbol:sym_lte, field_name: 'origin_x'},
-    'min_uly':              {filter_type: rf,  operator: gte,  op_symbol:sym_gte, field_name: 'origin_y'},
-    'max_uly':              {filter_type: rf,  operator: lte,  op_symbol:sym_lte, field_name: 'origin_y'},
-    'provider':             {filter_type: sif, operator: None, op_symbol:sym_equal, field_name: 'provider'},
-    'satellite_id':         {filter_type: sif, operator: None, op_symbol:sym_equal, field_name: 'satellite_id'},
-    'instrument':           {filter_type: sif, operator: None, op_symbol:sym_equal, field_name: 'instrument'},
-    'strip_id':             {filter_type: sif, operator: None, op_symbol:sym_equal, field_name: 'strip_id'},
-    'min_sun_azimuth':      {filter_type: rf,  operator: gte,  op_symbol:sym_gte, field_name: 'sun_azimuth'},
-    'max_sun_azimuth':      {filter_type: rf,  operator: lte,  op_symbol:sym_lte, field_name: 'sun_azimuth'},
-    'min_sun_elevation':    {filter_type: rf,  operator: gte,  op_symbol:sym_gte, field_name: 'sun_elevation'},
-    'max_sun_elevation':    {filter_type: rf,  operator: lte,  op_symbol:sym_lte, field_name: 'sun_elevation'},
-    'quality_category':     {filter_type: sif, operator: None, op_symbol:sym_equal, field_name: 'quality_category'},
-    'max_usable_data':      {filter_type: rf,  operator: gte,  op_symbol:sym_gte, field_name: 'usable_data'},
-    'ground_control':       {filter_type: rf,  operator: gte,  op_symbol:sym_gte, field_name: 'ground_control'}
+    'min_date':             {filter_type: drf, operator: gte,  op_symbol: sym_gte,   field_name: 'acquired'},
+    'max_date':             {filter_type: drf, operator: lte,  op_symbol: sym_lte,   field_name: 'acquired'},
+    'max_cc':               {filter_type: rf,  operator: lte,  op_symbol: sym_lte,   field_name: 'cloud_cover',},
+    'min_ulx':              {filter_type: rf,  operator: gte,  op_symbol: sym_gte,   field_name: 'origin_x'},
+    'max_ulx':              {filter_type: rf,  operator: lte,  op_symbol: sym_lte,   field_name: 'origin_x'},
+    'min_uly':              {filter_type: rf,  operator: gte,  op_symbol: sym_gte,   field_name: 'origin_y'},
+    'max_uly':              {filter_type: rf,  operator: lte,  op_symbol: sym_lte,   field_name: 'origin_y'},
+    'provider':             {filter_type: sif, operator: None, op_symbol: sym_equal, field_name: 'provider'},
+    'satellite_id':         {filter_type: sif, operator: None, op_symbol: sym_equal, field_name: 'satellite_id'},
+    'instrument':           {filter_type: sif, operator: None, op_symbol: sym_equal, field_name: 'instrument'},
+    'strip_id':             {filter_type: sif, operator: None, op_symbol: sym_equal, field_name: 'strip_id'},
+    'id':                   {filter_type: sif, operator: None, op_symbol: sym_equal, field_name: 'id'},
+    'min_sun_azimuth':      {filter_type: rf,  operator: gte,  op_symbol: sym_gte,   field_name: 'sun_azimuth'},
+    'max_sun_azimuth':      {filter_type: rf,  operator: lte,  op_symbol: sym_lte,   field_name: 'sun_azimuth'},
+    'min_sun_elevation':    {filter_type: rf,  operator: gte,  op_symbol: sym_gte,   field_name: 'sun_elevation'},
+    'max_sun_elevation':    {filter_type: rf,  operator: lte,  op_symbol: sym_lte,   field_name: 'sun_elevation'},
+    'quality_category':     {filter_type: sif, operator: None, op_symbol: sym_equal, field_name: 'quality_category'},
+    'max_usable_data':      {filter_type: rf,  operator: gte,  op_symbol: sym_gte,   field_name: 'usable_data'},
+    'ground_control':       {filter_type: rf,  operator: gte,  op_symbol: sym_gte,   field_name: 'ground_control'}
 }
 
 

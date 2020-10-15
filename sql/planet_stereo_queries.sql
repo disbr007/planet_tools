@@ -202,3 +202,45 @@ LIMIT 1000) all_int
 GROUP BY 1
 LIMIT 50;
 
+CREATE MATERIALIZED VIEW multilook_candidates AS
+SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+    SELECT a.id AS src_id,
+           b.id AS int_id
+    FROM scenes_metadata a, scenes_metadata b
+    WHERE a.id < b.id AND
+          a.cloud_cover < 0.20 AND
+          b.cloud_cover < 0.20 AND
+          ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
+          ST_Area(ST_INTERSECTION(a.geom, b.geom)) / ST_Area(ST_Union(a.geom, b.geom)) > 0.3 AND
+          ST_Area(ST_INTERSECTION(a.geom, b.geom)) / ST_Area(ST_Union(a.geom, b.geom)) < 0.7 AND
+          ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+          ST_Intersects(a.geom, b.geom)
+) all_int
+GROUP BY 1;
+
+CREATE MATERIALIZED VIEW multilook_candidates AS
+SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+    SELECT a.id AS src_id,
+           b.id AS int_id
+    FROM scenes_metadata a, scenes_metadata b
+    WHERE a.id < b.id AND
+          a.cloud_cover < 0.20 AND
+          b.cloud_cover < 0.20 AND
+          ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
+          ST_Area(ST_INTERSECTION(a.geom, b.geom)) / ST_Area(ST_Union(a.geom, b.geom)) > 0.3 AND
+          ST_Area(ST_INTERSECTION(a.geom, b.geom)) / ST_Area(ST_Union(a.geom, b.geom)) < 0.7 AND
+          ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+          ST_Intersects(a.geom, b.geom)
+LIMIT 100000000) all_int
+GROUP BY 1
+HAVING count(*) > 2;
+
+SELECT * FROM multilook_candidates;
+SELECT COUNT(*) FROM multilook_candidates;
+DROP MATERIALIZED VIEW multilook_candidates CASCADE;
+
+SELECT * FROM scenes_onhand
+WHERE id IN ('20200623_152150_1020',
+ '20200622_152252_0f36',
+ '20200623_152150_1020',
+ '20200623_171654_0e20');

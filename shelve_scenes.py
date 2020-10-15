@@ -10,8 +10,8 @@ import time
 from tqdm import tqdm
 
 from lib import linux2win, create_scene_manifests
-from index_utils import scene_file_from_manifest, #verify_scene_md5,
-                        #attributes_from_xml, bundle_item_types_from_manifest
+# from index_utils import scene_file_from_manifest, #verify_scene_md5
+#                         attributes_from_xml, bundle_item_types_from_manifest
 from lib import PlanetScene # find_scene_meta_files,
 from logging_utils.logging_utils import create_logger
 
@@ -51,18 +51,11 @@ def create_all_scene_manifests(directory):
     logger.debug('Master manifests found:\n{}'.format('\n'.join([str(m) for m in master_manifests])))
     # Create manifests for each scene
     logger.info('Creating scene manifests...')
-    scene_manifests = []
     pbar = tqdm(master_manifests, desc='Creating scene manifests...')
     for mm in pbar:
         pbar.set_description('Creating scene manifests for: {}'.format(mm.parent.name))
-        # This will return scene-level manifest paths, whether they were just
-        # created or already existed
-        sms = create_scene_manifests(mm, overwrite=False)
-        scene_manifests.extend(sms)
-
-    logger.info('Total scene manifests found: {:,}'.format(len(scene_manifests)))
-
-    return scene_manifests
+        # Create scene manifests (*_manifest.json) from a master manifest
+        create_scene_manifests(mm, overwrite=False)
 
 
 # def verify_scene_checksums(scene_manifests):
@@ -94,51 +87,40 @@ def create_move_list(verified_scenes, destination_directory=planet_data_dir):
     logger.info('Creating destination filepaths...')
     # Create list of (source file path, destination file path)
     srcs_dsts = []
-    for scene in tqdm(verified_scenes, desc='Creating destination filepaths'):
+    for ps in tqdm(verified_scenes, desc='Creating destination filepaths'):
         try:
-            # Find scene files (*udm.tif, *manifest.json, *metadata.xml, *rpc.txt)
-            scene_files = find_scene_meta_files(scene)
-            scene_files.append(scene)
-
-            # Locate XML and manifest files within list of scene files,
-            # if both are not found, skip adding to move list
-            try:
-                xml = [f for f in scene_files if f.match('*.xml')][0]
-            except IndexError as e:
-                logger.warning('XML file not found for scene, omitting from shelving: {}'.format(scene))
-                continue
-            try:
-                manifest = [f for f in scene_files if f.match('*manifest.json')][0]
-            except IndexError as e:
-                logger.warning('Manifest not found for scene, omitting from shelving: {}'.format(scene))
-                continue
-            # TODO: make this a function: create_shelved_destination(scene, xml, manifest)
-            # Get attributes from xml file
-            attributes = attributes_from_xml(xml)
-            strip_id = attributes[k_identifier].split('_')[1]
-            # Get asset type, bundle type
-            bundle_type, item_type = bundle_item_types_from_manifest(manifest)
-            # Get date
-            acquired_date = datetime.datetime.strptime(attributes[k_acquired],
-                                                       date_format)
-            # Create month str, like 08_aug
-            month_str = '{}_{}'.format(acquired_date.month,
-                                       acquired_date.strftime('%b').lower())
-            # Create shelved destinations
-            dst_dir = destination_directory / Path(os.path.join(attributes[k_instrument],
-                                                                attributes[k_productType],
-                                                                bundle_type,
-                                                                item_type,
-                                                                acquired_date.strftime('%Y'),
-                                                                month_str,
-                                                                acquired_date.strftime('%d'),
-                                                                strip_id))
-
-            for src in scene_files:
-                dst = dst_dir / src.name
+            # Loops over all files associated with a scene (*.xml, *_manifest.json, etc.)
+            for src in ps.scene_files:
+                dst = ps.shelved_dir / src.name
                 srcs_dsts.append((src, dst))
+
+            # Find scene files (*udm.tif, *manifest.json, *metadata.xml, *rpc.txt)
+            scene_files = ps.scene_files
+            # scene_files.append(ps.scene_path)
+
+            # # TODO: make this a function: create_shelved_destination(scene, xml, manifest)
+            # # Get attributes from xml file
+            # attributes = attributes_from_xml(xml)
+            # strip_id = attributes[k_identifier].split('_')[1]
+            # # Get asset type, bundle type
+            # bundle_type, item_type = bundle_item_types_from_manifest(manifest)
+            # # Get date
+            # acquired_date = datetime.datetime.strptime(attributes[k_acquired],
+            #                                            date_format)
+            # # Create month str, like 08_aug
+            # month_str = '{}_{}'.format(acquired_date.month,
+            #                            acquired_date.strftime('%b').lower())
+            # # Create shelved destinations
+            # dst_dir = destination_directory / Path(os.path.join(attributes[k_instrument],
+            #                                                     attributes[k_productType],
+            #                                                     bundle_type,
+            #                                                     item_type,
+            #                                                     acquired_date.strftime('%Y'),
+            #                                                     month_str,
+            #                                                     acquired_date.strftime('%d'),
+            #                                                     strip_id))
         except Exception as e:
-            logger.error('Error parsing scene files for: {}'.format(scene))
+            logger.error('Error parsing scene files for: {}'.format(ps.scene_path))
             logger.error(e)
 
     return srcs_dsts
@@ -157,41 +139,48 @@ def shelve_scenes(data_directory, destination_directory=planet_data_dir,
     logger.info('Dryrun: {}\n'.format(dryrun))
 
     if master_manifests and not dryrun:
-        scene_manifests = create_all_scene_manifests(data_directory)
-    else:
-        # TODO: Is this an ok way to get all scene manifests?
-        scene_manifests = data_directory.rglob('*_manifest.json')
+        create_all_scene_manifests(data_directory)
+    # TODO: Is this an ok way to get all scene manifests?
+    scene_manifests = data_directory.rglob('*_manifest.json')
 
-    # TODO: Change from here to use PlanetScene class
+    # Use manifests to create PlanetScene objects, this parses
+    # the information in the manifest files into attributes
+    # (scene_path, md5, bundle_type, etc.)
     scenes = [PlanetScene(sm) for sm in scene_manifests]
+
+    # Verify checksum, or mark all as skip if not checking
     if verify_checksums:
         logger.info('Verifying scene checksums...')
         for ps in tqdm(scenes, desc='Verifying scene checksums...'):
             ps.verify_checksum()
     else:
         logger.info('Skipping checksum verification...')
-        # Mark all as verified
         for ps in scenes:
-            ps.valid_md5 = True
+            ps.skip_checksum = True
 
+    # Locate scenes that are not shelveable, i.e don't have valid
+    # checksum, associated xml not found, etc.
     if locate_unshelveable:
         logger.info('Locating unshelveable data...')
         unshelveable = []
         for ps in scenes:
             if not ps.is_shelveable():
-                unshelveable.append(ps.scene_path)
-                unshelveable.append(ps.meta_files)
+                logger.debug('Unshelveable: {}'.format(ps.scene_path))
+                logger.debug('Checksum: {}'.format(ps.valid_md5))
+                logger.debug('XML Path: {}'.format(ps.xml_path))
+                logger.debug('Instrument: {}'.format(ps.instrument))
+                logger.debug('Product Type: {}'.format(ps.product_type))
+                logger.debug('Bundle type: {}'.format(ps.bundle_type))
+                logger.debug('Acquired: {}'.format(ps.acquired_date))
+                logger.debug('Strip ID: {}'.format(ps.strip_id))
+                unshelveable.extend(ps.scene_files)
+        # TODO: Move/delete unshelvable data
 
-
-
-    # TODO: Start PlanetScene ****
-    if verify_checksums:
-        verified_scenes = verify_scene_checksums([sm for sm in scene_manifests])
-    else:
-        verified_scenes = [scene_file_from_manifest(sm) for sm in scene_manifests]
-
-    srcs_dsts = create_move_list(verified_scenes, destination_directory)
-    # TODO: End PlanetScene refac ***
+    # Create list of tuples of (src, dst) where dst is shelved location
+    srcs_dsts = []
+    for ps in tqdm(scenes, desc='Creating shelved destinations'):
+        move_list = [(sf, ps.shelved_dir / sf.name) for sf in ps.scene_files]
+        srcs_dsts.extend(move_list)
 
     logger.info('Copying scenes to shelved locations...')
     prev_order = None
@@ -242,9 +231,11 @@ if __name__ == '__main__':
     parser.add_argument('-tm', '--transfer_method', choices=['link', 'copy'],
                         default='copy',
                         help='Method to use for transfer.')
+    parser.add_argument('--locate_unshelveable', action='store_true',
+                        help='Locate unshelveable data and delete.')
     parser.add_argument('--generate_manifests', action='store_true',
                         help='Only generate scene manifests from master manifests, '
-                             'do not perform copy operation. This is done as part'
+                             'do not perform copy operation. This is done as part '
                              'of the copy routine, but this flag can be used to '
                              'create scene manifests without copying.')
     parser.add_argument('--dryrun', action='store_true',
@@ -252,11 +243,13 @@ if __name__ == '__main__':
     # TODO: --include_pan
     # TODO: --locate_unshelvable
 
-    sys.argv = ['shelve_scenes.py',
-                '--data_directory',
-                r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
-                r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
-                '--dryrun']
+    # For debugging
+    # sys.argv = ['shelve_scenes.py',
+    #             '--data_directory',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
+    #             r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
+    #             '--skip_checksums',
+    #             '--dryrun']
 
     args = parser.parse_args()
 
@@ -268,7 +261,8 @@ if __name__ == '__main__':
     transfer_method = args.transfer_method
     dryrun = args.dryrun
 
-    if generate_manifests:
+    # Just create scene manifests and exist
+    if generate_manifests and not dryrun:
         logger.info('Creating scene manifests for all master manifests in: {}'.format(data_directory))
         create_all_scene_manifests(data_directory)
         sys.exit()
