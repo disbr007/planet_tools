@@ -90,7 +90,7 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
     src_dsts = [s_d for s_d in src_dsts if not s_d[1].exists()]
 
     # Move files
-    logger.info('Moving files...')
+    logger.info('Copying files...')
     pbar = tqdm(src_dsts, desc='Copying...')
     for sf, df in pbar:
         # Check for existence of destination path (can remove, done above)
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--destination', type=os.path.abspath,
                         help='Path to directory to write scenes to.')
     parser.add_argument('--out_footprint', type=os.path.abspath,
-                        help='Path to write footprint (only useful if providing a list of IDs.')
+                        help='Path to write footprint (only useful if providing a list of IDs.)')
     parser.add_argument('-tm', '--transfer_method', type=str, choices=[tm_copy, tm_link],
                         help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true',

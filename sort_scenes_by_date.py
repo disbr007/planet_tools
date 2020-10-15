@@ -89,5 +89,5 @@ if __name__ == '__main__':
     transfer_method = args.transfer_method
     dryrun = args.dryrun
 
-    shelve_scenes(src_dir=src_dir, dst_dir=dst_dir,
-                  transfer_method=transfer_method, dryrun=dryrun)
+    sort_scene_by_date(src_dir=src_dir, dst_dir=dst_dir,
+                       transfer_method=transfer_method, dryrun=dryrun)
