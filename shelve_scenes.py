@@ -268,7 +268,7 @@ if __name__ == '__main__':
     dryrun = args.dryrun
 
     # Verify arguments
-    if not data_directory.exits():
+    if not data_directory.exists():
         logger.error('Data directory does not exists: {}'.format(data_directory))
         sys.exit()
     if not destination_directory.exists():
