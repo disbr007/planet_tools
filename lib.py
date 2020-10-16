@@ -363,7 +363,7 @@ def create_scene_manifests(master_manifest, overwrite=False):
     """
     Create scene manifest files for each scene section in the master manifest.
     """
-    logger.info('Locating scene manifests within master manifest\n{}'.format(master_manifest))
+    logger.debug('Locating scene manifests within master manifest\n{}'.format(master_manifest))
     scene_manifests = get_scene_manifests(master_manifest)
     logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
 
@@ -562,6 +562,18 @@ class PlanetScene:
         return self._meta_files
 
     @property
+    def scene_files(self):
+        if self._scene_files is None:
+            self._scene_files = self.meta_files + [self.scene_path]
+        return self._scene_files
+
+    @property
+    def valid_md5(self):
+        if self._valid_md5 is None and not self.skip_checksum:
+            self._valid_md5 = verify_scene_md5(self.md5, self.scene_path)
+        return self._valid_md5
+
+    @property
     def xml_path(self):
         if self._xml_path is None:
             xml_expr = re.compile('.*.xml')
@@ -574,18 +586,6 @@ class PlanetScene:
                 logger.warning('Multiple potential XML matches '
                                'found for scene: {}'.format(self.scene_path))
         return self._xml_path
-
-    @property
-    def scene_files(self):
-        if self._scene_files is None:
-            self._scene_files = self.meta_files + [self.scene_path]
-        return self._scene_files
-
-    @property
-    def valid_md5(self):
-        if self._valid_md5 is None and not self.skip_checksum:
-            self._valid_md5 = verify_scene_md5(self.md5, self.scene_path)
-        return self._valid_md5
 
     @property
     def xml_attributes(self):
@@ -785,7 +785,7 @@ class PlanetScene:
     def index_row(self):
         if self._index_row is None:
             self._index_row = copy.deepcopy(self.xml_attributes)
-            self._index_row['id'] = self.item_id
+            self._index_row['id'] = self.item_iddis
             self._index_row['bundle_type'] = self.bundle_type
             self._index_row['geometry'] = self.geometry.wkt
             self._index_row['centroid'] = self.centroid.wkt
