@@ -263,7 +263,7 @@ if __name__ == '__main__':
     move_unshelveable = (Path(args.move_unshelveable)
                          if args.move_unshelveable is not None else None)
     verify_checksums = not args.skip_checksums
-    generate_manifests = args.generate_manifests
+    generate_manifests_only = args.generate_manifests_only
     transfer_method = args.transfer_method
     dryrun = args.dryrun
 
@@ -280,7 +280,7 @@ if __name__ == '__main__':
         sys.exit()
 
     # Just create scene manifests and exist
-    if generate_manifests and not dryrun:
+    if generate_manifests_only and not dryrun:
         logger.info('Creating scene manifests for all master manifests in: {}'.format(data_directory))
         create_all_scene_manifests(data_directory)
         sys.exit()

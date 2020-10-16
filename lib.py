@@ -504,6 +504,7 @@ class PlanetScene:
         self._product_type = None
         self._instrument = None
         self._acquisition_datetime = None
+        self._serial_identifier = None
         self._geometry = None
         self._centroid = None
         self._center_x = None
@@ -622,7 +623,8 @@ class PlanetScene:
             geom_node = '{http://www.opengis.net/gml}LinearRing'
             centroid_node = '{http://www.opengis.net/gml}Point'
 
-            platform_renamer = {'shortName': 'platform'}
+            platform_renamer = {'shortName': 'platform',
+                                'serialIdentifier': 'serialIdentifier'}
             insrument_renamer = {'shortName': 'instrument'}
             mask_renamer = {'fileName': 'mask_filename',
                             'type': 'mask_type',
@@ -737,6 +739,10 @@ class PlanetScene:
             self._instrument = self.xml_attributes['instrument']
         return self._instrument
 
+    def serial_identifier(self):
+        if self._serial_identifier is None:
+            self._serial_identifier = self.xml_attributes['serialIdentifier']
+
     @property
     def product_type(self):
         if self._product_type is None:
@@ -766,7 +772,8 @@ class PlanetScene:
         acquired_year = self.acquisition_datetime.strftime('%Y')
         # Create month str, like 08_aug
         month_str = '{}_{}'.format(self.acquisition_datetime.month,
-                                   self.acquisition_datetime.strftime('%b').lower())
+                                   self.acquisition_datetime.strftime('%b')
+                                   .lower())
         acquired_day = self.acquisition_datetime.strftime('%d')
         return destination_parent / Path(os.path.join(self.instrument,
                                                       self.product_type,
@@ -775,7 +782,9 @@ class PlanetScene:
                                                       acquired_year,
                                                       month_str,
                                                       acquired_day,
-                                                      self.strip_id))
+                                              # TODO: What is final subdir
+                                                      self.serial_identifier
+                                                      ))
 
     @property
     def shelved_location(self):
