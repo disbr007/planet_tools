@@ -149,7 +149,7 @@ if __name__ == '__main__':
     parser.add_argument('--months', type=str, nargs='+',
                         help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',
-                        help='Mimumum day to include in a given month: eg. 12 20'
+                        help='Mimumum day to include in a given month: eg. 12 20 '
                              'Can be repeated multiple times.')
     parser.add_argument('--month_max_day', nargs=2, action='append',
                         help='Maximum day to include in a given month: eg. 12 20'
@@ -182,7 +182,8 @@ if __name__ == '__main__':
     parser.add_argument('-it', '--item_types', nargs='*', required=True,
                         help='Item types to search. E.g.: PSScene3Band, PSScene4Band')
     parser.add_argument('-af', '--asset_filter', action='append',
-                        help='Asset filter to include.')
+                        help='Asset filter to include. Can be repeated E.g.: '
+                             '"basic_analytic" "analytic_sr", etc.')
     parser.add_argument('-f', '--filters', action='append', nargs='*',
                         # metavar=('filter_type', 'field_name', 'config'),
                         help="""Add any raw filters. Filter types and syntax:\n

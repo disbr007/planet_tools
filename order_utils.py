@@ -114,9 +114,11 @@ def create_aws_delivery(aws_access_key_id=aws_access_key_id,
 
 
 def create_order_request(order_name, ids, item_type="PSScene4Band",
-                         product_bundle="basic_analytic",
+                         product_bundle="basic_analytic_dn",
                          delivery="aws"):
     """Create order from list of IDs"""
+    if isinstance(product_bundle, list):
+        product_bundle = ','.join(product_bundle)
     order_request = {
         "name": order_name,
         "products": [

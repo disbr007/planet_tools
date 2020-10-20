@@ -46,10 +46,12 @@ def count_concurrent_orders():
 
 
 def submit_order(name, ids_path, selection_path, product_bundle,
-                 orders_path=None, remove_onhand=True, dryrun=False):
+                 orders_path=None, remove_onhand=True,
+                 dryrun=False):
 
     if ids_path:
         logger.info('Reading IDs from: {}'.format(ids_path))
+        # ids = read_ids(ids_path, field=ids_field)
         ids = list(set([x.strip() for x in open(ids_path, 'r')]))
 
     elif selection_path:
@@ -141,6 +143,7 @@ if __name__ == '__main__':
     parser.add_argument('--selection', type=os.path.abspath,
                         help='Path to selection of footprints to order, by ID.')
     parser.add_argument('--product_bundle', type=str, default='basic_analytic_dn',
+                        nargs='+',
                         choices=all_bundle_types,
                         help='Product bundle types to include in order.')
     parser.add_argument('--orders', type=os.path.abspath, default=os.path.join(os.getcwd(), 'planet_orders.txt'),

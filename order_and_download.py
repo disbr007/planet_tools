@@ -3,6 +3,7 @@ import json
 import datetime
 from pathlib import Path
 import os
+import sys
 import time
 
 from lib import read_ids
@@ -40,6 +41,8 @@ def order_and_download(order_name, order_ids_path,
         waiting_start = datetime.datetime.now()
         resume_time = waiting_start + datetime.timedelta(seconds=initial_wait)
         wait_interval = initial_wait / 10
+        if dryrun:
+            sys.exit()
         while now < resume_time:
             now = datetime.datetime.now()
             logger.info('...waiting. {:,}s remain'.format(round((resume_time - now).total_seconds())))
@@ -75,7 +78,7 @@ if __name__ == '__main__':
     order_args.add_argument('--selection', type=os.path.abspath,
                             help='Path to selection of footprints to order, by ID.')
     order_args.add_argument('--product_bundle', type=str, default='basic_analytic_dn',
-                            choices=all_bundle_types, metavar='',
+                            choices=all_bundle_types, metavar='', nargs='+',
                             help='Product bundle types to include in order.')
     order_args.add_argument('--orders', type=os.path.abspath,
                             default=os.path.join(os.getcwd(), 'planet_orders.txt'),

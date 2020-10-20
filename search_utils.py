@@ -389,7 +389,7 @@ def create_saved_search(search_request, overwrite_saved=False):
         logger.debug('Search creation request status: {}'.format(saved_search.status_code))
         if saved_search.status_code == 200:
             saved_search_id = saved_search.json()['id']
-            logger.info('New search created successfully: {}'.format(saved_search_id))
+            logger.debug('New search created successfully: {}'.format(saved_search_id))
         else:
             logger.error('Error creating new search.')
             saved_search_id = None
@@ -484,7 +484,7 @@ def get_search_count(search_request):
             logger.debug(str(stats_request))
         logger.debug(stats)
 
-    pprint(stats_request)
+    # pprint(stats_request)
     total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])
     logger.debug('Total count for search request "{}": {:,}'.format(name, total_count))
 

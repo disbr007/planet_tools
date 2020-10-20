@@ -209,7 +209,7 @@ def create_module_loggers(handler_type, handler_level,
 
 
 def create_logfile_path(name, logdir=None):
-    now = datetime.now().strftime('%Y%b%d_%H%m%S')
+    now = datetime.now().strftime('%Y%b%d_%H%m%S').lower()
     logname = '{}_{}.log'.format(name, now)
     if not logdir:
         # TODO: Change the value in the config file back to V: drive

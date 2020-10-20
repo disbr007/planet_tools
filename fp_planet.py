@@ -2,9 +2,10 @@ import argparse
 import os
 from pathlib import Path
 
+import geopandas as gpd
+
 from logging_utils.logging_utils import create_logger
-from lib import write_gdf, find_scene_files, \
-                gdf_from_metadata
+from lib import write_gdf #find_scene_files, gdf_from_metadata
 from lib import PlanetScene, find_planet_scenes
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -26,14 +27,18 @@ def main(args):
     planet_scenes = find_planet_scenes(parse_directory)
     logger.info('Found {:,} scenes to parse...'.format(len(planet_scenes)))
 
-    # TODO: convert to using xml files to generate footprints
-    scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
-    logger.info('Found {:,} associated metadata files.'.format(len(scenes_metadatas)))
+    # TODO: convert to using PlanetScenes generate footprints
+    rows = [ps.index_row for ps in planet_scenes]
+    gdf = gpd.GeoDataFrame(rows, crs='epsg:4326')
 
-    logger.info('Creating footprint from metadata files...')
-    gdf = gdf_from_metadata(scenes_metadatas, relative_directory=relative_directory,
-                            relative_locs=True, pgc_locs=False,
-                            rel_loc_style=rel_loc_style)
+
+    # scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
+    # logger.info('Found {:,} associated metadata files.'.format(len(scenes_metadatas)))
+    #
+    # logger.info('Creating footprint from metadata files...')
+    # gdf = gdf_from_metadata(scenes_metadatas, relative_directory=relative_directory,
+    #                         relative_locs=True, pgc_locs=False,
+    #                         rel_loc_style=rel_loc_style)
     logger.info('Footprint created with {:,} records.'.format(len(gdf)))
 
     write_gdf(gdf, out_footprint=out_footprint, out_format=out_format)

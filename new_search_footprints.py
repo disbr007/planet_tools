@@ -8,6 +8,11 @@ from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO',)
 
+# TODO: organize search tools in a better way -> move create_search and
+#  get search_footprints into one search_utils file
+# TODO: Add option to just create search from this script, make this the
+#  script for creating new searches and getting the footprints
+
 def new_search_footprints(args, att_group_args):
     logger.info('Creating search...')
     ssid = create_search(args, att_group_args)
