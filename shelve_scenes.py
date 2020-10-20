@@ -158,7 +158,9 @@ def shelve_scenes(data_directory, destination_directory=None,
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
-                    logger.debug('Checksum: {}'.format(ps.valid_md5))
+                    logger.debug('Checksum: {}'.format(ps.verify_checksum() if
+                                                       not ps.skip_checksum
+                                                       else ps.skip_checksum))
                     logger.debug('XML Path: {}'.format(ps.xml_path))
                     logger.debug('Instrument: {}'.format(ps.instrument))
                     logger.debug('Product Type: {}'.format(ps.product_type))
