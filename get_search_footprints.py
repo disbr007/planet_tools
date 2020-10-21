@@ -243,7 +243,7 @@ def get_search_footprints(args, search_id=None):
 
     if to_tbl:
         with Postgres('sandwich-pool.planet') as db:
-            db.insert_new_records(scenes, table=to_tbl, unique_id=fld_id,
+            db.insert_new_records(scenes, table=to_tbl, unique_on=('id', 'item_type'),
                                   date_cols=['acquired'], dryrun=dryrun)
 
     return scenes

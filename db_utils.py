@@ -306,7 +306,9 @@ class Postgres(object):
             columns = [columns]
         sql = generate_sql(layer=layer, columns=columns, distinct=distinct,)# table=True)
         values = self.execute_sql(sql)
-        values = [a[0] for a in values]
+        # Convert from list of tuples to flat list if only one column
+        if len(columns) == 1:
+            values = [a[0] for a in values]
 
         return values
 
@@ -326,11 +328,22 @@ class Postgres(object):
 
         return df
 
-    def insert_new_records(self, records, table, unique_id=None,
+    def insert_new_records(self, records, table, unique_on=None,
                            date_cols=None, date_format="%Y-%m-%dT%H:%M:%S.%fZ",
                            dryrun=False):
         """Add records to table, optionally using a unique_id to skip
         duplicates."""
+
+        def _row_columns_unique(row, unique_on, values):
+            """Determines if row has values in the combination of
+            columns in unique_on that are in values.
+            """
+            row_values = [row[c] for c in unique_on]
+            if len(row_values) > 1:
+                row_values = tuple(row_values)
+
+            return row_values in values
+
         logger.info('Inserting records into {}...'.format(table))
         logger.debug('Loading existing IDs..')
         if isinstance(records, gpd.GeoDataFrame):
@@ -338,25 +351,25 @@ class Postgres(object):
         else:
             has_geometry = False
 
-        if table in self.list_db_tables() and unique_id is not None:
-            existing_ids = self.get_values(layer=table, columns=[unique_id],
+        if table in self.list_db_tables() and unique_on is not None:
+            existing_ids = self.get_values(layer=table, columns=unique_on,
                                            distinct=True)
             logger.debug('Removing any existing IDs from search results...')
             logger.debug('Existing unique IDs in table "{}": '
                          '{:,}'.format(table, len(existing_ids)))
             if len(existing_ids) != 0:
                 logger.debug('Example ID: {}'.format(existing_ids[0]))
-            new = records[~records[unique_id].isin(existing_ids) == True]
+            new = records[~records.apply(lambda x: _row_columns_unique(
+                x, unique_on, existing_ids), axis=1)]
+            # new = records[~records[unique_id].isin(existing_ids) == True]
             del records
         elif table not in self.list_db_tables():
             logger.warning('Table "{}" not found in database "{}", creating '
                            'new table'.format(table, self.database))
             new = records
-        elif unique_id is None:
-            logger.warning('No unique ID provided. Exiting to avoid adding '
-                           'duplicates.')
-            # new = records
-            new = None
+        elif unique_on is None:
+            # logger.warning('No unique ID provided.')
+            new = records
 
         logger.debug('Remaining IDs to add: {:,}'.format(len(new)))
 
@@ -368,7 +381,8 @@ class Postgres(object):
             if not geometry_name:
                 geometry_name = 'geometry'
             logger.info('Features to add: {}'.format(len(new)))
-            new['geom'] = new.geometry.apply(lambda x: WKTElement(x.wkt, srid=srid))
+            new['geom'] = new.geometry.apply(lambda x:
+                                             WKTElement(x.wkt, srid=srid))
             new.drop(columns=geometry_name, inplace=True)
 
         # Convert date column to datetime

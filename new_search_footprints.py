@@ -120,6 +120,13 @@ if __name__ == '__main__':
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')
 
+    import sys
+    sys.argv = [r'C:\code\planet_stereo\new_search_footprints.py',
+                '-n', 'scenes_test', '--months', '08', '--month_max_day',
+                '08', '05', '--it', 'PSScene4Band', '-af', 'basic_analytic',
+                '--aoi', r'V:\pgc\data\scratch\jeff\projects\planet\aois'
+                r'\front_range_six_geocell.shp', '--max_cc', '20',
+                '--to_tbl', 'scenes_test', '--overwrite_saved']
     args = parser.parse_args()
     # Parse attribute arguments to filter
     att_group_args = parse_group_args(parser=parser, group_name=att_group)

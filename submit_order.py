@@ -25,7 +25,8 @@ def count_concurrent_orders():
     orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
     PLANET_API_KEY = os.getenv('PL_API_KEY')
     if not PLANET_API_KEY:
-        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+        logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
+                     'set?')
 
     with requests.Session() as s:
         logger.debug('Authorizing using Planet API key...')
@@ -60,7 +61,8 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     logger.info('IDs found: {:,}'.format(len(ids)))
 
-    # logger.info('Removing any recent IDs, per Planet limit on recent image ordering.')
+    # logger.info('Removing any recent IDs, per Planet limit on recent image
+    # ordering.')
     # ids = remove_recent_ids(ids)
     # logger.info('Remaining IDs: {}'.format(len(ids)))
 
@@ -127,19 +129,21 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
 if __name__ == '__main__':
     # Choices
-    all_bundle_types = ['panchromatic_dn', 'analytic_5b', 'basic_l1a_dn', 'pansharpened_udm2',
-                        'basic_uncalibrated_dn', 'analytic_sr_udm2', 'basic_panchromatic_dn',
-                        'uncalibrated_dn', 'basic_uncalibrated_dn_nitf', 'analytic_5b_udm2',
-                        'basic_analytic', 'basic_uncalibrated_dn_udm2', 'panchromatic_dn_udm2',
-                        'analytic_udm2', 'analytic', 'basic_analytic_nitf', 'uncalibrated_dn_udm2',
-                        'basic_uncalibrated_dn_nitf_udm2', 'analytic_sr', 'pansharpened', 'panchromatic',
-                        'basic_analytic_udm2', 'basic_analytic_nitf_udm2', 'basic_panchromatic', 'visual']
+    all_bundle_types = [
+        'panchromatic_dn', 'analytic_5b', 'basic_l1a_dn', 'pansharpened_udm2',
+        'basic_uncalibrated_dn', 'analytic_sr_udm2', 'basic_panchromatic_dn',
+        'uncalibrated_dn', 'basic_uncalibrated_dn_nitf', 'analytic_5b_udm2',
+        'basic_analytic', 'basic_uncalibrated_dn_udm2', 'panchromatic_dn_udm2',
+        'analytic_udm2', 'analytic', 'basic_analytic_nitf', 'uncalibrated_dn_udm2',
+        'basic_uncalibrated_dn_nitf_udm2', 'analytic_sr', 'pansharpened', 'panchromatic',
+        'basic_analytic_udm2', 'basic_analytic_nitf_udm2', 'basic_panchromatic', 'visual']
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--order_name', type=str,
                         help='Name to attached to order.')
     parser.add_argument('--ids', type=os.path.abspath,
-                        help='Path to text file of IDs to order. All other parameters ignored.')
+                        help='Path to text file of IDs to order. All other '
+                             'parameters ignored.')
     parser.add_argument('--selection', type=os.path.abspath,
                         help='Path to selection of footprints to order, by ID.')
     parser.add_argument('--product_bundle', type=str, default='basic_analytic_dn',

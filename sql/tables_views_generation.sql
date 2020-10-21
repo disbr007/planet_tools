@@ -1,17 +1,17 @@
 /* Create empty scenes table to hold footprints from public API */
 CREATE TABLE scenes_test (
-    ogc_fid             integer PRIMARY KEY,
+    ogc_fid             SERIAL PRIMARY KEY,
     id                  varchar(30),
     strip_id            varchar(30),
     acquired            timestamp,
     satellite_id        varchar(25),
     instrument          varchar(10),
     provider            varchar(25),
-    item_type           varchar(10),
+    item_type           varchar(25),
     origin_x            real,
     origin_y            real,
     epsg_code           integer,
-    cloudcover          numeric(3, 2),      --3 total digits, 2 decimal places
+    cloud_cover          numeric(3, 2),      --3 total digits, 2 decimal places
     sun_azimuth         numeric(4, 1),
     sun_elevation       numeric(4, 1),
     view_angle          numeric(4, 2),
@@ -24,10 +24,11 @@ CREATE TABLE scenes_test (
     published           timestamp,
     quality_category    varchar(20),
     updated             timestamp,
-    wkb_geometry        geometry(MultiPolygon, 4326)
+    geom                geometry(Polygon, 4326),
+    UNIQUE (id, item_type)
 );
-CREATE INDEX scenes_geom_idx ON scenes_test USING GIST(wkb_geometry);
-SELECT * FROM scenes_test LIMIT 25;
+CREATE INDEX scenes_geom_idx ON scenes_test USING GIST(geom);
+SELECT * FROM scenes_test;
 DROP TABLE scenes_test;
 
 /* Create view with off nadir and xml table joined to scenes - create
