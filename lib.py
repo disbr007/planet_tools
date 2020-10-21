@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, MultiPolygon
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
@@ -264,7 +264,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
         properties = metadata['properties']
 
         # Create paths for both Windows and linux
-        # Keep only Linux - Use windows for checking existence if code run on windows
+        # Keep only Linux - Use windows for checking existence if code run on
+        # windows
         if platform.system() == windows:
             wl = str(scene_path)
             tn = win2linux(str(scene_path))
@@ -299,12 +300,14 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
             if metadata['geometry']['type'] == 'Polygon':
                 properties['geometry'] = Polygon(metadata['geometry']['coordinates'][0])
             elif metadata['geometry']['type'] == 'MultiPolygon':
-                logger.warning('Skipping MultiPolygon geometry')
-                add_row = False
-                # properties['geometry'] = MultiPolygon([Polygon(metadata['geometry']['coordinates'][i][0])
-                #                                        for i in range(len(metadata['geometry']['coordinates']))])
+                logger.warning('Parsing MultiPolygon geometry not fully tested.')
+                # add_row = False
+                properties['geometry'] = MultiPolygon(
+                    [Polygon(metadata['geometry']['coordinates'][i][0])
+                     for i in range(len(metadata['geometry']['coordinates']))])
         except Exception as e:
-            logger.error('Geometry error, skipping add scene: {}'.format(properties[k_scenes_id]))
+            logger.error('Geometry error, skipping add scene: '
+                         '{}'.format(properties[k_scenes_id]))
             logger.error('Metadata file: {}'.format(metadata_path))
             logger.error('Geometry: {}'.format(metadata['geometry']))
             logger.error(e)
@@ -317,7 +320,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
                            'skipping adding:\n{}\tat {}'.format(metadata['id'], scene_path))
 
     if len(rows) == 0:
-        # TODO: Address how to actually deal with not finding any features - sys.exit()?
+        # TODO: Address how to actually deal with not finding any features
+        #   sys.exit()?
         logger.warning('No features to convert to GeoDataFrame.')
 
     gdf = gpd.GeoDataFrame(rows, geometry='geometry', crs='epsg:4326')
