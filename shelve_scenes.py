@@ -136,8 +136,8 @@ def shelve_scenes(data_directory, destination_directory=None,
                          '("manifest.json") present in data_directory?\n'
                          'data_directory: {}'.format(data_directory))
             sys.exit()
-    else:
-        logger.info('Scenes loaded: {}'.format(len(scenes)))
+
+    logger.info('Scenes loaded: {}'.format(len(scenes)))
 
     # Verify checksum, or mark all as skip if not checking
     if verify_checksums:
@@ -149,9 +149,10 @@ def shelve_scenes(data_directory, destination_directory=None,
         for ps in scenes:
             ps.skip_checksum = True
 
-    # Locate scenes that are not shelveable, i.e don't have valid
-    # checksum, associated xml not found, etc.
+    # Manage unshelveable scenes i.e don't have valid  checksum, associated
+    # xml not found, etc.
     if locate_unshelveable:
+        # Locate scenes that are not shelveable
         logger.info('Parsing XML files and locating any unshelveable '
                     'scenes...')
         unshelveable = []
@@ -213,8 +214,6 @@ def shelve_scenes(data_directory, destination_directory=None,
     copy_fxn = determine_copy_fxn(transfer_method)
     prev_order = None  # for logging only
     for src, dst in tqdm(srcs_dsts):
-        # TODO: This doesn't explicity go through each order
-        #  directory in order - sort srcs_dsts by src order dir?
         # Log the current order directory being parsed
         current_order = src.relative_to(data_directory).parts[0]
         if current_order != prev_order:

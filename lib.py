@@ -821,17 +821,26 @@ class PlanetScene:
     @property
     def index_row(self):
         if self._index_row is None:
-            self._index_row = copy.deepcopy(self.xml_attributes)
-            self._index_row['id'] = self.item_id
-            self._index_row['strip_id'] = self.strip_id
-            self._index_row['bundle_type'] = self.bundle_type
-            self._index_row['geometry'] = self.geometry.wkt
-            self._index_row['centroid'] = self.centroid.wkt
-            self._index_row['center_x'] = self._center_x
-            self._index_row['center_y'] = self._center_y
-            self._index_row['received_datetime'] = self.received_datetime
-            self._index_row['shelved_loc'] = self.shelved_location
-            self._index_row['loc'] = self.scene_path
+            # Get all attributes in XML, add others
+            uns_index_row = copy.deepcopy(self.xml_attributes)
+            uns_index_row['id'] = self.item_id
+            uns_index_row['strip_id'] = self.strip_id
+            uns_index_row['bundle_type'] = self.bundle_type
+            uns_index_row['geometry'] = self.geometry.wkt
+            uns_index_row['centroid'] = self.centroid.wkt
+            uns_index_row['center_x'] = self._center_x
+            uns_index_row['center_y'] = self._center_y
+            uns_index_row['received_datetime'] = self.received_datetime
+            uns_index_row['shelved_loc'] = str(self.shelved_location)
+            # Reorder fields
+            field_order = ['id', 'identifier', 'strip_id',
+                           'acquisitionDateTime', 'bundle_type', 'center_x',
+                           'center_y']
+            self._index_row = {k: uns_index_row[k] for k in field_order}
+            for k, v in uns_index_row.items():
+                if k not in self._index_row.keys():
+                    self._index_row[k] = v
+
         return self._index_row
 
     @property
@@ -848,6 +857,7 @@ def find_planet_scenes(directory, exclude_meta=None):
         directory = Path(directory)
     manifest_files = directory.rglob('*_manifest.json')
 
-    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta) for mf in manifest_files]
+    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta) for mf in
+                     manifest_files]
 
     return planet_scenes
