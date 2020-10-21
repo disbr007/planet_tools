@@ -1,6 +1,6 @@
 {
-  "host": "localhost",
+  "host": "sandwich-pool.pgc.umn.edu",
   "database": "planet",
   "password": "1nil2theARSENALfc",
-  "user": "postgres"
+  "user": "disbr007"
 }

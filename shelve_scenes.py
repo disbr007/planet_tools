@@ -55,7 +55,7 @@ def create_all_scene_manifests(directory):
 
 
 def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
-                        dryrun):
+                        remove_sources, dryrun):
     copy_fxn = determine_copy_fxn(transfer_method)
     logger.info('Creating list of unshelveable scenes and metadata files...')
     unshelve_src_dst = []
@@ -73,16 +73,17 @@ def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
             if dryrun:
                 continue
             copy_fxn(src, dst)
-    logger.info('Removing unshelveable scenes and meta files from original '
-                'locations...')
-    for src, dst in unshelve_src_dst:
-        if dryrun:
-            continue
-        try:
-            os.remove(src)
-        except Exception as e:
-            logger.error('Unable to remove file: {}'.format(src))
-            logger.error(e)
+    if remove_sources:
+        logger.info('Removing unshelveable scenes and meta files from '
+                    'original locations...')
+        for src, dst in unshelve_src_dst:
+            if dryrun:
+                continue
+            try:
+                os.remove(src)
+            except Exception as e:
+                logger.error('Unable to remove file: {}'.format(src))
+                logger.error(e)
 
 
 def shelve_scenes(data_directory, destination_directory=None,
@@ -175,6 +176,7 @@ def shelve_scenes(data_directory, destination_directory=None,
             logger.info('Unshelveable scenes found: {}'.format(len(unshelveable)))
             handle_unshelveable(unshelveable, transfer_method=transfer_method,
                                 move_unshelveable=move_unshelveable,
+                                remove_sources=remove_sources,
                                 dryrun=dryrun)
             # Remove unshelveable scenes from list of scenes to shelve
             for unsh_ps in unshelveable:
@@ -216,7 +218,7 @@ def shelve_scenes(data_directory, destination_directory=None,
         # Log the current order directory being parsed
         current_order = src.relative_to(data_directory).parts[0]
         if current_order != prev_order:
-            logger.info('Copying order directory: {}'.format(current_order))
+            logger.info('Shelving order directory: {}'.format(current_order))
         # Go no further if dryrun
         if dryrun:
             prev_order = current_order
@@ -237,14 +239,18 @@ def shelve_scenes(data_directory, destination_directory=None,
     # Remove source files
     if remove_sources:
         logger.info('Removing source files...')
-        for src, _dst in tqdm(srcs_dsts, desc='Removing source files'):
+        for src, dst in tqdm(srcs_dsts, desc='Removing source files'):
             if dryrun:
                 continue
-            try:
-                os.remove(src)
-            except Exception as e:
-                logger.error('Error removing {}'.format(src))
-                logger.error(e)
+            if dst.exists():
+                try:
+                    os.remove(src)
+                except Exception as e:
+                    logger.error('Error removing {}'.format(src))
+                    logger.error(e)
+            else:
+                logger.warning('Skipping removal of source file as shelved '
+                               'location could not be found: {}'.format(src))
 
     return scenes
 
