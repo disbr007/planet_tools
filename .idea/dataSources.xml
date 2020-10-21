@@ -13,11 +13,17 @@
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/dem</jdbc-url>
     </data-source>
-    <data-source source="LOCAL" name="planet" uuid="0b21490b-0453-40de-8a73-a721cbbd3d92">
+    <data-source source="LOCAL" name="planet_local" uuid="0b21490b-0453-40de-8a73-a721cbbd3d92">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://localhost:5432/planet</jdbc-url>
+    </data-source>
+    <data-source source="LOCAL" name="planet_sandwich" uuid="cde05343-1545-4835-a5bf-287b0a332409">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://sandwich-pool.pgc.umn.edu:5432/planet</jdbc-url>
     </data-source>
   </component>
 </project>

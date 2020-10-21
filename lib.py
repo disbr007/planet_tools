@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, MultiPolygon
 from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
@@ -264,7 +264,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
         properties = metadata['properties']
 
         # Create paths for both Windows and linux
-        # Keep only Linux - Use windows for checking existence if code run on windows
+        # Keep only Linux - Use windows for checking existence if code run on
+        # windows
         if platform.system() == windows:
             wl = str(scene_path)
             tn = win2linux(str(scene_path))
@@ -299,12 +300,14 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
             if metadata['geometry']['type'] == 'Polygon':
                 properties['geometry'] = Polygon(metadata['geometry']['coordinates'][0])
             elif metadata['geometry']['type'] == 'MultiPolygon':
-                logger.warning('Skipping MultiPolygon geometry')
-                add_row = False
-                # properties['geometry'] = MultiPolygon([Polygon(metadata['geometry']['coordinates'][i][0])
-                #                                        for i in range(len(metadata['geometry']['coordinates']))])
+                logger.warning('Parsing MultiPolygon geometry not fully tested.')
+                # add_row = False
+                properties['geometry'] = MultiPolygon(
+                    [Polygon(metadata['geometry']['coordinates'][i][0])
+                     for i in range(len(metadata['geometry']['coordinates']))])
         except Exception as e:
-            logger.error('Geometry error, skipping add scene: {}'.format(properties[k_scenes_id]))
+            logger.error('Geometry error, skipping add scene: '
+                         '{}'.format(properties[k_scenes_id]))
             logger.error('Metadata file: {}'.format(metadata_path))
             logger.error('Geometry: {}'.format(metadata['geometry']))
             logger.error(e)
@@ -317,7 +320,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
                            'skipping adding:\n{}\tat {}'.format(metadata['id'], scene_path))
 
     if len(rows) == 0:
-        # TODO: Address how to actually deal with not finding any features - sys.exit()?
+        # TODO: Address how to actually deal with not finding any features
+        #   sys.exit()?
         logger.warning('No features to convert to GeoDataFrame.')
 
     gdf = gpd.GeoDataFrame(rows, geometry='geometry', crs='epsg:4326')
@@ -821,17 +825,26 @@ class PlanetScene:
     @property
     def index_row(self):
         if self._index_row is None:
-            self._index_row = copy.deepcopy(self.xml_attributes)
-            self._index_row['id'] = self.item_id
-            self._index_row['strip_id'] = self.strip_id
-            self._index_row['bundle_type'] = self.bundle_type
-            self._index_row['geometry'] = self.geometry.wkt
-            self._index_row['centroid'] = self.centroid.wkt
-            self._index_row['center_x'] = self._center_x
-            self._index_row['center_y'] = self._center_y
-            self._index_row['received_datetime'] = self.received_datetime
-            self._index_row['shelved_loc'] = self.shelved_location
-            self._index_row['loc'] = self.scene_path
+            # Get all attributes in XML, add others
+            uns_index_row = copy.deepcopy(self.xml_attributes)
+            uns_index_row['id'] = self.item_id
+            uns_index_row['strip_id'] = self.strip_id
+            uns_index_row['bundle_type'] = self.bundle_type
+            uns_index_row['geometry'] = self.geometry.wkt
+            uns_index_row['centroid'] = self.centroid.wkt
+            uns_index_row['center_x'] = self._center_x
+            uns_index_row['center_y'] = self._center_y
+            uns_index_row['received_datetime'] = self.received_datetime
+            uns_index_row['shelved_loc'] = str(self.shelved_location)
+            # Reorder fields
+            field_order = ['id', 'identifier', 'strip_id',
+                           'acquisitionDateTime', 'bundle_type', 'center_x',
+                           'center_y']
+            self._index_row = {k: uns_index_row[k] for k in field_order}
+            for k, v in uns_index_row.items():
+                if k not in self._index_row.keys():
+                    self._index_row[k] = v
+
         return self._index_row
 
     @property
@@ -848,6 +861,7 @@ def find_planet_scenes(directory, exclude_meta=None):
         directory = Path(directory)
     manifest_files = directory.rglob('*_manifest.json')
 
-    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta) for mf in manifest_files]
+    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta) for mf in
+                     manifest_files]
 
     return planet_scenes

@@ -1,4 +1,37 @@
-/* Create view with off nadir and xml table joined to scenes - create off_nadir_signed column */
+/* Create empty scenes table to hold footprints from public API */
+CREATE TABLE scenes_test (
+    ogc_fid             integer PRIMARY KEY,
+    id                  varchar(30),
+    strip_id            varchar(30),
+    acquired            timestamp,
+    satellite_id        varchar(25),
+    instrument          varchar(10),
+    provider            varchar(25),
+    item_type           varchar(10),
+    origin_x            real,
+    origin_y            real,
+    epsg_code           integer,
+    cloudcover          numeric(3, 2),      --3 total digits, 2 decimal places
+    sun_azimuth         numeric(4, 1),
+    sun_elevation       numeric(4, 1),
+    view_angle          numeric(4, 2),
+    columns             integer,
+    rows                integer,
+    pixel_resolution    real,
+    gsd                 numeric(3, 2),
+    anomalous_pixels    integer,
+    ground_control      smallint,
+    published           timestamp,
+    quality_category    varchar(20),
+    updated             timestamp,
+    wkb_geometry        geometry(MultiPolygon, 4326)
+);
+CREATE INDEX scenes_geom_idx ON scenes_test USING GIST(wkb_geometry);
+SELECT * FROM scenes_test LIMIT 25;
+DROP TABLE scenes_test;
+
+/* Create view with off nadir and xml table joined to scenes - create
+   off_nadir_signed column */
 CREATE MATERIALIZED VIEW scenes_metadata AS
     SELECT s.*,
            o.sat_satellite_azimuth_mean as azimuth,
@@ -9,6 +42,7 @@ CREATE MATERIALIZED VIEW scenes_metadata AS
 INNER JOIN off_nadir as o ON s.id = o.scene_name
 INNER JOIN xml_metadata as x ON s.id = SUBSTR(x.identifier, 0, 21);
 
+/* Create xtrack table with all intersections within WHERE parameteres */
 CREATE MATERIALIZED VIEW xtrack_cc20
     AS SELECT a.id || '-' || b.id AS pairname,
               a.id AS id1, b.id AS id2,
@@ -24,11 +58,11 @@ CREATE MATERIALIZED VIEW xtrack_cc20
               b.azimuth AS azimuth2,
               a.orbitDirection as orbitDirection1,
               b.orbitDirection as orbitDirection2,
-              ABS(a.off_nadir_signed - b.off_nadir_signed) as off_nadir_diff,
+              ABS(a.off_nadir_signed - b.off_nadir_signed) AS off_nadir_diff,
               ABS(DATE_PART('day', a.acquired - b.acquired)) AS date_diff,
               ABS(a.azimuth - b.azimuth) as azimuth_diff,
-              ST_Area(ST_INTERSECTION(a.geom, b.geom)) / ST_Area(ST_Union(a.geom, b.geom))
-                  AS ovlp_perc,
+              ST_Area(ST_INTERSECTION(a.geom, b.geom))
+                  / ST_Area(ST_Union(a.geom, b.geom)) AS ovlp_perc,
               ST_INTERSECTION(a.geom, b.geom) AS ovlp_geom
     FROM scenes_metadata AS a, scenes_metadata AS b
     WHERE a.id > b.id AND
@@ -53,7 +87,8 @@ WHERE off_nadir_diff > 5 AND
       orbitDirection1 = orbitDirection2;
 
 
-/* Find only pairs that are both onhand, create pairname_fn using filenames w/o ext */
+/* Find only pairs that are both onhand, create pairname_fn using
+   filenames w/o ext */
 CREATE MATERIALIZED VIEW stereo_candidates_onhand AS
 SELECT s.*,
        so1.filename as filename1,
@@ -65,3 +100,4 @@ INNER JOIN scenes_onhand as so1 ON s.id1 = so1.id
 INNER JOIN scenes_onhand as so2 ON s.id2 = so2.id;
 
 
+SELECT * FROM scenes LIMIT 10;
