@@ -13,6 +13,7 @@ logger = create_logger(__name__, 'sh', 'INFO',)
 # TODO: Add option to just create search from this script, make this the
 #  script for creating new searches and getting the footprints
 
+
 def new_search_footprints(args, att_group_args):
     logger.info('Creating search...')
     ssid = create_search(args, att_group_args)
@@ -20,7 +21,8 @@ def new_search_footprints(args, att_group_args):
         logger.info('Getting footprints')
         get_search_footprints(args, search_id=ssid)
     else:
-        logger.warning('No saved search ID returned - no footprints to retrieve.')
+        logger.warning('No saved search ID returned - no footprints to '
+                       'retrieve.')
     
     
 if __name__ == '__main__':
@@ -33,20 +35,23 @@ if __name__ == '__main__':
     choices_instruments = ['PS2', 'PSB.SD', 'PS2.SD']
     choices_quality_category = ['standard', 'test']
 
-    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter
+    )
 
     attribute_args = parser.add_argument_group(att_group)
 
-    parser.add_argument('-n', '--name', type=str, help='Name of search to create')
+    parser.add_argument('-n', '--name', type=str,
+                        help='Name of search to create')
 
     parser.add_argument('--months', type=str, nargs='+',
                         help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',
-                        help='Mimumum day to include in a given month: eg. 12 20'
-                             'Can be repeated multiple times.')
+                        help='Mimumum day to include in a given month: '
+                             'eg. 12 20. Can be repeated multiple times.')
     parser.add_argument('--month_max_day', nargs=2, action='append',
-                        help='Maximum day to include in a given month: eg. 12 20'
-                             'Can be repeated multiple times.')
+                        help='Maximum day to include in a given month: '
+                             'eg. 12 20. Can be repeated multiple times.')
     attribute_args.add_argument('--min_date', type=str,)
     attribute_args.add_argument('--max_date', type=str,)
     attribute_args.add_argument('--max_cc', type=float, )
@@ -73,9 +78,10 @@ if __name__ == '__main__':
                         help='Path to AOI vector file to use for selection.')
 
     parser.add_argument('-it', '--item_types', nargs='*', required=True,
-                        help='Item types to search. E.g.: PSScene3Band, PSScene4Band')
+                        help='Item types to search. E.g.: PSScene3Band, '
+                             'PSScene4Band')
     parser.add_argument('-af', '--asset_filter', action='append',
-                        help='Asset filter to include.')
+                        help='Asset filter to include. E.g.: basic_analytic')
     parser.add_argument('-f', '--filters', action='append', nargs='*',
                         # metavar=('filter_type', 'field_name', 'config'),
                         help="""Add any raw filters. Filter types and syntax:\n
@@ -85,27 +91,31 @@ if __name__ == '__main__':
                         'GeometryFilter'  [path]\n
                         'RangeFilter'     [field]      [compare] [value]""")
     parser.add_argument('-lf', '--load_filter', type=os.path.abspath,
-                        help='Base filter to load, upon which any provided filters will be added.')
+                        help='Base filter to load, upon which any provided '
+                             'filters will be added.')
     parser.add_argument('--not_on_hand', action='store_true',
                         help='Remove on hand IDs from search.')
     parser.add_argument('--fp_not_on_hand', action='store_true',
                         help='Remove IDs from search if footprint is on hand.')
     # parser.add_argument('--get_count', action='store_true',
-    #                     help="Pass to get total count for the newly created saved search.")
+    #                     help="Pass to get total count for the newly created
+    #                     saved search.")
     parser.add_argument('--overwrite_saved', action='store_true',
-                        help='Pass to overwrite a saved search of the same name.')
-    parser.add_argument('--save_filter', nargs='?', type=os.path.abspath, const='default.json',
+                        help='Pass to overwrite a saved search of the same '
+                             'name.')
+    parser.add_argument('--save_filter', nargs='?', type=os.path.abspath,
+                        const='default.json',
                         help='Path to save filter (json).')
-
     # get_search_footprints args
+    # TODO: import these arguments as an argument group from
+    #  get_search_footprints
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-                        help="""Directory to write scenes footprint to -
-                        the search request name will be used for the filename.""")
+                        help="""Directory to write scenes footprint to. The 
+                        search request name will be used for the filename.""")
     parser.add_argument('--to_tbl', type=str,
                         help="""Insert search results into this table.""")
-
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')
