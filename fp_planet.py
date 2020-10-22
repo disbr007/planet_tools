@@ -30,8 +30,9 @@ def main(args):
 
     # TODO: convert to using PlanetScenes generate footprints
     rows = [ps.index_row for ps in planet_scenes]
-    gdf = gpd.GeoDataFrame(rows, crs='epsg:4326')
+    gdf = gpd.GeoDataFrame(rows)
     gdf['geometry'] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
+    gdf.crs = 'epsg:4326'
 
 
     # scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
@@ -48,14 +49,18 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input_directory', type=os.path.abspath, required=True,
+    parser.add_argument('-i', '--input_directory', type=os.path.abspath,
+                        required=True,
                         help='Directory to parse for scenes.')
-    parser.add_argument('-o', '--out_footprint', required=True, type=os.path.abspath,
+    parser.add_argument('-o', '--out_footprint', type=os.path.abspath,
+                        required=True,
                         help='Path to write footprint.')
     parser.add_argument('-f', '--format', type=str, choices=choices_format,
-                        help='Format of footprint to write. If gpkg, specify as: package.gpkg/layer_name.')
-    parser.add_argument('-r', '--relative_directory', type=os.path.abspath, default=os.getcwd(),
-                        help='Path to create filepaths relative to in footprint.')
+                        help='Format of footprint to write. If gpkg, specify'
+                             ' as: package.gpkg/layer_name.')
+    parser.add_argument('-r', '--relative_directory', type=os.path.abspath,
+                        help='Path to create filepaths relative to in '
+                             'footprint.')
     parser.add_argument('--rel_loc_style', type=str, choices=['W', 'L'],
                         help='System style for paths in footprint.')
 
