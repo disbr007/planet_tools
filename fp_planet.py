@@ -7,7 +7,7 @@ import geopandas as gpd
 
 from logging_utils.logging_utils import create_logger
 from lib import write_gdf #find_scene_files, gdf_from_metadata
-from lib import PlanetScene, find_planet_scenes
+from lib import find_planet_scenes
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -29,7 +29,8 @@ def main(args):
     logger.info('Found {:,} scenes to parse...'.format(len(planet_scenes)))
 
     # TODO: convert to using PlanetScenes generate footprints
-    rows = [ps.index_row for ps in planet_scenes]
+    rows = [ps.footprint_row(rel_to=relative_directory)
+            for ps in planet_scenes]
     gdf = gpd.GeoDataFrame(rows)
     gdf['geometry'] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
     gdf.crs = 'epsg:4326'

@@ -847,12 +847,16 @@ class PlanetScene:
 
         return self._index_row
 
-    @property
-    def footprint_row(self):
+    # @property
+    def footprint_row(self, rel_to=None):
         # TODO: write, such that this only includes attributes
         #  we want in footprints
         if self._footprint_row is None:
             self._footprint_row = copy.deepcopy(self.index_row)
+            self._footprint_row.pop('shelved_loc', None)
+            if rel_to:
+                self._footprint_row[k_relative_loc] = str(
+                    self.scene_path.relative_to(rel_to))
         return self._footprint_row
 
 
