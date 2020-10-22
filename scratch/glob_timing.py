@@ -1,25 +1,32 @@
-import re
-import os
-from pathlib import Path
-import glob
+import pandas as pd
+import geopandas as gpd
+from db_utils import Postgres
 
-di = r'C:\temp'
-d = r'C:\temp\scratch\*.shp'
-p = Path(r'C:\scratch')
-#%%
-%%timeit
-glob.glob(d)
-#%%
-%%timeit
-p.rglob('*shp')
-#%%
-def find_shp(di):
-    m = []
-    for root, dirs, files in os.walk(di):
-        for f in files:
-            if f.endswith('shp'):
-            # if re.match('.*shp', f):
-                m.append(f)
+scenes = gpd.read_file(r'V:\pgc\data\scratch\jeff\projects\planet'
+                       r'\multilook\multilook_scenes_onhand.shp')
+pairs = gpd.read_file(r'V:\pgc\data\scratch\jeff\projects\planet'
+                   r'\multilook\multilook_pairs.shp')
 
-%timeit find_shp(di)
-#%%
+pairs['pan_filename_pairname'] = pairs.filename_p.apply(
+    lambda x: '_pan-'.join(x.split('-')) + '_pan')
+
+pairs.to_file(r'V:\pgc\data\scratch\jeff\projects\planet'
+              r'\deliveries\2020oct14_multilook'
+              r'\2020oct14_multilook_pairs.geojson',
+              driver='GeoJSON')
+pairs.to_csv(r'V:\pgc\data\scratch\jeff\projects\planet\deliveries\2020oct14_multilook\2020oct14_multilook_pairs.csv')
+
+
+ml = gpd.read_file(r'V:\pgc\data\scratch\jeff\projects\planet\deliveries\2020oct14_multilook\2020oct14_multilook.geojson')
+
+with Postgres('sandwich-pool.planet') as db_src:
+    df = db_src.sql2df("SELECT * FROM scenes_metadata")
+
+
+x = pd.merge(ml, df[['id', 'azimuth', 'off_nadir_signed']],
+             on='id')
+
+x.drop_duplicates(subset='id', inplace=True)
+x.to_file(r'V:\pgc\data\scratch\jeff\projects\planet\deliveries\2020oct14_multilook\2020oct14_multilook.geojson',
+          driver='GeoJSON')
+x.to_csv(r'V:\pgc\data\scratch\jeff\projects\planet\deliveries\2020oct14_multilook\2020oct14_multilook.csv')

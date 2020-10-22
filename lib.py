@@ -86,10 +86,10 @@ def get_platform_location(path):
 
 
 def type_parser(filepath):
-    '''
+    """
     takes a file path (or dataframe) in and determines whether it is a dbf,
     excel, txt, csv (or df), ADD SUPPORT FOR SHP****
-    '''
+    """
     if isinstance(filepath, pathlib.PurePath):
         fp = str(filepath)
     else:
@@ -125,15 +125,19 @@ def type_parser(filepath):
 
 
 def read_ids(ids_file, field=None, sep=None, stereo=False):
-    '''Reads ids from a variety of file types. Can also read in stereo ids from applicable formats
-    field: field name, irrelevant for text files, but will search for this name if ids_file is .dbf or .shp
-    '''
+    """Reads ids from a variety of file types. Can also read in stereo ids from
+     applicable formats
+    field: field name, irrelevant for text files, but will search for this name
+     if ids_file is .dbf or .shp
+    """
 
     # Determine file type
     file_type = type_parser(ids_file)
 
-    if file_type in ('dbf', 'df', 'gdf', 'shp', 'csv', 'excel', 'geojson') and not field:
-        logger.error('Must provide field name with file type: {}'.format(file_type))
+    if file_type in ('dbf', 'df', 'gdf', 'shp',
+                     'csv', 'excel', 'geojson') and not field:
+        logger.error('Must provide field name with file type: '
+                     '{}'.format(file_type))
         sys.exit()
 
     # Text file
@@ -204,7 +208,8 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
             # If still no extension, check if gpkg (package.gpkg/layer)
             out_format = out_footprint.parent.suffix
             if not out_format:
-                logger.error('Could not recognize out format from file extension: {}'.format(out_footprint))
+                logger.error('Could not recognize out format from file '
+                             'extension: {}'.format(out_footprint))
 
     # Write out in format specified
     if out_format == 'shp':
@@ -222,7 +227,8 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
 
 
 def parse_group_args(parser, group_name):
-    # Get just arguments in given group from argparse.ArgumentParser() as Namespace object
+    # Get just arguments in given group from argparse.ArgumentParser() as
+    # Namespace object
     args = parser.parse_args()
     arg_groups = {}
     for group in parser._action_groups:
@@ -258,8 +264,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
         scene_path = sm[0]
         metadata_path = sm[1]
 
-        logger.debug('Parsing metdata for: {}\{}'.format(scene_path.parent.stem,
-                                                         scene_path.stem))
+        logger.debug('Parsing metdata for: '
+                     '{}\{}'.format(scene_path.parent.stem, scene_path.stem))
         metadata = json.load(open(metadata_path))
         properties = metadata['properties']
 
@@ -298,13 +304,18 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
         try:
             # TODO: Figure out why some footprints are multipolygon - handle better
             if metadata['geometry']['type'] == 'Polygon':
-                properties['geometry'] = Polygon(metadata['geometry']['coordinates'][0])
+                properties['geometry'] = Polygon(metadata['geometry']
+                                                 ['coordinates'][0])
             elif metadata['geometry']['type'] == 'MultiPolygon':
-                logger.warning('Parsing MultiPolygon geometry not fully tested.')
-                # add_row = False
-                properties['geometry'] = MultiPolygon(
-                    [Polygon(metadata['geometry']['coordinates'][i][0])
-                     for i in range(len(metadata['geometry']['coordinates']))])
+                logger.warning('MultiPolygon geometry found. Not yet supported'
+                               ' - skipping.')
+                # logger.warning('Parsing MultiPolygon geometry not fully '
+                #                'tested.')
+                add_row = False
+                # properties['geometry'] = MultiPolygon(
+                #     [Polygon(metadata['geometry']['coordinates'][i][0])
+                #      for i in range(len(metadata['geometry']
+                #      ['coordinates']))])
         except Exception as e:
             logger.error('Geometry error, skipping add scene: '
                          '{}'.format(properties[k_scenes_id]))
@@ -317,7 +328,8 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
             rows.append(properties)
         else:
             logger.warning('Scene could not be found (or had bad geometry), '
-                           'skipping adding:\n{}\tat {}'.format(metadata['id'], scene_path))
+                           'skipping adding:\n{}\tat {}'.format(metadata['id'],
+                                                                scene_path))
 
     if len(rows) == 0:
         # TODO: Address how to actually deal with not finding any features
@@ -336,7 +348,8 @@ def write_scene_manifest(scene_manifest, master_manifest,
     to a new file with that scenes name."""
     scene_path = Path(scene_manifest[k_path])
     scene_mani_name = '{}_{}.json'.format(scene_path.stem, manifest_suffix)
-    scene_mani_path = master_manifest.parent / scene_path.parent / scene_mani_name
+    scene_mani_path = (master_manifest.parent / scene_path.parent /
+                       scene_mani_name)
     exists = scene_mani_path.exists()
     if not exists or (exists and overwrite):
         logger.debug('Writing manifest for: {}'.format(scene_path.stem))
@@ -413,7 +426,8 @@ def verify_scene_md5(manifest_md5, scene_file):
     if file_md5 == manifest_md5:
         verified = True
     else:
-        logger.warning('Verification of md5 checksum failed: {} != {}'.format(file_md5, manifest_md5))
+        logger.warning('Verification of md5 checksum failed: '
+                       '{} != {}'.format(file_md5, manifest_md5))
         verified = False
 
     return verified
@@ -485,7 +499,7 @@ class PlanetScene:
             self.bundle_type = _annotations['planet/bundle_type']
             self.item_id = _annotations['planet/item_id']
             self.item_type = _annotations['planet/item_type']
-            # self.received_datetime = data['received_datetime']
+            self.received_datetime = data['received_datetime']
 
         # Determine "scene name" - the scene name without post processing
         # suffixes used when searching for metadata files, e.g.: _SR
@@ -523,10 +537,12 @@ class PlanetScene:
         self._index_row = None
         self._footprint_row = None
 
-        # Bundle types that have been tested for compatibility with naming conventions
+        # Bundle types that have been tested for compatibility with naming
+        # conventions
         self.supported_bundle_types = ['analytic', 'analytic_sr',
                                        'basic_analytic', 'basic_analytic_nitf',
-                                       'basic_uncalibrated_dn', 'basic_uncalibrated_dn_ntif',
+                                       'basic_uncalibrated_dn',
+                                       'basic_uncalibrated_dn_ntif',
                                        'uncalibrated_dn']
         # Ensure bundle_type is suppported
         if self.bundle_type not in self.supported_bundle_types:
@@ -554,7 +570,8 @@ class PlanetScene:
         """Locate metadata files for the scene, not including the scene itself and
         excluding any subtrings passed in self.exlude_meta"""
         if self._meta_files is None:
-            logger.debug('Locating metadata files for: {}'.format(self.scene_path))
+            logger.debug('Locating metadata files for: '
+                         '{}'.format(self.scene_path))
             self._meta_files = [f for f in
                                 self.scene_path.parent.rglob(
                                     '{}*'.format(self.scene_name)
@@ -563,10 +580,12 @@ class PlanetScene:
             if self.metadata_json.exists():
                 self._meta_files.append(self.metadata_json)
             else:
-                logger.debug('Metadata JSON not found for: {}'.format(self.scene_path))
+                logger.debug('Metadata JSON not found for: '
+                             '{}'.format(self.scene_path))
             if self.exclude_meta:
                 self._meta_files = [f for f in self._meta_files
-                                    if not any([em in str(f) for em in self.exclude_meta])]
+                                    if not any([em in str(f)
+                                                for em in self.exclude_meta])]
         return self._meta_files
 
     @property
@@ -613,24 +632,39 @@ class PlanetScene:
                 k_productType = 'productType'
                 k_acquired = 'acquisitionDateTime'
 
-                logger.debug('Parsing attributes from xml: {}'.format(self.xml_path))
+                logger.debug('Parsing attributes from xml: '
+                             '{}'.format(self.xml_path))
                 with open(self.xml_path, 'rt') as src:
                     tree = ET.parse(self.xml_path)
                     root = tree.getroot()
 
                 # Nodes where all values can be processed as-is
                 nodes_process_all = [
-                    '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}EarthObservationMetaData',
-                    '{http://www.opengis.net/gml}TimePeriod',
-                    '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}Sensor',
-                    '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}Acquisition',
-                    '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}ProductInformation',
-                    '{http://earth.esa.int/opt}cloudCoverPercentage',
-                    '{http://earth.esa.int/opt}cloudCoverPercentageQuotationMode',
-                    '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}unusableDataPercentage',
+                    '{http://schemas.planet.com/ps/v1'
+                    '/planet_product_metadata_geocorrected_level}'
+                    'EarthObservationMetaData',
+                    '{http://www.opengis.net/gml}'
+                    'TimePeriod',
+                    '{http://schemas.planet.com/ps/v1'
+                    '/planet_product_metadata_geocorrected_level}'
+                    'Sensor',
+                    '{http://schemas.planet.com/ps/v1'
+                    '/planet_product_metadata_geocorrected_level}'
+                    'Acquisition',
+                    '{http://schemas.planet.com/ps/v1'
+                    '/planet_product_metadata_geocorrected_level}'
+                    'ProductInformation',
+                    '{http://earth.esa.int/opt}'
+                    'cloudCoverPercentage',
+                    '{http://earth.esa.int/opt}'
+                    'cloudCoverPercentageQuotationMode',
+                    '{http://schemas.planet.com/ps/v1'
+                    '/planet_product_metadata_geocorrected_level}'
+                    'unusableDataPercentage',
                     ]
 
-                # Nodes with repeated attribute names -> rename according to dicts
+                # Nodes with repeated attribute names
+                # -> rename according to dicts
                 platform_node = '{http://earth.esa.int/eop}Platform'
                 instrument_node = '{http://earth.esa.int/eop}Instrument'
                 mask_node = '{http://earth.esa.int/eop}MaskInformation'
@@ -643,7 +677,8 @@ class PlanetScene:
                 mask_renamer = {'fileName': 'mask_filename',
                                 'type': 'mask_type',
                                 'format': 'mask_format',
-                                'referenceSystemIdentifier': 'mask_referenceSystemIdentifier'}
+                                'referenceSystemIdentifier':
+                                    'mask_referenceSystemIdentifier'}
                 geom_renamer = {'coordinates': 'geometry'}
                 centroid_renamer = {'pos': 'centroid'}
 
@@ -653,9 +688,15 @@ class PlanetScene:
                                 (geom_node, geom_renamer),
                                 (centroid_node, centroid_renamer)]
 
-                # Bands Node - conflicting attribute names -> add band number: "band1_radiometicScaleFactor"
-                bands_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandSpecificMetadata'
-                band_number_node = '{http://schemas.planet.com/ps/v1/planet_product_metadata_geocorrected_level}bandNumber'
+                # Bands Node - conflicting attribute names
+                # -> add band number: "band1_radiometicScaleFactor"
+                bands_node = ('{http://schemas.planet.com/ps/v1'
+                              '/planet_product_metadata_geocorrected_level}'
+                              'bandSpecificMetadata')
+                band_number_node = ('{http://schemas.planet.com/ps/v1'
+                                    '/planet_product_metadata_geocorrected_'
+                                    'level}'
+                                    'bandNumber')
 
                 attributes = dict()
                 # Add attributes that are processed as-is
@@ -670,21 +711,26 @@ class PlanetScene:
 
                 # Add attributes that require renaming
                 for node, renamer in rename_nodes:
-                    add_renamed_attributes(node, renamer, root=root, attributes=attributes)
+                    add_renamed_attributes(node, renamer, root=root,
+                                           attributes=attributes)
 
                 # Process band metadata
                 bands_elems = root.findall('.//{}'.format(bands_node))
                 for band in bands_elems:
                     band_uri = '{{{}}}'.format(tag_uri_and_name(band)[0])
-                    band_number = band.find('.//{}'.format(band_number_node)).text
-                    band_renamer = {tag_uri_and_name(e)[1]: 'band{}_{}'.format(band_number, tag_uri_and_name(e)[1])
+                    band_number = (band.find('.//{}'.format(band_number_node)).
+                                   text)
+                    band_renamer = {tag_uri_and_name(e)[1]:
+                                    'band{}_{}'.format(band_number,
+                                                       tag_uri_and_name(e)[1])
                                     for e in band
                                     if tag_uri_and_name(e)[1] != 'bandNumber'}
                     for e in band:
                         band_uri, name = tag_uri_and_name(e)
                         if name in band_renamer.keys():
                             name = band_renamer[name]
-                        # Remove quotes from field names (some have them, some do not)
+                        # Remove quotes from field names (some have them, some
+                        # do not)
                         name = name.replace('"', '').replace("'", '')
                         if e.text.strip() != '' and name != 'bandNumber':
                             attributes[name] = e.text
@@ -697,7 +743,8 @@ class PlanetScene:
                 self._geometry = Polygon(pts)
 
                 # Convert center point to shapely Point
-                self._centroid = Point(float(x) for x in attributes['centroid'].split())
+                self._centroid = Point(float(x) for x in
+                                       attributes['centroid'].split())
                 self._center_x = self._centroid.x
                 self._center_y = self._centroid.y
 
@@ -745,7 +792,8 @@ class PlanetScene:
 
     @property
     def acquisition_datetime(self):
-        if self._acquisition_datetime is None and self.xml_attributes is not None:
+        if (self._acquisition_datetime is None and
+                self.xml_attributes is not None):
             self._acquisition_datetime = datetime.datetime.strptime(
                                          self.xml_attributes['acquisitionDateTime'],
                                          '%Y-%m-%dT%H:%M:%S+00:00')
@@ -834,7 +882,7 @@ class PlanetScene:
             uns_index_row['centroid'] = self.centroid.wkt
             uns_index_row['center_x'] = self._center_x
             uns_index_row['center_y'] = self._center_y
-            # uns_index_row['received_datetime'] = self.received_datetime
+            uns_index_row['received_datetime'] = self.received_datetime
             uns_index_row['shelved_loc'] = str(self.shelved_location)
             # Reorder fields
             field_order = ['id', 'identifier', 'strip_id',
