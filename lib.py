@@ -485,7 +485,7 @@ class PlanetScene:
             self.bundle_type = _annotations['planet/bundle_type']
             self.item_id = _annotations['planet/item_id']
             self.item_type = _annotations['planet/item_type']
-            self.received_datetime = data['received_datetime']
+            # self.received_datetime = data['received_datetime']
 
         # Determine "scene name" - the scene name without post processing
         # suffixes used when searching for metadata files, e.g.: _SR
@@ -834,7 +834,7 @@ class PlanetScene:
             uns_index_row['centroid'] = self.centroid.wkt
             uns_index_row['center_x'] = self._center_x
             uns_index_row['center_y'] = self._center_y
-            uns_index_row['received_datetime'] = self.received_datetime
+            # uns_index_row['received_datetime'] = self.received_datetime
             uns_index_row['shelved_loc'] = str(self.shelved_location)
             # Reorder fields
             field_order = ['id', 'identifier', 'strip_id',
@@ -856,12 +856,14 @@ class PlanetScene:
         return self._footprint_row
 
 
-def find_planet_scenes(directory, exclude_meta=None):
+def find_planet_scenes(directory, exclude_meta=None,
+                       shelved_parent=None):
     if not isinstance(directory, pathlib.PurePath):
         directory = Path(directory)
     manifest_files = directory.rglob('*_manifest.json')
 
-    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta) for mf in
-                     manifest_files]
+    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta,
+                                 shelved_parent=shelved_parent)
+                     for mf in manifest_files]
 
     return planet_scenes

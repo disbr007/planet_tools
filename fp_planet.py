@@ -2,6 +2,7 @@ import argparse
 import os
 from pathlib import Path
 
+import shapely
 import geopandas as gpd
 
 from logging_utils.logging_utils import create_logger
@@ -30,6 +31,7 @@ def main(args):
     # TODO: convert to using PlanetScenes generate footprints
     rows = [ps.index_row for ps in planet_scenes]
     gdf = gpd.GeoDataFrame(rows, crs='epsg:4326')
+    gdf['geometry'] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
 
 
     # scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
@@ -56,6 +58,15 @@ if __name__ == '__main__':
                         help='Path to create filepaths relative to in footprint.')
     parser.add_argument('--rel_loc_style', type=str, choices=['W', 'L'],
                         help='System style for paths in footprint.')
+
+    # import sys
+    # sys.argv = [r'C:\code\planet_stereo\fp_planet.py',
+    #             '-i',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+    #             r'\2020oct14_multilook\2019\10\09',
+    #             '-o',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+    #             r'\2020oct14_multilook\2020oct14_multilook.geojson']
 
     args = parser.parse_args()
 
