@@ -17,6 +17,8 @@ db = 'sandwich-pool.planet'
 ml_mv = 'multilook_candidates'
 scenes_onhand = 'scenes_onhand'
 so_id = 'id'
+fn_id = 'fn_id'
+fn_pn = 'fn_pairname'
 eckertIV = r'+proj=eck4 +lon_0=0 +datum=WGS84 +units=m +no_defs'
 min_area = 32_670_000  # meters^2
 min_pairs = 3
@@ -83,18 +85,23 @@ def multilook_intersections(src_id, pair_ids, footprints, min_pairs=3, min_area=
     intersections = intersections[intersections['area'] > min_area]
     # Sort by area
     intersections.sort_values(by='area', ascending=False, inplace=True)
-    intersections.rename(columns={'id_2': 'other_id'}, inplace=True)
-    intersections = intersections[['other_id', 'geometry']]
+    intersections.rename(columns={'id_2': 'other_id',
+                                  'fn_id_2': 'other_fn_id'},
+                         inplace=True)
+    intersections = intersections[['other_id', 'other_fn_id', 'geometry']]
 
     multilook_pairs = gpd.GeoDataFrame()
     # Start with src footprint
     prev_intersect = src
     # Initialize pairname field to be extended for each added footprint
     prev_intersect['pairname'] = prev_intersect['id']
+    prev_intersect[fn_pn] = prev_intersect['fn_id']
     for row in intersections.itertuples(index=False):
         # Find intersection of previous intersection and current footprint
         sub_intersect = gpd.overlay(prev_intersect,
-                                    gpd.GeoDataFrame([row], geometry='geometry', crs=src.crs))
+                                    gpd.GeoDataFrame([row],
+                                                     geometry='geometry',
+                                                     crs=src.crs))
         # Check for any matches
         if sub_intersect.empty:
             logger.debug('No new intersection found, moving to next source ID.')
@@ -105,12 +112,14 @@ def multilook_intersections(src_id, pair_ids, footprints, min_pairs=3, min_area=
 
         # Check if min area has been met
         if sub_intersect['area'].values[0] < min_area:
-            logger.debug('Minimum area criteria not met, moving to next source ID.')
+            logger.debug('Minimum area criteria not met, moving to next '
+                         'source ID.')
             break
 
         # Add new ID to pairname
         sub_intersect['pairname'] = sub_intersect['pairname'] + '-' + sub_intersect['other_id']
-        sub_intersect.drop(columns=['other_id'], inplace=True)
+        sub_intersect[fn_pn] = sub_intersect[fn_pn] + '-' + sub_intersect['other_fn_id']
+        sub_intersect.drop(columns=['other_id', 'other_fn_id'], inplace=True)
         sub_intersect['pair_count'] = sub_intersect['pairname'].apply(lambda x: len(x.split('-')))
         if sub_intersect['pair_count'].values[0] >= min_pairs:
             multilook_pairs = pd.concat([sub_intersect, multilook_pairs])
@@ -144,8 +153,10 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area):
         # all_ids = set(src_ids + pair_ids)
         footprints = get_multilook_pair_gdf(all_ids, db_src)
         logger.info('Footprints loaded: {:,}'.format(len(footprints)))
-
         db_src = None
+
+    # Add filename_pairname column
+    footprints[fn_id] = footprints['filename'].apply(lambda x: x[:-4])
 
     # Convert to equal area crs
     logger.debug('Converting to equal area crs: {}'.format(eckertIV))
@@ -174,17 +185,20 @@ if __name__ == '__main__':
                         help='Path to write text file of all IDs in multilook footprint.')
     parser.add_argument('-mp', '--min_pairs', type=int, default=min_pairs)
     parser.add_argument('-ma', '--min_area', type=float, default=min_area)
-    parser.add_argument('-fn_pn', '--filename_pairname', action='store_true',
-                        help='Use to create a new field in the output footprint '
-                             'that is the pairname, but using filenames instead of '
-                             'ids: E.g.:'
-                             'Pairname: 20200618_152012_104e-20200623_152150_1020-20200623_152150_1020'
-                             'Filename_pairname: ')
-    
+    # parser.add_argument('-fn_pn', '--filename_pairname', action='store_true',
+    #                     help='Use to create a new field in the output footprint '
+    #                          'that is the pairname, but using filenames instead of '
+    #                          'ids: E.g.:'
+    #                          'Pairname: 20200618_152012_104e-20200623_152150_1020-20200623_152150_1020'
+    #                          'Filename_pairname: ')
+    #
     args = parser.parse_args()
 
-    # import sys
-    # sys.argv = []
+    import sys
+    sys.argv = [r'C:\code\planet_stereo\multilook_selection.py',
+                '-o',
+                '2020oct14_multilook_redo.geojson',
+                '-mp', '3', '-ma', '30000000', '-fn_pn']
 
     logger.info('Searching for multilook pairs meeting '
                 'thresholds:\nMin. Pairs: {}\nMin. Area: {:,}'.format(min_pairs, min_area))
