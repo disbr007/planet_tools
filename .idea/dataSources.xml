@@ -19,7 +19,7 @@
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>
       <jdbc-url>jdbc:postgresql://localhost:5432/planet</jdbc-url>
     </data-source>
-    <data-source source="LOCAL" name="planet_sandwich" uuid="cde05343-1545-4835-a5bf-287b0a332409">
+    <data-source source="LOCAL" name="planet" uuid="e1ae4815-0172-4815-903e-8986322e7da8">
       <driver-ref>postgresql</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.postgresql.Driver</jdbc-driver>

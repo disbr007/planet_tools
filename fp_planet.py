@@ -35,14 +35,6 @@ def main(args):
     gdf['geometry'] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
     gdf.crs = 'epsg:4326'
 
-
-    # scenes_metadatas = [(s, metadata_path_from_scene(s)) for s in scene_files]
-    # logger.info('Found {:,} associated metadata files.'.format(len(scenes_metadatas)))
-    #
-    # logger.info('Creating footprint from metadata files...')
-    # gdf = gdf_from_metadata(scenes_metadatas, relative_directory=relative_directory,
-    #                         relative_locs=True, pgc_locs=False,
-    #                         rel_loc_style=rel_loc_style)
     logger.info('Footprint created with {:,} records.'.format(len(gdf)))
 
     write_gdf(gdf, out_footprint=out_footprint, out_format=out_format)

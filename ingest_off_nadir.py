@@ -77,8 +77,10 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True, ext='.c
 
         # Add records to table
         logger.info('Adding new records...')
-        db.insert_new_records(records_to_add, off_nadir_tbl, unique_id=off_nadir_tbl_id, dryrun=dryrun)
-        logger.info('New records added. New table count: {:,}'.format(db.get_table_count(off_nadir_tbl)))
+        db.insert_new_records(records_to_add, off_nadir_tbl,
+                              unique_on=off_nadir_tbl_id, dryrun=dryrun)
+        logger.info('New records added. New table count:'
+                    ' {:,}'.format(db.get_table_count(off_nadir_tbl)))
 
 
 if __name__ == '__main__':
@@ -90,7 +92,7 @@ if __name__ == '__main__':
                         help='Path to directory holding csvs exported by Planet.')
     parser.add_argument('-noh', '--not_on_hand', action='store_true',
                         help='Use to load all new records found, not just those with '
-                             'a corresponding scene in "scene" table.')
+                             'a corresponding scene in "scenes" table.')
     parser.add_argument('-all', '--all_records', action='store_true',
                         help='Load all off-nadir files found in directory, not just new.')
     parser.add_argument('-ext', '--extension', type=str, nargs='+', default=['.csv'],

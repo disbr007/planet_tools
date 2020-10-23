@@ -194,6 +194,29 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
         df[dc] = df[dc].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
 
 
+def determine_driver(src):
+    if not isinstance(src, pathlib.PurePath):
+        src = Path(src)
+
+    out_format = src.suffix.replace('.', '')
+    if not out_format:
+        # If still no extension, check if gpkg (package.gpkg/layer)
+        out_format = src.parent.suffix
+        if not out_format:
+            logger.error('Could not recognize out format from file '
+                         'extension: {}'.format(src))
+    if out_format == 'shp':
+        driver = 'ESRI Shapefile'
+    elif out_format == 'geojson':
+        driver = 'GeoJSON'
+    elif out_format == 'gpkg':
+        driver = 'GPKG'
+    else:
+        logger.error('Unrecognized format: {}'.format(out_format))
+
+    return driver
+
+
 def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
     if not isinstance(out_footprint, pathlib.PurePath):
         out_footprint = Path(out_footprint)
@@ -212,18 +235,12 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
                              'extension: {}'.format(out_footprint))
 
     # Write out in format specified
-    if out_format == 'shp':
-        gdf.to_file(out_footprint)
-    elif out_format == 'geojson':
-        gdf.to_file(out_footprint,
-                    driver='GeoJSON')
-    elif out_format == 'gpkg':
+    driver = determine_driver(out_footprint)
+    if out_format == 'gpkg':
         gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
                     driver='GPKG')
     else:
-        logger.error('Unrecognized format: {}'.format(out_format))
-
-    # logger.debug('Writing complete.')
+        gpd.to_file(out_footprint, driver=driver)
 
 
 def parse_group_args(parser, group_name):

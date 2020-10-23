@@ -338,6 +338,8 @@ class Postgres(object):
             """Determines if row has values in the combination of
             columns in unique_on that are in values.
             """
+            if isinstance(unique_on, str):
+                unique_on = [unique_on]
             row_values = [row[c] for c in unique_on]
             if len(row_values) > 1:
                 row_values = tuple(row_values)
