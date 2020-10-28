@@ -19,6 +19,7 @@ records_path = r'V:\pgc\data\scratch\jeff\projects\planet\scenes\PSScene4Band_20
 date_cols = ['acquired']
 dryrun = False
 
+
 def read_records(records_path):
     try:
         records = gpd.read_file(records_path)

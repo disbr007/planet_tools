@@ -64,13 +64,15 @@ image = 'image'
 #     return wp
 
 def win2linux(path):
-    lp = path.replace('V:', '/mnt').replace('\\', '/')
+    lp = path.replace('V:', r'/mnt').replace('\\', '/')
 
     return lp
 
 
 def linux2win(path):
-    wp = path.replace('/mnt', 'V:').replace('/', '\\')
+    wp = path.replace(r'//mnt', 'V:')
+    wp = wp.replace(r'\mnt', 'V:')
+    wp = wp.replace('/', '\\')
 
     return wp
 
@@ -405,6 +407,7 @@ def create_scene_manifests(master_manifest, overwrite=False):
     scene_manifests = get_scene_manifests(master_manifest)
     logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
 
+    # TODO: Make this date format match the xml date format
     received_date = time.strftime('%Y-%m-%dT%H:%M%SZ',
                                   time.localtime(os.path.getmtime(
                                       master_manifest)))
@@ -890,13 +893,13 @@ class PlanetScene:
     @property
     def index_row(self):
         if self._index_row is None:
-            # Get all attributes in XML, add others
+            # Get all attributes in XML, add others - unsorted
             uns_index_row = copy.deepcopy(self.xml_attributes)
             uns_index_row['id'] = self.item_id
             uns_index_row['strip_id'] = self.strip_id
             uns_index_row['bundle_type'] = self.bundle_type
-            uns_index_row['geometry'] = self.geometry.wkt
-            uns_index_row['centroid'] = self.centroid.wkt
+            uns_index_row['geometry'] = self.geometry
+            uns_index_row['centroid'] = self.centroid
             uns_index_row['center_x'] = self._center_x
             uns_index_row['center_y'] = self._center_y
             uns_index_row['received_datetime'] = self.received_datetime
@@ -909,6 +912,13 @@ class PlanetScene:
             for k, v in uns_index_row.items():
                 if k not in self._index_row.keys():
                     self._index_row[k] = v
+
+            # Make lowercase fields
+            # TODO: Do this when parsing
+            self._index_row = {k.lower(): v for k, v in self._index_row.items()}
+
+            # TODO: Remove to add centroid back in
+            # self._index_row.pop('centroid')
 
         return self._index_row
 

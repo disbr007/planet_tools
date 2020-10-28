@@ -1,11 +1,13 @@
 import json
 import re
 import os
+import sys
 
 from sqlalchemy import create_engine
 from sqlalchemy.types import DateTime
 from geoalchemy2 import Geometry, WKTElement
 import psycopg2
+from psycopg2 import sql
 import pandas as pd
 import geopandas as gpd
 
@@ -17,6 +19,7 @@ pd.set_option('mode.chained_assignment', None)
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # Paths to config files for connecting to various DB's
+# TODO: Find paths to config files better
 db_confs = {
     'sandwich-pool.dem': os.path.join(os.path.dirname(os.path.dirname(__file__)),
                                       'config', 'sandwich-pool.dem.json'),
@@ -62,73 +65,78 @@ def ids2sql(ids):
 
 def encode_geom_sql(geom_col, encode_geom_col):
     """
-    SQL statement to encode geometry column in non-PostGIS PostGRES database for reading
-    by geopandas.read_postgis.
+    SQL statement to encode geometry column in non-PostGIS Postgres
+    database for reading by geopandas.read_postgis.
     """
-    geom_sql = """encode(ST_AsBinary({}), 'hex') AS {}""".format(geom_col, encode_geom_col)
+    geom_sql = "encode(ST_AsBinary({}), 'hex') AS " \
+               "{}".format(geom_col, encode_geom_col)
 
     return geom_sql
 
 
-def generate_sql(layer, columns=None, where=None, orderby=False, orderby_asc=False,
-                 distinct=False, limit=False, offset=None,
-                 geom_col=None, encode_geom_col=None,
-                 remove_id_tbl=None, remove_id_tbl_col=None, remove_id_src_cols=None):
+def make_identifier(sql_str):
+    if (sql_str is not None and
+            not isinstance(sql_str, sql.Identifier)):
+        return sql.Identifier(sql_str)
+
+
+def generate_sql(layer, columns=None, where=None, orderby=False,
+                 orderby_asc=False, distinct=False, limit=False, offset=None,
+                 geom_col=None, encode_geom_col=None, remove_id_tbl=None,
+                 remove_id_tbl_col=None, remove_id_src_cols=None):
     """
     geom_col not needed for PostGIS if loading SQL with geopandas -
         gpd can interpet the geometry column without encoding
     """
-    # COLUMNS
-    if columns:
-        cols_str = ', '.join(columns)
-    else:
-        cols_str = '*'  # select all columns
 
-    if not geom_col:
-        sql = "SELECT {} FROM {}".format(cols_str, layer)
+    if distinct:
+        sql_select = 'SELECT DISTINCT'
     else:
-        sql = "SELECT encode(ST_AsBinary({}), 'hex') AS {}, {} FROM {}".format(geom_col, encode_geom_col,
-                                                                               cols_str, layer)
+        sql_select = "SELECT"
 
-    # CUSTOM WHERE CLAUSE
+    # Only necessary for geometries in non-PostGIS DBs
+    if geom_col:
+        columns.append("encode(ST_AsBinary({}), 'hex') AS "
+                       "{}".format(geom_col, encode_geom_col))
+
+    # Create base query object
+    query = sql.SQL("{select} {fields} FROM {table}").format(
+        select=sql.SQL(sql_select),
+        fields=sql.SQL(',').join([sql.Identifier(f) for f in columns]),
+        table=sql.Identifier(layer))
+    # Add any provided additional parameters
     if where:
         sql_where = " WHERE {}".format(where)
-        sql = sql + sql_where
-    # REMOVE IDs found in another table
-    if remove_id_tbl and remove_id_tbl_col and remove_id_src_cols:
-        remove_wheres = ["""{} IN (SELECT {} FROM {}""".format(id_src_col,
-                                                               remove_id_tbl_col,
-                                                               remove_id_tbl)
-                         for id_src_col in remove_id_src_cols]
-        remove_where = """({})""".format(' AND '.join(remove_wheres))
-        if where:
-            sql += """ AND {}""".format(remove_where)
-        else:
-            sql += """ WHERE {}""".format(remove_where)
-
-    # ORDERBY
+        # Remove IDs found in another table
+        if all(remove_id_tbl, remove_id_tbl_col, remove_id_src_cols):
+            remove_wheres = ["{} IN (SELECT {} FROM {}".format(
+                             id_src_col, remove_id_tbl_col, remove_id_tbl)
+                             for id_src_col in remove_id_src_cols]
+            remove_where = """({})""".format(' AND '.join(remove_wheres))
+            if where:
+                sql_where += """ AND {}""".format(remove_where)
+            else:
+                sql_where = """ WHERE {}""".format(remove_where)
+        query += sql.SQL(sql_where)
     if orderby:
         if orderby_asc:
             asc = 'ASC'
         else:
             asc = 'DESC'
-        sql_orderby = " ORDER BY {} {}".format(orderby, asc)
-        sql += sql_orderby
-
-    # LIMIT number of rows
+        sql_orderby = sql.SQL("ORDER BY {field} {asc}").format(
+            field=sql.Identifier(orderby),
+            asc=sql.Literal(asc))
+        query += sql_orderby
     if limit:
-        sql_limit = " LIMIT {}".format(limit)
-        sql += sql_limit
+        sql_limit = sql.SQL("LIMIT {}".format(limit))
+        query += sql_limit
     if offset:
-        sql_offset = " OFFSET {}".format(offset)
-        sql += sql_offset
+        sql_offset = sql.SQL("OFFSET {}".format(offset))
+        query += sql_offset
 
-    if distinct:
-        sql = sql.replace('SELECT', 'SELECT DISTINCT')
+    logger.debug('Generated SQL: {}'.format(query))
 
-    logger.debug('Generated SQL: {}'.format(sql))
-
-    return sql
+    return query
 
 
 def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
@@ -137,9 +145,15 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
                     ovlp_perc_min=None, ovlp_perc_max=None,
                     off_nadir_diff_min=None, off_nadir_diff_max=None,
                     limit=None, orderby=False, orderby_asc=False,
-                    remove_id_tbl=None, remove_id_tbl_col=None, remove_id_src_cols=None,
-                    geom_col=fld_geom, columns='*'):
-    """Create SQL statment to select stereo pairs based on passed arguments."""
+                    remove_id_tbl=None, remove_id_tbl_col=None,
+                    remove_id_src_cols=None, geom_col=fld_geom, columns='*'):
+    """
+    Create SQL statment to select stereo pairs based on passed
+    arguments.
+    """
+    # Ensure properly quoted identifiers
+    remove_id_tbl = make_identifier(remove_id_tbl)
+
     where = ""
     if date_min:
         where = check_where(where)
@@ -178,22 +192,24 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
     if columns != '*' and geom_col not in columns:
         columns.append(geom_col)
 
-    sql = generate_sql(layer=stereo_pair_cand, columns=columns, where=where,
-                       limit=limit, orderby=orderby, orderby_asc=orderby_asc,
-                       remove_id_tbl=remove_id_tbl, remove_id_tbl_col=remove_id_tbl_col,
-                       remove_id_src_cols=remove_id_src_cols)
+    sql_statement = generate_sql(layer=stereo_pair_cand, columns=columns, where=where,
+                                limit=limit, orderby=orderby,
+                                orderby_asc=orderby_asc,
+                                remove_id_tbl=remove_id_tbl,
+                                remove_id_tbl_col=remove_id_tbl_col,
+                                remove_id_src_cols=remove_id_src_cols)
 
-    return sql
+    return sql_statement
 
 
 def intersect_aoi_where(aoi, geom_col):
-    """Create a where statement for a PostGIS intersection between the geometry(s) in
-    the aoi geodataframe and a PostGIS table with geometry in geom_col"""
+    """Create a where statement for a PostGIS intersection between the
+    geometry(s) in the aoi geodataframe and a PostGIS table with
+    geometry in geom_col"""
     aoi_epsg = aoi.crs.to_epsg()
     aoi_wkts = [geom.wkt for geom in aoi.geometry]
-    intersect_wheres = ["""ST_Intersects({}, ST_SetSRID('{}'::geometry, {}))""".format(geom_col,
-                                                                                       wkt,
-                                                                                       aoi_epsg,)
+    intersect_wheres = ["ST_Intersects({}, ST_SetSRID('{}'::geometry, " \
+                        "{}))".format(geom_col, wkt, aoi_epsg,)
                         for wkt in aoi_wkts]
     aoi_where = " OR ".join(intersect_wheres)
 
@@ -217,14 +233,17 @@ class Postgres(object):
         self.user = config['user']
         self.password = config['password']
         try:
-            self.connection = psycopg2.connect(user=self.user, password=self.password,
-                                               host=self.host, database=self.database)
+            self.connection = psycopg2.connect(user=self.user,
+                                               password=self.password,
+                                               host=self.host,
+                                               database=self.database)
             self.cursor = self.connection.cursor()
             self.cursor.execute('SELECT VERSION()')
             db_version = self.cursor.fetchone()
         except psycopg2.Error as error:
             Postgres._instance = None
-            logger.error('Error connecting to {} at {}'.format(self.database, self.host))
+            logger.error('Error connecting to {} at {}'.format(self.database,
+                                                               self.host))
             logger.error(error)
             raise error
         else:
@@ -244,28 +263,31 @@ class Postgres(object):
 
     def list_db_tables(self):
         logger.debug('Listing tables...')
-        self.cursor.execute("""SELECT table_schema as schema_name,
-                                      table_name as view_name
-                               FROM information_schema.tables
-                               WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-                               ORDER BY schema_name, view_name""")
+        tables_sql = sql.SQL("""SELECT table_schema as schema_name,
+                                       table_name as view_name
+                                FROM information_schema.tables
+                                WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                                ORDER BY schema_name, view_name""")
+        self.cursor.execute(tables_sql)
         tables = self.cursor.fetchall()
         logger.debug('Tables: {}'.format(tables))
 
-        self.cursor.execute("""SELECT table_schema as schema_name,
+        views_sql = sql.SQL("""SELECT table_schema as schema_name,
                                       table_name as view_name
                                FROM information_schema.views
                                WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
                                ORDER BY schema_name, view_name""")
+        self.cursor.execute(views_sql)
 
         # tables = self.cursor.fetchall()
         views = self.cursor.fetchall()
         tables.extend(views)
         logger.debug('Views: {}'.format(views))
 
-        self.cursor.execute("""SELECT schemaname as schema_name, 
+        matviews_sql = sql.SQL("""SELECT schemaname as schema_name, 
                                       matviewname as view_name
-                               FROM pg_matviews""")
+                                  FROM pg_matviews""")
+        self.cursor.execute(matviews_sql)
         matviews = self.cursor.fetchall()
         tables.extend(matviews)
         logger.debug("Materialized views: {}".format(matviews))
@@ -275,14 +297,21 @@ class Postgres(object):
 
         return tables
 
-    def execute_sql(self, sql):
-        self.cursor.execute(sql)
+    def execute_sql(self, sql_query):
+        if not isinstance(sql_query, (sql.SQL, sql.Composable, sql.Composed)):
+            sql_query = sql.SQL(sql_query)
+        # logger.debug('SQL query: {}'.format(sql_query))
+        self.cursor.execute(sql_query)
         results = self.cursor.fetchall()
 
         return results
 
-    def get_sql_count(self, sql):
-        count_sql = re.sub('SELECT (.*) FROM', 'SELECT COUNT(\\1) FROM', sql)
+    def get_sql_count(self, sql_str):
+        if not isinstance(sql_str, sql.SQL):
+            sql_str = sql.SQL(sql_str)
+        count_sql = sql.SQL(re.sub('SELECT (.*) FROM',
+                                   'SELECT COUNT(\\1) FROM',
+                                   sql_str.string))
         logger.debug('Count sql: {}'.format(count_sql))
         self.cursor.execute(count_sql)
         count = self.cursor.fetchall()[0][0]
@@ -290,22 +319,30 @@ class Postgres(object):
         return count
 
     def get_table_count(self, layer):
-        self.cursor.execute("SELECT COUNT(*) FROM {}".format(layer))
+        self.cursor.execute(sql.SQL(
+            """SELECT COUNT(*) FROM {}""").format(sql.Identifier(layer)))
         count = self.cursor.fetchall()[0][0]
 
         return count
 
     def get_layer_columns(self, layer):
-        self.cursor.execute("SELECT * FROM {} LIMIT 0".format(layer))
+        self.cursor.execute(sql.SQL(
+            "SELECT * FROM {} LIMIT 0").format(sql.Identifier(layer)))
         columns = [d[0] for d in self.cursor.description]
 
         return columns
 
     def get_values(self, layer, columns, distinct=False, table=False):
+        # if not isinstance(layer, sql.Identifier):
+        #     layer = sql.Identifier(layer)
+
         if isinstance(columns, str):
             columns = [columns]
-        sql = generate_sql(layer=layer, columns=columns, distinct=distinct,)# table=True)
-        values = self.execute_sql(sql)
+
+        sql_statement = generate_sql(layer=layer, columns=columns,
+                                     distinct=distinct,)# table=True)
+        values = self.execute_sql(sql_statement)
+
         # Convert from list of tuples to flat list if only one column
         if len(columns) == 1:
             values = [a[0] for a in values]
@@ -313,100 +350,130 @@ class Postgres(object):
         return values
 
     def get_engine(self):
-        engine = create_engine('postgresql+psycopg2://{}:{}@{}/{}'.format(self.user, self.password,
-                                                                          self.host, self.database))
+        engine = create_engine('postgresql+psycopg2://'
+                               '{}:{}@{}/{}'.format(self.user, self.password,
+                                                    self.host, self.database))
 
         return engine
 
-    def sql2gdf(self, sql, geom_col='geom', crs=4326,):
-        gdf = gpd.GeoDataFrame.from_postgis(sql=sql, con=self.get_engine().connect(),
-                                                geom_col=geom_col, crs=crs)
+    def sql2gdf(self, sql_str, geom_col='geometry', crs=4326,):
+        gdf = gpd.GeoDataFrame.from_postgis(sql=sql_str,
+                                            con=self.get_engine().connect(),
+                                            geom_col=geom_col, crs=crs)
         return gdf
 
-    def sql2df(self, sql, columns=None):
-        df = pd.read_sql(sql=sql, con=self.get_engine().connect(), columns=columns)
+    def sql2df(self, sql_str, columns=None):
+        df = pd.read_sql(sql=sql_str, con=self.get_engine().connect(),
+                         columns=columns)
 
         return df
 
-    def insert_new_records(self, records, table, unique_on=None,
-                           date_cols=None, date_format="%Y-%m-%dT%H:%M:%S.%fZ",
+    def insert_new_records(self, records, table,
+                           unique_on=None,
+                           geom_cols=None,
+                           date_cols=None,
                            dryrun=False):
-        """Add records to table, optionally using a unique_id to skip
-        duplicates."""
+        """
+        Add records to table, converting data types as necessary for INSERT.
+        Optionally using a unique_id (or combination of columns) to skip
+        duplicates.
+        # TODO: Finish docstring
+        """
 
         def _row_columns_unique(row, unique_on, values):
-            """Determines if row has values in the combination of
-            columns in unique_on that are in values.
+            """Determines if row has combination of columns in unique_on that
+            are in values.
+            Parameters
+            ----------
+            row : pd.Series
+                Table row to be inserted
+            unique_on : list / tuple
+                Column names that when combined indicate a unique row
+            values : list / tuple
+                Values to check row against
+            Returns
+            -------
+            bool
             """
             if isinstance(unique_on, str):
                 unique_on = [unique_on]
             row_values = [row[c] for c in unique_on]
             if len(row_values) > 1:
                 row_values = tuple(row_values)
+            else:
+                row_values = row_values[0]
 
             return row_values in values
 
+        # Get table starting count, or create if new table specified.
         logger.info('Inserting records into {}...'.format(table))
-        logger.debug('Loading existing IDs..')
-        if isinstance(records, gpd.GeoDataFrame):
-            has_geometry = True
+        if table in self.list_db_tables():
+            logger.info('Starting count for {}: '
+                        '{}'.format(table, self.get_table_count(table)))
         else:
-            has_geometry = False
+            # logger.info('Creating new table: {}'.format(table))
+            logger.warning('Table "{}" not found in database "{}", '
+                           'exiting.'.format(table, self.database))
+            # TODO: raise CustomError
+            sys.exit()
 
+        # Get unique IDs to remove duplicates if provided
         if table in self.list_db_tables() and unique_on is not None:
+            # Remove duplicate values from rows to insert based on unique_on
+            # columns
             existing_ids = self.get_values(layer=table, columns=unique_on,
                                            distinct=True)
             logger.debug('Removing any existing IDs from search results...')
             logger.debug('Existing unique IDs in table "{}": '
                          '{:,}'.format(table, len(existing_ids)))
-            if len(existing_ids) != 0:
-                logger.debug('Example ID: {}'.format(existing_ids[0]))
-            new = records[~records.apply(lambda x: _row_columns_unique(
+
+            # Remove dups
+            records = records[~records.apply(lambda x: _row_columns_unique(
                 x, unique_on, existing_ids), axis=1)]
-            # new = records[~records[unique_id].isin(existing_ids) == True]
-            del records
-        elif table not in self.list_db_tables():
-            logger.warning('Table "{}" not found in database "{}", creating '
-                           'new table'.format(table, self.database))
-            new = records
-        elif unique_on is None:
-            # logger.warning('No unique ID provided.')
-            new = records
 
-        logger.debug('Remaining IDs to add: {:,}'.format(len(new)))
+        logger.debug('Remaining IDs to add: {:,}'.format(len(records)))
 
-        if has_geometry:
+        # Creat object to map types when inserting
+        dtype = dict()
+        if geom_cols:
             # Get epsg code
-            srid = new.crs.to_epsg()
-            # Drop old format geometry column
-            geometry_name = new.geometry.name
-            if not geometry_name:
-                geometry_name = 'geometry'
-            logger.info('Features to add: {}'.format(len(new)))
-            new['geom'] = new.geometry.apply(lambda x:
-                                             WKTElement(x.wkt, srid=srid))
-            new.drop(columns=geometry_name, inplace=True)
+            srid = records.crs.to_epsg()
+            # Format geometry column(s) for insert
+            for gc, _geom_type in geom_cols.items():
+                records[gc] = records[gc].apply(
+                    lambda x: WKTElement(x.wkt, srid=srid))
+            dtype.update({gc: Geometry(geom_type, srid=srid)
+                          for gc, geom_type in geom_cols.items()})
 
-        # Convert date column to datetime
-        dtype = None
+        # Convert date columns to datetime
         if date_cols:
-            for col in date_cols:
-                new[col] = pd.to_datetime(new[col], format=date_format)
+            for col, date_format in date_cols.items():
+                records[col] = pd.to_datetime(records[col], format=date_format)
+            dtype.update({col: DateTime() for col, _date_format
+                          in date_cols.items()})
 
-        # logger.debug('Dataframe column types:\n{}'.format(new.dtypes))
-        if len(new) != 0 and not dryrun:
-            logger.info('Writing new IDs to {}.{}: '
-                        '{:,}'.format(self.database, table, len(new)))
-            if date_cols:
-                dtype = {dc: DateTime() for dc in date_cols}
-            if has_geometry:
-                geom_dtype = {'geom': Geometry('POLYGON', srid=srid)}
-                dtype.update(geom_dtype)
-                new.to_sql(table, con=self.get_engine(), if_exists='append',
-                           index=False, dtype=dtype)
-            else:
-                new.to_sql(table, con=self.get_engine(), if_exists='append',
-                           index=False, dtype=dtype)
+        # Insert new records
+        if len(records) != 0:
+            logger.info('Writing new records to {}.{}: '
+                        '{:,}'.format(self.database, table, len(records)))
+            if not dryrun:
+                # records.to_sql(table,
+                #                con=self.get_engine(),
+                #                if_exists='append',
+                #                index=False,
+                #                dtype=dtype)
+                for i, row in records.iterrows():
+                    insert_statement = sql.SQL(
+                        "INSERT INTO {table} ({columns}) VALUES ({values}").format(
+                        table=sql.Identifier(table),
+                        columns=sql.SQL(', ').join(
+                            [sql.Identifier(f) for f in row.index]),
+                        values=sql.SQL(', ').join(
+                            [sql.Literal(row[f]) if f not in geom_cols.keys()
+                             else sql.Literal(row[f].wkt)
+                             for f in row.index])
+                    )
+                    logger.debug(insert_statement.string)
         else:
             logger.info('No new records to be written.')
             

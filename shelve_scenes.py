@@ -7,8 +7,11 @@ import shutil
 import sys
 import time
 
+import geopandas as gpd
+import geoalchemy2
 from tqdm import tqdm
 
+from db_utils import Postgres
 from lib import linux2win, create_scene_manifests
 from lib import PlanetScene, find_planet_scenes
 from logging_utils.logging_utils import create_logger, create_logfile_path
@@ -20,6 +23,18 @@ logger = create_logger(__name__, 'sh', 'INFO')
 planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')
 if platform.system() == 'Windows':
     planet_data_dir = Path(linux2win(str(planet_data_dir)))
+# Index table name
+index_tbl = 'scenes_onhand'
+index_unique_cols = ['identifier']
+geom_cols = {'geometry': 'POLYGON',
+             'centroid': 'POINT'}
+xml_date_format = '%Y-%m-%dT%H:%M:%S+00:00'
+rec_date_format = '%Y-%m-%dT%H:%M%SZ'
+index_date_cols = {'acquisitiondatetime': xml_date_format,
+                   'beginposition': xml_date_format,
+                   'endposition': xml_date_format,
+                   'received_datetime': rec_date_format}
+
 
 
 def determine_copy_fxn(transfer_method):
@@ -56,6 +71,7 @@ def create_all_scene_manifests(directory):
 
 def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
                         remove_sources, dryrun):
+    copy_fxn = determine_copy_fxn(transfer_method)
     copy_fxn = determine_copy_fxn(transfer_method)
     logger.info('Creating list of unshelveable scenes and metadata files...')
     unshelve_src_dst = []
@@ -213,27 +229,27 @@ def shelve_scenes(data_directory, destination_directory=None,
     # Determine copy function based on platform
     copy_fxn = determine_copy_fxn(transfer_method)
     prev_order = None  # for logging only
-    for src, dst in tqdm(srcs_dsts):
-        # Log the current order directory being parsed
-        current_order = src.relative_to(data_directory).parts[0]
-        if current_order != prev_order:
-            logger.info('Shelving order directory: {}'.format(current_order))
-        # Go no further if dryrun
-        if dryrun:
-            prev_order = current_order
-            continue
-        # Perform copy
-        if not dst.parent.exists():
-            os.makedirs(dst.parent)
-        if not dst.exists():
-            try:
-                copy_fxn(src, dst)
-            except Exception as e:
-                logger.error('Error copying:\n{}\n\t-->{}'.format(src, dst))
-                logger.error(e)
-        else:
-            logger.debug('Destination exists, skipping: {}'.format(dst))
-        prev_order = current_order
+    # for src, dst in tqdm(srcs_dsts):
+    #     # Log the current order directory being parsed
+    #     current_order = src.relative_to(data_directory).parts[0]
+    #     if current_order != prev_order:
+    #         logger.info('Shelving order directory: {}'.format(current_order))
+    #     # Go no further if dryrun
+    #     if dryrun:
+    #         prev_order = current_order
+    #         continue
+    #     # Perform copy
+    #     if not dst.parent.exists():
+    #         os.makedirs(dst.parent)
+    #     if not dst.exists():
+    #         try:
+    #             copy_fxn(src, dst)
+    #         except Exception as e:
+    #             logger.error('Error copying:\n{}\n\t-->{}'.format(src, dst))
+    #             logger.error(e)
+    #     else:
+    #         logger.debug('Destination exists, skipping: {}'.format(dst))
+    #     prev_order = current_order
 
     # Remove source files
     if remove_sources:
@@ -252,6 +268,21 @@ def shelve_scenes(data_directory, destination_directory=None,
                                'location could not be found: {}'.format(src))
 
     return scenes
+
+
+def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
+    # TODO: Pop this out to it's own script that can index
+    #  any scene, then just import
+    gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
+                           geometry='geometry',
+                           crs='epsg:4326')
+
+    with Postgres('sandwich-pool.planet') as db_src:
+        db_src.insert_new_records(gdf, table=index_tbl,
+                                  unique_on=index_unique_cols,
+                                  geom_cols=geom_cols,
+                                  date_cols=index_date_cols,
+                                  dryrun=dryrun)
 
 
 if __name__ == '__main__':
@@ -290,6 +321,9 @@ if __name__ == '__main__':
                              'is done as part of the copy routine, but this '
                              'flag can be used to create scene manifests '
                              'without copying.')
+    parser.add_argument('--index_scenes', action='store_true',
+                        # TODO: Add name of index table
+                        help='Add shelveable scenes to index table.')
     parser.add_argument('--logdir', type=os.path.abspath,
                         help='Path to write logfile to.')
     parser.add_argument('--dryrun', action='store_true',
@@ -297,20 +331,23 @@ if __name__ == '__main__':
     # TODO: --include_pan
 
     # For debugging
-    # sys.argv = ['shelve_scenes.py',
-    #             '--data_directory',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
-    #             r'\test_order',
-    #             '--destination_directory',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
-    #             '--locate_unshelveable',
-    #             '--move_unshelveable',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
-    #             '--skip_checksums',
-    #             '-sme',
-    #             '--dryrun',
-    #             '--logdir',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\logs']
+    sys.argv = ['shelve_scenes.py',
+                '--data_directory',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
+                # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
+                r'E:\disbr007\projects\planet\scratch\test_order',
+                '--destination_directory',
+                r'E:\disbr007\projects\planet\shelved',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
+                '--locate_unshelveable',
+                '--move_unshelveable',
+                r'E:\disbr007\projects\planet\unshelv',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
+                '--skip_checksums',
+                '--index_scenes',
+                '-sme',]
+                # '--logdir',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
 
     args = parser.parse_args()
 
@@ -322,6 +359,7 @@ if __name__ == '__main__':
                          if args.move_unshelveable is not None else None)
     verify_checksums = not args.skip_checksums
     generate_manifests_only = args.generate_manifests_only
+    run_indexer = args.index_scenes
     transfer_method = args.transfer_method
     remove_sources = args.remove_sources
     logdir = args.logdir
@@ -350,11 +388,15 @@ if __name__ == '__main__':
         create_all_scene_manifests(data_directory)
         sys.exit()
     
-    shelve_scenes(data_directory, destination_directory=destination_directory,
-                  scene_manifests_exist=scene_manifests_exist,
-                  verify_checksums=verify_checksums,
-                  locate_unshelveable=locate_unshelveable,
-                  move_unshelveable=move_unshelveable,
-                  transfer_method=transfer_method,
-                  remove_sources=remove_sources,
-                  dryrun=dryrun)
+    scenes = shelve_scenes(data_directory,
+                           destination_directory=destination_directory,
+                           scene_manifests_exist=scene_manifests_exist,
+                           verify_checksums=verify_checksums,
+                           locate_unshelveable=locate_unshelveable,
+                           move_unshelveable=move_unshelveable,
+                           transfer_method=transfer_method,
+                           remove_sources=remove_sources,
+                           dryrun=dryrun)
+
+    if run_indexer:
+        index_scenes(scenes, index_tbl=index_tbl, dryrun=dryrun)

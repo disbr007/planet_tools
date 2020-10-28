@@ -18,7 +18,7 @@ CREATE TABLE scenes (
     columns             integer,
     rows                integer,
     pixel_resolution    real,
-    gsd                 numeric(3, 2),
+    gsd                 numeric(4, 2),
     anomalous_pixels    integer,
     ground_control      smallint,
     published           timestamp,
@@ -29,17 +29,16 @@ CREATE TABLE scenes (
     geom                geometry(Polygon, 4326),
     UNIQUE (id, item_type)
 );
-CREATE INDEX scenes_geom_idx ON scenes_test USING GIST(geom);
-UPDATE scenes_test
+CREATE INDEX scenes_geom_idx ON scenes USING GIST(geom);
+
+/* Add columns from off_nadir table */
+UPDATE scenes
 SET azimuth = off_nadir.sat_satellite_azimuth_mean,
     off_nadir_signed = off_nadir.sat_off_nadir
 FROM off_nadir
 WHERE off_nadir.scene_name = scenes_test.id;
 
-
-SELECT * FROM scenes_test WHERE azimuth IS NOT NULL;
-DROP TABLE scenes_test;
-
+select * from scenes_onhand;
 /* Create view with off nadir and xml table joined to scenes - create
    off_nadir_signed column */
 CREATE MATERIALIZED VIEW scenes_metadata AS
@@ -109,5 +108,67 @@ FROM stereo_candidates as s
 INNER JOIN scenes_onhand as so1 ON s.id1 = so1.id
 INNER JOIN scenes_onhand as so2 ON s.id2 = so2.id;
 
-
-SELECT * FROM scenes LIMIT 10;
+/* Create scenes on hand table */
+CREATE TABLE scenes_onhand (
+    ogc_fid                         SERIAL PRIMARY KEY,
+    id                              varchar(30),
+    identifier                      varchar(50),
+    strip_id                        varchar(30),
+    acquisitionDateTime             timestamp,
+    bundle_type                     varchar(30),
+    center_x                        numeric(8, 5),
+    center_y                        numeric(8, 5),
+    acquisitionType                 varchar(30),
+    productType                     varchar(10),
+    status                          varchar(30),
+    versionIsd                      real,
+    pixelFormat                     varchar(10),
+    beginPosition                   timestamp,
+    endPosition                     timestamp,
+    sensorType                      varchar(30),
+    resolution                      numeric(6, 4),
+    scanType                        varchar(30),
+    orbitDirection                  varchar(30),
+    incidenceAngle                  real,
+    illuminationAzimuthAngle        real,
+    illuminationElevationAngle      real,
+    azimuthAngle                    real,
+    spaceCraftViewAngle             real,
+    fileName                        varchar(75),
+    productFormat                   varchar(30),
+    resamplingKernel                varchar(30),
+    numRows                         integer,
+    numColumns                      integer,
+    numbands                        integer,
+    rowGsd                          numeric(10, 8),
+    columnGsd                       numeric(10, 8),
+    radiometricCorrectionApplied    varchar(30), --bool?
+    geoCorrectionLevel              varchar(30),
+    elevationcorrectionapplied      varchar(30),
+    atmosphericCorrectionApplied    varchar(30), -- bool?
+    platform                        varchar(30),
+    serialIdentifier                varchar(30),
+    orbitType                       varchar(30),
+    instrument                      varchar(30),
+    mask_type                       varchar(30),
+    mask_format                     varchar(30),
+    mask_referenceSystemIdentifier  varchar(30),
+    mask_filename                   varchar(75),
+    band1_radiometricScaleFactor    numeric(5, 3),
+    band1_reflectanceCoefficient    real,
+    band2_radiometricScaleFactor    numeric(5, 3),
+    band2_reflectanceCoefficient    real,
+    band3_radiometricScaleFactor    numeric(5, 3),
+    band3_reflectanceCoefficient    real,
+    band4_radiometricScaleFactor    numeric(5, 3),
+    band4_reflectanceCoefficient    real,
+    received_datetime               timestamp,
+    shelved_loc                     varchar(300),
+    geometry                        geometry(Polygon, 4326),
+    centroid                        geometry(Point, 4326),
+    UNIQUE (identifier)
+    );
+CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geom);
+CREATE INDEX scenes_onhand_centroid_idx on scenes_onhand USING GIST(centroid);
+select * from scenes_onhand;
+drop table scenes_onhand;
