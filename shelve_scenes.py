@@ -101,6 +101,7 @@ def shelve_scenes(input_directory, destination_directory=None,
                   transfer_method='copy', remove_sources=False,
                   locate_unshelveable=False, move_unshelveable=None,
                   manage_unshelveable_only=False,
+                  cleanup=False,
                   dryrun=False):
 
     if not destination_directory:
@@ -131,10 +132,8 @@ def shelve_scenes(input_directory, destination_directory=None,
 
     # Use manifests to create PlanetScene objects, this parses
     # the information in the scene manifest files into attributes
-    # (scene_path, md5, bundle_type, etc.)
+    # (scene_path, md5, bundle_type, received_date, etc.)
     logger.info('Loading scene metadata from scene manifests...')
-    # scenes = [PlanetScene(sm, shelved_parent=destination_directory)
-    #           for sm in scene_manifests]
     scenes = []
     for sm in tqdm(scene_manifests, desc='Creating scenes'):
         scenes.append(PlanetScene(sm, shelved_parent=destination_directory))
@@ -149,7 +148,7 @@ def shelve_scenes(input_directory, destination_directory=None,
                          'input_directory: {}'.format(input_directory))
             sys.exit()
 
-    logger.info('Scenes loaded: {}'.format(len(scenes)))
+    logger.info('Scenes loaded: {:,}'.format(len(scenes)))
 
     # Verify checksum, or mark all as skip if not checking
     if verify_checksums:
@@ -163,6 +162,7 @@ def shelve_scenes(input_directory, destination_directory=None,
 
     # Manage unshelveable scenes i.e don't have valid  checksum, associated
     # xml not found, etc.
+    # TODO: Make this default
     if locate_unshelveable:
         # Locate scenes that are not shelveable
         logger.info('Parsing XML files and locating any unshelveable '
@@ -264,6 +264,20 @@ def shelve_scenes(input_directory, destination_directory=None,
             else:
                 logger.warning('Skipping removal of source file as shelved '
                                'location could not be found: {}'.format(src))
+    if cleanup:
+        logger.info('Cleaning up any remaining files...')
+        for root, dirs, files in os.walk(input_directory):
+            for f in files:
+                src = Path(root) / Path(f)
+                dst = Path(move_unshelveable) / Path(f)
+                if move_unshelveable:
+                    logger.debug('Moving remaining file: {}'.format(src))
+                    copy_fxn(src, dst)
+                    logger.debug('Deleting file: {}'.format(src))
+                    os.remove(src)
+                elif remove_sources:
+                    logger.debug('Deleting file: {}'.format(src))
+                    os.remove(src)
 
     return scenes
 
@@ -287,6 +301,8 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
+    alt_routine_group = parser.add_argument_group('Alternative Routines')
+
     parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         required=True,
                         help='Directory holding data to shelve.')
@@ -315,41 +331,54 @@ if __name__ == '__main__':
                              'location. If not provided and '
                              'locate_unshelveable, source files are '
                              'deleted.')
-    parser.add_argument('--manage_unshelveable_only', action='store_true',
-                        help='Move or remove unshelveable data and exit.')
-    parser.add_argument('--generate_manifests_only', action='store_true',
-                        help='Only generate scene manifests from master '
-                             'manifests, do not perform copy operation. This '
-                             'is done as part of the copy routine, but this '
-                             'flag can be used to create scene manifests '
-                             'without copying.')
+    parser.add_argument('--cleanup', action='store_true',
+                        help='Move / remove any remaining files in '
+                             'input_directory after shelving and moving any '
+                             'unshelveable scenes. This catches any files '
+                             'that were not associated with a master master '
+                             'manifest.')
+
     parser.add_argument('--index_scenes', action='store_true',
                         # TODO: Add name of index table
-                        help='Add shelveable scenes to index table.')
+                        help='Add shelveable scenes to index table after '
+                             'performing shelving.')
+
+    # ALternative routines
+    alt_routine_group.add_argument('--manage_unshelveable_only',
+                              action='store_true',
+                              help='Move or remove unshelveable data and exit.')
+    alt_routine_group.add_argument('--generate_manifests_only', action='store_true',
+                              help='Only generate scene manifests from master '
+                                   'manifests, do not perform copy operation. '
+                                   'This is done as part of the copy routine, '
+                                   'but this flag can be used to create scene '
+                                   'manifests without copying.')
+
     parser.add_argument('--logdir', type=os.path.abspath,
                         help='Path to write logfile to.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
-    # TODO: --include_pan
+
+    # TODO: --include_pan (support shelving pan images -> duplicate xmls)
 
     # For debugging
-    # sys.argv = ['shelve_scenes.py',
-    #             '--input_directory',
-    #             # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
-    #             # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
-    #             r'E:\disbr007\projects\planet\scratch\test_order',
-    #             '--destination_directory',
-    #             r'E:\disbr007\projects\planet\shelved',
-    #             # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
-    #             '--locate_unshelveable',
-    #             '--move_unshelveable',
-    #             r'E:\disbr007\projects\planet\unshelv',
-    #             # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
-    #             '--skip_checksums',
-    #             '--index_scenes',]
-    #             # '-sme',
-    #             # '--logdir',
-    #             # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
+    sys.argv = ['shelve_scenes.py',
+                '--input_directory',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
+                # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
+                r'E:\disbr007\projects\planet\scratch\test_order',
+                '--destination_directory',
+                r'E:\disbr007\projects\planet\shelved',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
+                '--locate_unshelveable',
+                # '--move_unshelveable',
+                # r'E:\disbr007\projects\planet\unshelv',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
+                '--skip_checksums',
+                '--index_scenes',
+                '-sme', '-h']
+                # '--logdir',
+                # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
 
     args = parser.parse_args()
 
@@ -360,12 +389,16 @@ if __name__ == '__main__':
     move_unshelveable = (Path(args.move_unshelveable)
                          if args.move_unshelveable is not None else None)
     verify_checksums = not args.skip_checksums
-    generate_manifests_only = args.generate_manifests_only
+
     run_indexer = args.index_scenes
     transfer_method = args.transfer_method
     remove_sources = args.remove_sources
+    cleanup = args.cleanup
     logdir = args.logdir
     dryrun = args.dryrun
+
+    generate_manifests_only = args.generate_manifests_only
+    manage_unshelveable_only = args.manage_unshelveable_only
 
     if logdir:
         logfile = create_logfile_path('shelve_scenes', logdir)
@@ -396,8 +429,10 @@ if __name__ == '__main__':
                            verify_checksums=verify_checksums,
                            locate_unshelveable=locate_unshelveable,
                            move_unshelveable=move_unshelveable,
+                           manage_unshelveable_only=manage_unshelveable_only,
                            transfer_method=transfer_method,
                            remove_sources=remove_sources,
+                           cleanup=cleanup,
                            dryrun=dryrun)
 
     if run_indexer:

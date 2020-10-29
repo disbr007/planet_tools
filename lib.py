@@ -538,6 +538,8 @@ class PlanetScene:
         self._meta_files = None
         self._metadata_json = None
         self._xml_path = None
+        # TODO: Setting xml_valid to None then updating to True in
+        #  xml_attributes() not working
         self.xml_valid = True
         self._scene_files = None
         self._valid_md5 = None
@@ -665,6 +667,7 @@ class PlanetScene:
                     logger.error('Error reading XML metadata file: '
                                  '{}'.format(self.xml_path))
                     self.xml_valid = False
+                    return
 
                 # Nodes where all values can be processed as-is
                 nodes_process_all = [
