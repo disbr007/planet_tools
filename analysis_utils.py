@@ -70,11 +70,11 @@ def grid_aoi(aoi_path, n_pts_x=None, n_pts_y=None,
 
 def get_count(geocells, fps, date_col=None):
     '''
-    Gets the count of features in fps that intersect with each feature in geocells
-    This method is essentially a many to many spatial join, so if two footprints
-    overlaps a grid cell, there will be two of that grid cell in the resulting
-    dataframe. These repeated cells are then counted and saved to the returned
-    dataframe
+    Gets the count of features in fps that intersect with each feature
+    in geocells. This method is essentially a many to many spatial join,
+    so if two footprints overlap a grid cell, there will be two of that
+    grid cell in the resulting dataframe. These repeated cells are then
+    counted and saved to the returned dataframe.
 
     geocells: geodataframe of features to count within
     fps: geodataframe of polygons

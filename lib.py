@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 from logging_utils.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO')
+logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # TODO: clean up logging around unshelveable scenes
 #  (lots of repeated "XML path: None", "XML Path not located")
