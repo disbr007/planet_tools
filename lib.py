@@ -852,9 +852,12 @@ class PlanetScene:
     @property
     def shelveable(self):
         required_atts = [self.scene_path.exists(),
-                         (self.xml_path and self.xml_valid),
-                         self.instrument, self.product_type,
-                         self.bundle_type, self.item_type,
+                         self.xml_path,
+                         self.xml_valid,
+                         self.instrument,
+                         self.product_type,
+                         self.bundle_type,
+                         self.item_type,
                          self.acquisition_datetime,
                          (self.verify_checksum() or self.skip_checksum)
                          ]
