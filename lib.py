@@ -538,9 +538,6 @@ class PlanetScene:
         self._meta_files = None
         self._metadata_json = None
         self._xml_path = None
-        # TODO: Setting xml_valid to None then updating to True in
-        #  xml_attributes() not working
-        self.xml_valid = True
         self._scene_files = None
         self._valid_md5 = None
         self._xml_attributes = None # Keep?
@@ -558,6 +555,10 @@ class PlanetScene:
         # Attributes from _metadata.json
         self._strip_id = None
         # Misc.
+        # TODO: Setting xml_valid to None then updating to True in
+        #  xml_attributes() not working (same for strip_id_found)
+        self.xml_valid = True
+        self.strip_id_found = True
         self.skip_checksum = None
         self._index_row = None
         self._footprint_row = None
@@ -583,11 +584,18 @@ class PlanetScene:
 
     @ property
     def strip_id(self):
-        if self._strip_id is None:
+        if self._strip_id is None and self.strip_id_found is not False:
             if self.metadata_json.exists():
-                with open(self.metadata_json) as src:
-                    content = json.load(src)
-                    self._strip_id = content['properties']['strip_id']
+                try:
+                    with open(self.metadata_json) as src:
+                        content = json.load(src)
+                        self._strip_id = content['properties']['strip_id']
+                        self.strip_id_found = True
+                except Exception as e:
+                    self.strip_id_found = False
+                    logger.warning('Error getting strip_id for scene: '
+                                   '{}'.format(self.scene_path))
+                    logger.error(e)
         return self._strip_id
 
     @property
@@ -863,11 +871,11 @@ class PlanetScene:
                          self.bundle_type,
                          self.item_type,
                          self.acquisition_datetime,
+                         self.strip_id,
+                         self.strip_id_found,
                          (self.verify_checksum() or self.skip_checksum)
                          ]
         if not all([ra for ra in required_atts]):
-            for ra in required_atts:
-                logger.info(ra)
             logger.debug('Scene unshelveable: {}\n'.format(self.scene_path))
             logger.debug('Scene exists: {}'.format(self.scene_path.exists()))
             logger.debug('Checksum: {}'.format(self.verify_checksum() if not
@@ -882,6 +890,7 @@ class PlanetScene:
             logger.debug('Product type: {}'.format(self.product_type))
             logger.debug('Bundle type: {}'.format(self.bundle_type))
             logger.debug('Item type: {}'.format(self.item_type))
+            logger.debug('Strip ID: {}'.format(self.strip_id))
             logger.debug('Acquistion datetime: '
                          '{}'.format(self.acquisition_datetime))
             self._shelveable = False

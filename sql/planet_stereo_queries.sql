@@ -13,6 +13,7 @@ WHERE EXTRACT(MONTH FROM acquired) = 12 AND
       EXTRACT(DAY FROM acquired) > 15
 LIMIT 10;
 SELECT COUNT(DISTINCT id) FROM scenes;
+SELECT COUNT(*) FROM scenes;
 SELECT COUNT(*) FROM scenes_onhand;
 SELECT COUNT(*) FROM scenes_metadata;
 SELECT COUNT(*) FROM xml_metadata;
@@ -23,6 +24,8 @@ SELECT COUNT(*) FROM stereo_candidates_onhand;
 SELECT COUNT(DISTINCT id2) FROM stereo_candidates_onhand;
 SELECT * FROM scenes_onhand;
 SELECT * FROM scenes WHERE EXTRACT(MONTH FROM acquired) = 01;
+SELECT COUNT(*) FROM scenes WHERE acquired < '2019-01-01'::date;
+
 
 SELECT location from scenes_onhand WHERE id IN ('20170303_030803_0e0f',
                                                 '20170303_030802_0e0f',

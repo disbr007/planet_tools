@@ -321,8 +321,10 @@ class Postgres(object):
         return count
 
     def get_table_count(self, layer):
+        if not isinstance(layer, sql.Identifier):
+            layer = sql.Identifier(layer)
         self.cursor.execute(sql.SQL(
-            """SELECT COUNT(*) FROM {}""").format(sql.Identifier(layer)))
+            """SELECT COUNT(*) FROM {}""").format(layer))
         count = self.cursor.fetchall()[0][0]
 
         return count
@@ -466,23 +468,50 @@ class Postgres(object):
                                    total=len(records)):
                     columns = [sql.Identifier(c) for c in row.index if c not in
                                geom_cols]
-                    columns.append(sql.Identifier('geometry'))
-                    columns.append(sql.Identifier('centroid'))
+                    if geom_cols:
+                        for gc in geom_cols:
+                            columns.append(sql.Identifier(gc))
 
+                    # insert_statement = sql.SQL(
+                    #     "INSERT INTO {table} ({columns}) VALUES ("
+                    #     "{values}, "
+                    #     "ST_GeomFromText({geometry}, {srid}), "
+                    #     "ST_GeomFromText({centroid}, {srid})"
+                    #     ")").format(
+                    #     table=sql.Identifier(table),
+                    #     columns=sql.SQL(', ').join(columns),
+                    #     values=sql.SQL(', ').join([sql.Placeholder(f)
+                    #                                for f in row.index
+                    #                                if f not in geom_cols]),
+                    #     geometry=sql.Placeholder('geometry'),
+                    #     centroid=sql.Placeholder('centroid'),
+                    #     srid=sql.Literal(srid))
                     insert_statement = sql.SQL(
                         "INSERT INTO {table} ({columns}) VALUES ("
-                        "{values}, "
-                        "ST_GeomFromText({geometry}, {srid}), "
-                        "ST_GeomFromText({centroid}, {srid})"
-                        ")").format(
+                        "{values}").format(
                         table=sql.Identifier(table),
                         columns=sql.SQL(', ').join(columns),
                         values=sql.SQL(', ').join([sql.Placeholder(f)
                                                    for f in row.index
                                                    if f not in geom_cols]),
-                        geometry=sql.Placeholder('geometry'),
-                        centroid=sql.Placeholder('centroid'),
-                        srid=sql.Literal(srid))
+                    )
+                    if geom_cols:
+                        geom_statements = [sql.SQL(', ')]
+                        for i, gc in enumerate(geom_cols):
+                            if i != len(geom_cols) - 1:
+                                geom_statements.append(
+                                    sql.SQL(
+                                        " ST_GeomFromText({gc}, {srid}),").format(
+                                        gc=sql.Placeholder(gc),
+                                        srid=sql.Literal(srid)))
+                            else:
+                                geom_statements.append(
+                                    sql.SQL(
+                                        " ST_GeomFromText({gc}, {srid}))").format(
+                                        gc=sql.Placeholder(gc),
+                                        srid=sql.Literal(srid)))
+                        geom_statement = sql.Composed(geom_statements)
+                        insert_statement = insert_statement + geom_statement
 
                     values = {f: row[f] if f not in geom_cols
                               else row[f].wkt for f in row.index}

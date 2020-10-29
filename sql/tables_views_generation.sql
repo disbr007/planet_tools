@@ -26,11 +26,12 @@ CREATE TABLE scenes (
     updated             timestamp,
     azimuth             double precision,
     off_nadir_signed    double precision,
-    geom                geometry(Polygon, 4326),
+    geometry            geometry(Polygon, 4326),
     UNIQUE (id, item_type)
 );
 CREATE INDEX scenes_geom_idx ON scenes USING GIST(geom);
-
+SELECT COUNT(*) FROM scenes;
+drop table scenes;
 /* Add columns from off_nadir table */
 UPDATE scenes
 SET azimuth = off_nadir.sat_satellite_azimuth_mean,

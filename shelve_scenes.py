@@ -285,10 +285,11 @@ def shelve_scenes(input_directory, destination_directory=None,
 def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     # TODO: Pop this out to it's own script that can index
     #  any scene, then just import
+    logger.info('Building index rows for shelveable scenes')
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
                            geometry='geometry',
                            crs='epsg:4326')
-
+    logger.info('Indexing shelveable scenes: {}'.format(len(scenes)))
     with Postgres('sandwich-pool.planet') as db_src:
         db_src.insert_new_records(gdf, table=index_tbl,
                                   unique_on=index_unique_cols,
