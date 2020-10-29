@@ -862,6 +862,8 @@ class PlanetScene:
                          (self.verify_checksum() or self.skip_checksum)
                          ]
         if not all([ra for ra in required_atts]):
+            for ra in required_atts:
+                logger.info(ra)
             logger.debug('Scene unshelveable: {}\n'.format(self.scene_path))
             logger.debug('Scene exists: {}'.format(self.scene_path.exists()))
             logger.debug('Checksum: {}'.format(self.verify_checksum() if not
