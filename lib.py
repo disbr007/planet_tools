@@ -647,7 +647,7 @@ class PlanetScene:
 
     @property
     def xml_attributes(self):
-        if self._xml_attributes is None:
+        if self._xml_attributes is None and self.xml_valid is not False:
             if self.xml_path is not None:
                 # XML date format
                 date_format = '%Y-%m-%dT%H:%M:%S+00:00'

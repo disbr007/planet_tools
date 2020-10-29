@@ -362,23 +362,23 @@ if __name__ == '__main__':
     # TODO: --include_pan (support shelving pan images -> duplicate xmls)
 
     # For debugging
-    sys.argv = ['shelve_scenes.py',
-                '--input_directory',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
-                # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
-                r'E:\disbr007\projects\planet\scratch\test_order',
-                '--destination_directory',
-                r'E:\disbr007\projects\planet\shelved',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
-                '--locate_unshelveable',
-                # '--move_unshelveable',
-                # r'E:\disbr007\projects\planet\unshelv',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
-                '--skip_checksums',
-                '--index_scenes',
-                '-sme', '-h']
-                # '--logdir',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
+    # sys.argv = ['shelve_scenes.py',
+    #             '--input_directory',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
+    #             # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
+    #             r'E:\disbr007\projects\planet\scratch\test_order',
+    #             '--destination_directory',
+    #             r'E:\disbr007\projects\planet\shelved',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
+    #             '--locate_unshelveable',
+    #             # '--move_unshelveable',
+    #             # r'E:\disbr007\projects\planet\unshelv',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
+    #             '--skip_checksums',
+    #             '--index_scenes',
+    #             '-sme', '-h']
+    #             # '--logdir',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
 
     args = parser.parse_args()
 
