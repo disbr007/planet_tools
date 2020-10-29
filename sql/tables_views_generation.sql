@@ -168,7 +168,8 @@ CREATE TABLE scenes_onhand (
     centroid                        geometry(Point, 4326),
     UNIQUE (identifier)
     );
-CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geom);
+CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geometry);
 CREATE INDEX scenes_onhand_centroid_idx on scenes_onhand USING GIST(centroid);
 select * from scenes_onhand;
 drop table scenes_onhand;
+delete from scenes_onhand where 1=1;

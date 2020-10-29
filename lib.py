@@ -408,7 +408,7 @@ def create_scene_manifests(master_manifest, overwrite=False):
     logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
 
     # TODO: Make this date format match the xml date format
-    received_date = time.strftime('%Y-%m-%dT%H:%M%SZ',
+    received_date = time.strftime('%Y-%m-%dT%H:%M:%S+00:00',
                                   time.localtime(os.path.getmtime(
                                       master_manifest)))
 
@@ -416,11 +416,13 @@ def create_scene_manifests(master_manifest, overwrite=False):
     pbar = tqdm(scene_manifests,
                 desc='Writing scene-level manifest.json files')
     for sm in pbar:
-        sf = master_manifest.parent / Path(sm[k_path])
-        if not sf.exists():
-            logger.warning('Scene file location in manifest.json not found, '
-                           'skipping: {}'.format(sf))
-            continue
+        # TODO: is it worth checking for existence of scene files here?
+        #  Any missing scene files are found when determining if shelveable
+        # Check for existence of scene file (image file)
+        # sf = master_manifest.parent / Path(sm[k_path])
+        # if not sf.exists():
+        #     logger.warning('Scene file location in master manifest not found: '
+        #                    '{}'.format(sf))
         # else:
         #     logger.debug('Scene file found')
         sm['received_datetime'] = received_date
@@ -536,6 +538,7 @@ class PlanetScene:
         self._meta_files = None
         self._metadata_json = None
         self._xml_path = None
+        self.xml_valid = None
         self._scene_files = None
         self._valid_md5 = None
         self._xml_attributes = None # Keep?
@@ -654,9 +657,14 @@ class PlanetScene:
 
                 logger.debug('Parsing attributes from xml: '
                              '{}'.format(self.xml_path))
-                with open(self.xml_path, 'rt') as src:
-                    tree = ET.parse(self.xml_path)
-                    root = tree.getroot()
+                try:
+                    with open(self.xml_path, 'rt') as src:
+                        tree = ET.parse(self.xml_path)
+                        root = tree.getroot()
+                except Exception as e:
+                    logger.error('Error reading XML metadata file: '
+                                 '{}'.format(self.xml_path))
+                    self.xml_valid = False
 
                 # Nodes where all values can be processed as-is
                 nodes_process_all = [
@@ -775,8 +783,12 @@ class PlanetScene:
                                              date_format)
                 self._instrument = attributes[k_instrument]
                 self._product_type = attributes[k_productType]
+
+                # Mark xml as valid
+                self.xml_valid = True
             else:
                 self._xml_attributes = None
+                self.xml_valid = False
 
         return self._xml_attributes
 
@@ -839,13 +851,16 @@ class PlanetScene:
 
     @property
     def shelveable(self):
-        required_atts = [(self.verify_checksum() or self.skip_checksum),
-                         self.xml_path,
+        required_atts = [self.scene_path.exists(),
+                         (self.xml_path and self.xml_valid),
                          self.instrument, self.product_type,
                          self.bundle_type, self.item_type,
-                         self.acquisition_datetime]
+                         self.acquisition_datetime,
+                         (self.verify_checksum() or self.skip_checksum)
+                         ]
         if not all([ra for ra in required_atts]):
             logger.debug('Scene unshelveable: {}\n'.format(self.scene_path))
+            logger.debug('Scene exists: {}'.format(self.scene_path.exists()))
             logger.debug('Checksum: {}'.format(self.verify_checksum() if not
                                                self.skip_checksum else
                                                self.skip_checksum))
@@ -853,6 +868,7 @@ class PlanetScene:
             logger.debug('XML path exists: {}'.format(self.xml_path.exists()
                                                       if self.xml_path else
                                                       None))
+            logger.debug('XML parseable: {}'.format(self.xml_valid))
             logger.debug('Instrument: {}'.format(self.instrument))
             logger.debug('Product type: {}'.format(self.product_type))
             logger.debug('Bundle type: {}'.format(self.bundle_type))

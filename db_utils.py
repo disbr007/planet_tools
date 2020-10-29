@@ -2,10 +2,12 @@ import json
 import re
 import os
 import sys
+import time
 
 from sqlalchemy import create_engine
 from sqlalchemy.types import DateTime
 from geoalchemy2 import Geometry, WKTElement
+from tqdm import tqdm
 import psycopg2
 from psycopg2 import sql
 import pandas as pd
@@ -371,13 +373,19 @@ class Postgres(object):
     def insert_new_records(self, records, table,
                            unique_on=None,
                            geom_cols=None,
-                           date_cols=None,
                            dryrun=False):
         """
         Add records to table, converting data types as necessary for INSERT.
         Optionally using a unique_id (or combination of columns) to skip
         duplicates.
-        # TODO: Finish docstring
+        records : pd.DataFrame / gpd.GeoDataFrame
+            DataFrame containing rows to be inserted to table
+        table : str
+            Name of table to be inserted into
+        unique_on : list / tuple
+            List of columns names in table and records to use as unique ID
+            when removing duplicates
+        geom_cols :
         """
 
         def _row_columns_unique(row, unique_on, values):
@@ -428,31 +436,22 @@ class Postgres(object):
                          '{:,}'.format(table, len(existing_ids)))
 
             # Remove dups
+            starting_count = len(records)
             records = records[~records.apply(lambda x: _row_columns_unique(
                 x, unique_on, existing_ids), axis=1)]
-
+            if len(records) != starting_count:
+                logger.info('Duplicates removed: {}'.format(starting_count -
+                                                            len(records)))
         logger.debug('Remaining IDs to add: {:,}'.format(len(records)))
 
-        # Creat object to map types when inserting
-        dtype = dict()
         if geom_cols:
             # Get epsg code
             srid = records.crs.to_epsg()
-            # Format geometry column(s) for insert
-            for gc, _geom_type in geom_cols.items():
-                records[gc] = records[gc].apply(
-                    lambda x: WKTElement(x.wkt, srid=srid))
-            dtype.update({gc: Geometry(geom_type, srid=srid)
-                          for gc, geom_type in geom_cols.items()})
-
-        # Convert date columns to datetime
-        if date_cols:
-            for col, date_format in date_cols.items():
-                records[col] = pd.to_datetime(records[col], format=date_format)
-            dtype.update({col: DateTime() for col, _date_format
-                          in date_cols.items()})
+        else:
+            geom_cols = []
 
         # Insert new records
+        # TODO: Fix received datetime format
         if len(records) != 0:
             logger.info('Writing new records to {}.{}: '
                         '{:,}'.format(self.database, table, len(records)))
@@ -462,18 +461,43 @@ class Postgres(object):
                 #                if_exists='append',
                 #                index=False,
                 #                dtype=dtype)
-                for i, row in records.iterrows():
+                for i, row in tqdm(records.iterrows(),
+                                   desc='Adding new records to: {}'.format(table),
+                                   total=len(records)):
+                    columns = [sql.Identifier(c) for c in row.index if c not in
+                               geom_cols]
+                    columns.append(sql.Identifier('geometry'))
+                    columns.append(sql.Identifier('centroid'))
+
                     insert_statement = sql.SQL(
-                        "INSERT INTO {table} ({columns}) VALUES ({values}").format(
+                        "INSERT INTO {table} ({columns}) VALUES ("
+                        "{values}, "
+                        "ST_GeomFromText({geometry}, {srid}), "
+                        "ST_GeomFromText({centroid}, {srid})"
+                        ")").format(
                         table=sql.Identifier(table),
-                        columns=sql.SQL(', ').join(
-                            [sql.Identifier(f) for f in row.index]),
-                        values=sql.SQL(', ').join(
-                            [sql.Literal(row[f]) if f not in geom_cols.keys()
-                             else sql.Literal(row[f].wkt)
-                             for f in row.index])
-                    )
-                    logger.debug(insert_statement.string)
+                        columns=sql.SQL(', ').join(columns),
+                        values=sql.SQL(', ').join([sql.Placeholder(f)
+                                                   for f in row.index
+                                                   if f not in geom_cols]),
+                        geometry=sql.Placeholder('geometry'),
+                        centroid=sql.Placeholder('centroid'),
+                        srid=sql.Literal(srid))
+
+                    values = {f: row[f] if f not in geom_cols
+                              else row[f].wkt for f in row.index}
+
+                    try:
+                        logger.debug(
+                            f"{str(self.cursor.mogrify(insert_statement, values))}")
+                        self.cursor.execute(self.cursor.mogrify(insert_statement,
+                                                                values))
+                        time.sleep(0.05)
+                    except Exception as e:
+                        logger.error(e)
+                        raise e
+
+            self.connection.commit()
         else:
             logger.info('No new records to be written.')
             

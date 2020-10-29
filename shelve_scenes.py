@@ -26,15 +26,8 @@ if platform.system() == 'Windows':
 # Index table name
 index_tbl = 'scenes_onhand'
 index_unique_cols = ['identifier']
-geom_cols = {'geometry': 'POLYGON',
-             'centroid': 'POINT'}
-xml_date_format = '%Y-%m-%dT%H:%M:%S+00:00'
-rec_date_format = '%Y-%m-%dT%H:%M%SZ'
-index_date_cols = {'acquisitiondatetime': xml_date_format,
-                   'beginposition': xml_date_format,
-                   'endposition': xml_date_format,
-                   'received_datetime': rec_date_format}
-
+# Names of columns holding geometry in index table
+geom_cols = ['geometry', 'centroid']
 
 
 def determine_copy_fxn(transfer_method):
@@ -71,8 +64,9 @@ def create_all_scene_manifests(directory):
 
 def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
                         remove_sources, dryrun):
+    # Determine whether to copy or link based on transfer method and OS
     copy_fxn = determine_copy_fxn(transfer_method)
-    copy_fxn = determine_copy_fxn(transfer_method)
+
     logger.info('Creating list of unshelveable scenes and metadata files...')
     unshelve_src_dst = []
     for ps in unshelveable:
@@ -102,7 +96,7 @@ def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
                 logger.error(e)
 
 
-def shelve_scenes(data_directory, destination_directory=None,
+def shelve_scenes(input_directory, destination_directory=None,
                   scene_manifests_exist=True, verify_checksums=True,
                   transfer_method='copy', remove_sources=False,
                   locate_unshelveable=False, move_unshelveable=None,
@@ -114,7 +108,7 @@ def shelve_scenes(data_directory, destination_directory=None,
         destination_directory = planet_data_dir
 
     logger.info('Starting shelving routine...\n')
-    logger.info('Source data location: {}'.format(data_directory))
+    logger.info('Source data location: {}'.format(input_directory))
     logger.info('Destination parent directory: '
                 '{}'.format(destination_directory))
     logger.info('Scene manifests exists: {}'.format(scene_manifests_exist))
@@ -129,19 +123,21 @@ def shelve_scenes(data_directory, destination_directory=None,
 
     # Create scene-level manifests from master manifests
     if not scene_manifests_exist and not dryrun:
-        create_all_scene_manifests(data_directory)
+        create_all_scene_manifests(input_directory)
     logger.info('Locating scene manifests...')
     # TODO: Is this an ok way to get all scene manifests?
     # TODO: Speed up - capture from create all scene manifests?
-    scene_manifests = data_directory.rglob('*_manifest.json')
+    scene_manifests = input_directory.rglob('*_manifest.json')
 
     # Use manifests to create PlanetScene objects, this parses
     # the information in the scene manifest files into attributes
     # (scene_path, md5, bundle_type, etc.)
     logger.info('Loading scene metadata from scene manifests...')
-    scenes = [PlanetScene(sm, shelved_parent=destination_directory)
-              for sm in scene_manifests]
-
+    # scenes = [PlanetScene(sm, shelved_parent=destination_directory)
+    #           for sm in scene_manifests]
+    scenes = []
+    for sm in tqdm(scene_manifests, desc='Creating scenes'):
+        scenes.append(PlanetScene(sm, shelved_parent=destination_directory))
     if len(scenes) == 0:
         if dryrun:
             logger.info('No scenes found. Create scene_manifests using '
@@ -149,8 +145,8 @@ def shelve_scenes(data_directory, destination_directory=None,
                         'rest of dryrun.')
         else:
             logger.error('No scenes found. Are master manifests '
-                         '("manifest.json") present in data_directory?\n'
-                         'data_directory: {}'.format(data_directory))
+                         '("manifest.json") present in input_directory?\n'
+                         'input_directory: {}'.format(input_directory))
             sys.exit()
 
     logger.info('Scenes loaded: {}'.format(len(scenes)))
@@ -231,7 +227,7 @@ def shelve_scenes(data_directory, destination_directory=None,
     prev_order = None  # for logging only
     # for src, dst in tqdm(srcs_dsts):
     #     # Log the current order directory being parsed
-    #     current_order = src.relative_to(data_directory).parts[0]
+    #     current_order = src.relative_to(input_directory).parts[0]
     #     if current_order != prev_order:
     #         logger.info('Shelving order directory: {}'.format(current_order))
     #     # Go no further if dryrun
@@ -251,7 +247,7 @@ def shelve_scenes(data_directory, destination_directory=None,
     #         logger.debug('Destination exists, skipping: {}'.format(dst))
     #     prev_order = current_order
 
-    # Remove source files
+    # Remove source files that were moved
     if remove_sources:
         logger.info('Removing source files...')
         for src, dst in tqdm(srcs_dsts, desc='Removing source files'):
@@ -281,7 +277,6 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
         db_src.insert_new_records(gdf, table=index_tbl,
                                   unique_on=index_unique_cols,
                                   geom_cols=geom_cols,
-                                  date_cols=index_date_cols,
                                   dryrun=dryrun)
 
 
@@ -290,7 +285,7 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
-    parser.add_argument('--data_directory', type=os.path.abspath,
+    parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         required=True,
                         help='Directory holding data to shelve.')
     parser.add_argument('--destination_directory', type=os.path.abspath,
@@ -307,14 +302,19 @@ if __name__ == '__main__':
                         default='copy',
                         help='Method to use for transfer.')
     parser.add_argument('--remove_sources', action='store_true',
-                        help='Use flag to delete source files after shelving.')
+                        help='Use flag to delete source files after shelving. '
+                             'Otherwise source files will be left in '
+                             'input_directory.')
     parser.add_argument('--locate_unshelveable', action='store_true',
                         help='Locate unshelveable data and handle accourding '
                              'to move_unshelveable argument.')
     parser.add_argument('--move_unshelveable', type=os.path.abspath,
-                        help='Move unshelveable files to this location '
-                             'rather than deleting.')
-    parser.add_argument('--manage_unshelveable_only', action='store_true')
+                        help='If provided, move unshelveable files to this '
+                             'location. If not provided and '
+                             'locate_unshelveable, source files are '
+                             'deleted.')
+    parser.add_argument('--manage_unshelveable_only', action='store_true',
+                        help='Move or remove unshelveable data and exit.')
     parser.add_argument('--generate_manifests_only', action='store_true',
                         help='Only generate scene manifests from master '
                              'manifests, do not perform copy operation. This '
@@ -331,27 +331,27 @@ if __name__ == '__main__':
     # TODO: --include_pan
 
     # For debugging
-    sys.argv = ['shelve_scenes.py',
-                '--data_directory',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
-                # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
-                r'E:\disbr007\projects\planet\scratch\test_order',
-                '--destination_directory',
-                r'E:\disbr007\projects\planet\shelved',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
-                '--locate_unshelveable',
-                '--move_unshelveable',
-                r'E:\disbr007\projects\planet\unshelv',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
-                '--skip_checksums',
-                '--index_scenes',
-                '-sme',]
-                # '--logdir',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
+    # sys.argv = ['shelve_scenes.py',
+    #             '--input_directory',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
+    #             # r'\test_order\1fb3047b-705e-4ed0-b900-a86110b82dca',
+    #             r'E:\disbr007\projects\planet\scratch\test_order',
+    #             '--destination_directory',
+    #             r'E:\disbr007\projects\planet\shelved',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\shelved',
+    #             '--locate_unshelveable',
+    #             '--move_unshelveable',
+    #             r'E:\disbr007\projects\planet\unshelv',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\scratch\unshelv',
+    #             '--skip_checksums',
+    #             '--index_scenes',]
+    #             # '-sme',
+    #             # '--logdir',
+    #             # r'V:\pgc\data\scratch\jeff\projects\planet\logs']
 
     args = parser.parse_args()
 
-    data_directory = Path(args.data_directory)
+    input_directory = Path(args.input_directory)
     destination_directory = Path(args.destination_directory)
     scene_manifests_exist = args.scene_manifests_exist
     locate_unshelveable = args.locate_unshelveable
@@ -370,8 +370,8 @@ if __name__ == '__main__':
         logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
 
     # Verify arguments
-    if not data_directory.exists():
-        logger.error('Data directory does not exists: {}'.format(data_directory))
+    if not input_directory.exists():
+        logger.error('Data directory does not exists: {}'.format(input_directory))
         sys.exit()
     if not destination_directory.exists():
         logger.error('Destination directory does '
@@ -384,11 +384,11 @@ if __name__ == '__main__':
     if generate_manifests_only and not dryrun:
         # Just create scene manifests and exit
         logger.info('Creating scene manifests for all master manifests '
-                    'in: {}'.format(data_directory))
-        create_all_scene_manifests(data_directory)
+                    'in: {}'.format(input_directory))
+        create_all_scene_manifests(input_directory)
         sys.exit()
     
-    scenes = shelve_scenes(data_directory,
+    scenes = shelve_scenes(input_directory,
                            destination_directory=destination_directory,
                            scene_manifests_exist=scene_manifests_exist,
                            verify_checksums=verify_checksums,
