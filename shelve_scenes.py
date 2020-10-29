@@ -136,8 +136,7 @@ def shelve_scenes(input_directory, destination_directory=None,
     # scenes = [PlanetScene(sm, shelved_parent=destination_directory)
     #           for sm in scene_manifests]
     scenes = []
-    for sm in tqdm(scene_manifests, desc='Creating scenes',
-                   total=len(scene_manifests)):
+    for sm in tqdm(scene_manifests, desc='Creating scenes'):
         scenes.append(PlanetScene(sm, shelved_parent=destination_directory))
     if len(scenes) == 0:
         if dryrun:
