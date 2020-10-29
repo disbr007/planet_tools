@@ -136,7 +136,8 @@ def shelve_scenes(input_directory, destination_directory=None,
     # scenes = [PlanetScene(sm, shelved_parent=destination_directory)
     #           for sm in scene_manifests]
     scenes = []
-    for sm in tqdm(scene_manifests, desc='Creating scenes'):
+    for sm in tqdm(scene_manifests, desc='Creating scenes',
+                   total=len(scene_manifests)):
         scenes.append(PlanetScene(sm, shelved_parent=destination_directory))
     if len(scenes) == 0:
         if dryrun:
@@ -172,10 +173,12 @@ def shelve_scenes(input_directory, destination_directory=None,
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
+                    logger.debug('Scene exists: {}'.format(ps.scene_path.exists()))
                     logger.debug('Checksum: {}'.format(ps.verify_checksum() if
                                                        not ps.skip_checksum
                                                        else ps.skip_checksum))
                     logger.debug('XML Path: {}'.format(ps.xml_path))
+                    logger.debug('XML parseable: {}'.format(ps.xml_valid))
                     logger.debug('Instrument: {}'.format(ps.instrument))
                     logger.debug('Product Type: {}'.format(ps.product_type))
                     logger.debug('Bundle type: {}'.format(ps.bundle_type))
