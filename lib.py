@@ -538,7 +538,7 @@ class PlanetScene:
         self._meta_files = None
         self._metadata_json = None
         self._xml_path = None
-        self.xml_valid = None
+        self.xml_valid = True
         self._scene_files = None
         self._valid_md5 = None
         self._xml_attributes = None # Keep?
@@ -727,8 +727,8 @@ class PlanetScene:
                                     'bandNumber')
 
                 attributes = dict()
-                # Add attributes that are processed as-is
 
+                # Add attributes that are processed as-is
                 for node in nodes_process_all:
                     elems = root.find('.//{}'.format(node))
                     for e in elems:
@@ -786,6 +786,7 @@ class PlanetScene:
 
                 # Mark xml as valid
                 self.xml_valid = True
+
             else:
                 self._xml_attributes = None
                 self.xml_valid = False
