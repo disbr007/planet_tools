@@ -301,11 +301,11 @@ if __name__ == '__main__':
     parser.add_argument('-tm', '--transfer_method', choices=['link', 'copy'],
                         default='copy',
                         help='Method to use for transfer.')
-    parser.add_argument('--remove_sources', action='store_true',
+    parser.add_argument('-rs',  '--remove_sources', action='store_true',
                         help='Use flag to delete source files after shelving. '
                              'Otherwise source files will be left in '
                              'input_directory.')
-    parser.add_argument('--locate_unshelveable', action='store_true',
+    parser.add_argument('-lu', '--locate_unshelveable', action='store_true',
                         help='Locate unshelveable data and handle accourding '
                              'to move_unshelveable argument.')
     parser.add_argument('--move_unshelveable', type=os.path.abspath,
