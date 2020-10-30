@@ -457,72 +457,63 @@ class Postgres(object):
         if len(records) != 0:
             logger.info('Writing new records to {}.{}: '
                         '{:,}'.format(self.database, table, len(records)))
-            if not dryrun:
-                # records.to_sql(table,
-                #                con=self.get_engine(),
-                #                if_exists='append',
-                #                index=False,
-                #                dtype=dtype)
-                for i, row in tqdm(records.iterrows(),
-                                   desc='Adding new records to: {}'.format(table),
-                                   total=len(records)):
-                    columns = [sql.Identifier(c) for c in row.index if c not in
-                               geom_cols]
-                    if geom_cols:
-                        for gc in geom_cols:
-                            columns.append(sql.Identifier(gc))
 
-                    # insert_statement = sql.SQL(
-                    #     "INSERT INTO {table} ({columns}) VALUES ("
-                    #     "{values}, "
-                    #     "ST_GeomFromText({geometry}, {srid}), "
-                    #     "ST_GeomFromText({centroid}, {srid})"
-                    #     ")").format(
-                    #     table=sql.Identifier(table),
-                    #     columns=sql.SQL(', ').join(columns),
-                    #     values=sql.SQL(', ').join([sql.Placeholder(f)
-                    #                                for f in row.index
-                    #                                if f not in geom_cols]),
-                    #     geometry=sql.Placeholder('geometry'),
-                    #     centroid=sql.Placeholder('centroid'),
-                    #     srid=sql.Literal(srid))
-                    insert_statement = sql.SQL(
-                        "INSERT INTO {table} ({columns}) VALUES ("
-                        "{values}").format(
-                        table=sql.Identifier(table),
-                        columns=sql.SQL(', ').join(columns),
-                        values=sql.SQL(', ').join([sql.Placeholder(f)
-                                                   for f in row.index
-                                                   if f not in geom_cols]),
-                    )
-                    if geom_cols:
-                        geom_statements = [sql.SQL(', ')]
-                        for i, gc in enumerate(geom_cols):
-                            if i != len(geom_cols) - 1:
-                                geom_statements.append(
-                                    sql.SQL(
-                                        " ST_GeomFromText({gc}, {srid}),").format(
-                                        gc=sql.Placeholder(gc),
-                                        srid=sql.Literal(srid)))
-                            else:
-                                geom_statements.append(
-                                    sql.SQL(
-                                        " ST_GeomFromText({gc}, {srid}))").format(
-                                        gc=sql.Placeholder(gc),
-                                        srid=sql.Literal(srid)))
-                        geom_statement = sql.Composed(geom_statements)
-                        insert_statement = insert_statement + geom_statement
+            for i, row in tqdm(records.iterrows(),
+                               desc='Adding new records to: {}'.format(table),
+                               total=len(records)):
+                if dryrun:
+                    continue
 
-                    values = {f: row[f] if f not in geom_cols
-                              else row[f].wkt for f in row.index}
+                # Format the INSERT query
+                columns = [sql.Identifier(c) for c in row.index if c not in
+                           geom_cols]
+                if geom_cols:
+                    for gc in geom_cols:
+                        columns.append(sql.Identifier(gc))
 
-                    try:
-                        logger.debug(
-                            f"{str(self.cursor.mogrify(insert_statement, values))}")
-                        self.cursor.execute(self.cursor.mogrify(insert_statement,
-                                                                values))
-                        time.sleep(0.05)
-                    except Exception as e:
+                insert_statement = sql.SQL(
+                    "INSERT INTO {table} ({columns}) VALUES ({values}").format(
+                    table=sql.Identifier(table),
+                    columns=sql.SQL(', ').join(columns),
+                    values=sql.SQL(', ').join([sql.Placeholder(f)
+                                               for f in row.index
+                                               if f not in geom_cols]),
+                )
+                if geom_cols:
+                    geom_statements = [sql.SQL(', ')]
+                    for i, gc in enumerate(geom_cols):
+                        if i != len(geom_cols) - 1:
+                            geom_statements.append(
+                                sql.SQL(
+                                    " ST_GeomFromText({gc}, {srid}),").format(
+                                    gc=sql.Placeholder(gc),
+                                    srid=sql.Literal(srid)))
+                        else:
+                            geom_statements.append(
+                                sql.SQL(
+                                    " ST_GeomFromText({gc}, {srid}))").format(
+                                    gc=sql.Placeholder(gc),
+                                    srid=sql.Literal(srid)))
+                    geom_statement = sql.Composed(geom_statements)
+                    insert_statement = insert_statement + geom_statement
+
+                values = {f: row[f] if f not in geom_cols
+                          else row[f].wkt for f in row.index}
+
+                # Make the INSERT
+                try:
+                    logger.debug(
+                        f"{str(self.cursor.mogrify(insert_statement, values))}")
+                    self.cursor.execute(self.cursor.mogrify(insert_statement,
+                                                            values))
+                    time.sleep(0.05)
+                except Exception as e:
+                    if e == psycopg2.errors.UniqueViolation:
+                        logger.warning('Skipping due to unique violation '
+                                       'for scene: '
+                                       '{}'.format(row[unique_on]))
+                        logger.warning(e)
+                    else:
                         logger.error(e)
                         raise e
 
