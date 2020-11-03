@@ -419,7 +419,7 @@ class Postgres(object):
         logger.info('Inserting records into {}...'.format(table))
         if table in self.list_db_tables():
             logger.info('Starting count for {}: '
-                        '{}'.format(table, self.get_table_count(table)))
+                        '{:,}'.format(table, self.get_table_count(table)))
         else:
             # logger.info('Creating new table: {}'.format(table))
             logger.warning('Table "{}" not found in database "{}", '
@@ -470,7 +470,10 @@ class Postgres(object):
                 if geom_cols:
                     for gc in geom_cols:
                         columns.append(sql.Identifier(gc))
-
+                # Create INSERT statement, parenthesis left open intentionally
+                # to accommodate adding geometry statements
+                # "ST_GeomFromText(..)" closed in else block if no geometry
+                # columns
                 insert_statement = sql.SQL(
                     "INSERT INTO {table} ({columns}) VALUES ({values}").format(
                     table=sql.Identifier(table),
@@ -496,6 +499,9 @@ class Postgres(object):
                                     srid=sql.Literal(srid)))
                     geom_statement = sql.Composed(geom_statements)
                     insert_statement = insert_statement + geom_statement
+                # TODO: Test insert statement w/o geometry columns
+                else:
+                    insert_statement = insert_statement + sql.Literal(')')
 
                 values = {f: row[f] if f not in geom_cols
                           else row[f].wkt for f in row.index}

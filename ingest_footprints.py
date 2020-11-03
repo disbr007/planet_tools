@@ -21,7 +21,7 @@ def ingest_footprints(footprints_path, tbl=None, dryrun=False):
     logger.info('Inserting footprints into {}'.format(tbl))
     with Postgres('sandwich-pool.planet') as db_src:
         logger.info('Starting count for {}: '
-                    '{}'.format(tbl, db_src.get_table_count(tbl)))
+                    '{:,}'.format(tbl, db_src.get_table_count(tbl)))
 
         # Check that fields in footprints are in target table
         logger.info('Verifying fields match...')
@@ -41,7 +41,7 @@ def ingest_footprints(footprints_path, tbl=None, dryrun=False):
                                   geom_cols=[footprints.geometry.name],
                                   dryrun=dryrun)
         logger.info('New count for {}: '
-                    '{}'.format(tbl, db_src.get_table_count(tbl)))
+                    '{:,}'.format(tbl, db_src.get_table_count(tbl)))
 
 
 if __name__ == '__main__':
