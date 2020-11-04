@@ -4,19 +4,20 @@ import os
 import pandas as pd
 import geopandas as gpd
 
-import matplotlib.pyplot as plt
-
-from lib import write_gdf
-from db_utils import Postgres
+from lib.lib import write_gdf
+from lib.lib import Postgres
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
-logger = create_logger(__name__, 'fh', 'DEBUG', filename=r'E:\disbr007\projects\planet\logs\multilook.log')
+# TODO: Fix this location
+logger = create_logger(__name__, 'fh', 'DEBUG',
+                       filename=r'E:\disbr007\projects\planet\logs\multilook.log')
 
 db = 'sandwich-pool.planet'
 ml_mv = 'multilook_candidates'
 scenes_onhand = 'scenes_onhand'
 so_id = 'id'
+so_geom = 'geom'
 fn_id = 'fn_id'
 fn_pn = 'fn_pairname'
 eckertIV = r'+proj=eck4 +lon_0=0 +datum=WGS84 +units=m +no_defs'
@@ -25,46 +26,62 @@ min_pairs = 3
 
 
 def get_src_gdf(src_id, db_src):
-    """Loads a single record from db_src where id matches src_id"""
-    sql = "SELECT * FROM {} WHERE {} = '{}'".format(scenes_onhand, so_id, src_id)
-    src = db_src.sql2gdf(sql=sql)
+    """Loads record(s) from db_src where "id" matches src_id. If "id" is
+    unique, this should be one record."""
+    sql = "SELECT * FROM {} WHERE {} = '{}'".format(scenes_onhand, so_id,
+                                                    src_id)
+    src = db_src.sql2gdf(sql_str=sql)
     return src
 
 
-def get_multilook_pair_gdf(ids, db_src):
-    """Loads one records per pair in list of ids from db_src"""
-    pairs_sql = "SELECT * FROM {} WHERE {} IN ({})".format(scenes_onhand, so_id, str(ids)[1:-1])
-    pairs = db_src.sql2gdf(sql=pairs_sql)
+def get_multilook_pair_gdf(ids, db_src, geom_col=so_geom):
+    """Loads one record per pair in list of ids from db_src"""
+    pairs_sql = "SELECT * FROM {} WHERE {} IN ({})".format(scenes_onhand,
+                                                           so_id,
+                                                           str(ids)[1:-1])
+    pairs = db_src.sql2gdf(sql_str=pairs_sql, geom_col=geom_col)
+
     return pairs
 
 
 def get_ids_from_multilook(df, src_id_fld, pairname_fld):
     src_ids = list(df[src_id_fld].values)
-    pair_ids = [i for sublist in df[pairname_fld].str.split('-').values for i in sublist]
+    pair_ids = [i for sublist in df[pairname_fld].str.split('-').values
+                for i in sublist]
     all_ids = set(src_ids + pair_ids)
 
     return all_ids
 
 
-def multilook_intersections(src_id, pair_ids, footprints, min_pairs=3, min_area=min_area):
-    """Takes a source geodataframe of one footprint and a pairs geodataframe
-    of other footprints that overlap it. Computes the intersections of each
-    pair of src-other and sorts by largest intersection. Starting with the
-    largest area intersection, each subsequent intersection is tested to see
-    if it meets the minimum area threshold. If it does, the intersection of
-    the first intersection and next intersection is used for the next iteration.
-    As soon as the minimum number of pairs is found, each intersection is saved
-    with a unique pairname (id1-id2-id3-...). The iteration continues until
-    either all pairs have been tested, or an intersection is attempted that
-    results in an area less than the minimum area. The geodataframe of all
-    intersections meeting the provided criteria is returned.
-
+def multilook_intersections(src_id, pair_ids, footprints, min_pairs=3,
+                            min_area=min_area):
+    """Takes a source ID of one footprint and pair ids of all other
+    footprints that overlap it. Computes the intersections of each pair
+    of src-other and sorts by largest intersection. Starting with the
+    largest area intersection, each subsequent intersection is tested to
+     see if it meets the minimum area threshold. If it does, the
+     intersection of the first intersection and next intersection is
+     used for the next iteration.
+    As soon as the minimum number of pairs is reached, each intersection
+    is saved with a unique pairname (id1-id2-id3-...). The iteration
+    continues until either all pairs have been tested, or an
+    intersection is attempted that results in an area less than the
+    minimum area. The geodataframe of all intersections meeting the
+    provided criteria is returned.
+    # TODO: Recompute the intersections of all others with the current
+        intersection. For example:
+        1. First and second overlap greater than min-area = intersection 1
+        2. Recompute intersections of all other footprints with intersection 1
+        3. Order by largest overlap area of these new intersections
+        4. Test if largest overlap area results in new intersection > min_area
+        5. Return to 1. Repeat until all pairs tested or
+            new intersection < min_area
     Parameters
     ---------
-    src : gpd.GeoDataFrame
-        GeoDataFrame with one record, the source footprint
-    pairs : gpd.GeoDataFrame
-        GeoDataFrame of intersecting footprints with source footprint
+    src : str
+        ID of src footprint, must be in footprints['id']
+    pairs : list
+        IDs of all pairs to src, must all be in footprints['id']
     footprints : gpd.GeoDataframe
         GeoDataFrame of all footprints
     min_pairs : int
@@ -74,11 +91,13 @@ def multilook_intersections(src_id, pair_ids, footprints, min_pairs=3, min_area=
     Returns
     -------
     gpd.GeoDataFrame
-        GeoDataFrame of all intersections meeting criteria."""
+        GeoDataFrame of all intersections meeting criteria.
+    """
+    # Get GeoDataFrames of footprint for src_id and pairs
     src = footprints[footprints['id'] == src_id]
     pairs = footprints[footprints['id'].isin(pair_ids)]
 
-    # Find initial intersections between src footprint and pairs
+    # Find initial intersections between src footprint and all pairs
     intersections = gpd.overlay(src, pairs)
     intersections['area'] = intersections.geometry.area
     # Drop any intersections that area already smaller than min_area
@@ -139,7 +158,7 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area):
     sql = "SELECT * FROM {}".format(ml_mv)
     # sql += " LIMIT 10"
     with Postgres(db) as db_src:
-        df = db_src.sql2df(sql=sql)
+        df = db_src.sql2df(sql_str=sql)
         db_src = None
 
     logger.info('Records loaded: {:,}'.format(len(df)))

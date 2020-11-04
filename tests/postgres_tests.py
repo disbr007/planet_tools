@@ -1,4 +1,4 @@
-from db_utils import Postgres
+from lib.lib import Postgres
 
 db_config = 'sandwich-pool.planet'
 tbl = 'scenes_onhand'

@@ -6,7 +6,7 @@ import sys
 import pandas as pd
 from tqdm import tqdm
 
-from db_utils import Postgres, generate_sql
+from lib.lib import Postgres, generate_sql
 # import db_utils.insert_new_records as insert_new_records
 from logging_utils.logging_utils import create_logger
 
@@ -109,6 +109,7 @@ if __name__ == '__main__':
 
     if not logfile:
         now = datetime.datetime.now().strftime('%Y%b%d_%H%m%S')
+        # TODO fix this path determination
         logfile = os.path.join(r'V:\pgc\data\scratch\jeff\projects\planet\logs',
                                '{}{}.log'.format(os.path.splitext(os.path.basename(__file__))[0], now))
     logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)

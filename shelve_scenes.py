@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import os
 from pathlib import Path
 import platform
@@ -8,12 +7,11 @@ import sys
 import time
 
 import geopandas as gpd
-import geoalchemy2
 from tqdm import tqdm
 
-from db_utils import Postgres
-from lib import linux2win, create_scene_manifests
-from lib import PlanetScene, find_planet_scenes
+from lib.lib import Postgres
+from lib.lib import linux2win, create_scene_manifests
+from lib.lib import PlanetScene
 from logging_utils.logging_utils import create_logger, create_logfile_path
 
 logger = create_logger(__name__, 'sh', 'INFO')

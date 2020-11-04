@@ -2,19 +2,19 @@ import argparse
 import os
 from pathlib import Path
 
-from create_search import create_search, parse_group_args
-from get_search_footprints import get_search_footprints
+from lib.search import create_search, parse_group_args
+from lib.search import get_search_footprints
 from logging_utils.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO',)
 
 # TODO: organize search tools in a better way -> move create_search and
-#  get search_footprints into one search_utils file
+#  get_search_footprints into one search_utils file
 # TODO: Add option to just create search from this script, make this the
 #  script for creating new searches and getting the footprints
 
 
-def new_search_footprints(args, att_group_args):
+def add_new_footprints(args, att_group_args):
     logger.info('Creating search...')
     ssid = create_search(args, att_group_args)
     if ssid:
@@ -120,16 +120,18 @@ if __name__ == '__main__':
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')
 
-    import sys
-    sys.argv = [r'C:\code\planet_stereo\new_search_footprints.py',
-                '-n', 'scenes_test', '--months', '08', '--month_max_day',
-                '08', '05', '--it', 'PSScene4Band', '-af', 'basic_analytic',
-                '--aoi', r'V:\pgc\data\scratch\jeff\projects\planet\aois'
-                r'\front_range_six_geocell.shp', '--max_cc', '20',
-                '--to_tbl', 'scenes_test', '--overwrite_saved']
+    # For debugging
+    # import sys
+    # sys.argv = [r'C:\code\planet_stereo\new_search_footprints.py',
+    #             '-n', 'scenes_test', '--months', '08', '--month_max_day',
+    #             '08', '05', '--it', 'PSScene4Band', '-af', 'basic_analytic',
+    #             '--aoi', r'V:\pgc\data\scratch\jeff\projects\planet\aois'
+    #             r'\front_range_six_geocell.shp', '--max_cc', '20',
+    #             '--to_tbl', 'scenes_test', '--overwrite_saved']
+
     args = parser.parse_args()
     # Parse attribute arguments to filter
     att_group_args = parse_group_args(parser=parser, group_name=att_group)
 
-    new_search_footprints(args, att_group_args)
+    add_new_footprints(args, att_group_args)
 

@@ -1,15 +1,14 @@
 import argparse
-import json
 import datetime
 from pathlib import Path
 import os
 import sys
 import time
 
-from lib import read_ids
+from lib.lib import read_ids
 from logging_utils.logging_utils import create_logger, create_logfile_path
 from submit_order import submit_order
-from download_utils import download_parallel
+from lib.order import download_parallel
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 

@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import os
 import requests
 from retrying import retry
@@ -8,9 +7,9 @@ import time
 import geopandas as gpd
 
 from logging_utils.logging_utils import create_logger
-from db_utils import Postgres
-from order_utils import get_stereo_pairs, pairs_to_list, \
-    create_order_request, place_order, poll_for_success, get_order_results
+from lib.db import Postgres
+from lib.search import get_stereo_pairs, pairs_to_list, \
+    create_order_request, place_order
 
 # TODO: Change view_angle diff to off-nadir diff, add all parameters of updated query
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -97,8 +96,8 @@ def main(args):
         logger.info('IDs remaining: {:,}'.format(len(stereo_ids)))
 
     # Limits are 500 ids per order, 80 concurrent orders
-    max_concur = 80
     assets_per_order = 500
+    max_concur = 80
     ids_chunks = [stereo_ids[i:i + assets_per_order]
                   for i in range(0, len(stereo_ids), assets_per_order)]
 

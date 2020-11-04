@@ -1,6 +1,5 @@
 import geopandas as gpd
-from db_utils import Postgres
-import psycopg2
+from lib.lib import Postgres
 from psycopg2 import sql
 
 

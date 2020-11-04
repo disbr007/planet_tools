@@ -97,7 +97,7 @@ WHERE off_nadir_diff > 5 AND
       orbitDirection1 = orbitDirection2;
 
 
-/* Find only pairs that are both onhand, create pairname_fn using
+/* Find only pairs that are both onhand, create field:pairname_fn using
    filenames w/o ext */
 CREATE MATERIALIZED VIEW stereo_candidates_onhand AS
 SELECT s.*,
@@ -171,6 +171,7 @@ CREATE TABLE scenes_onhand (
     );
 CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geometry);
 CREATE INDEX scenes_onhand_centroid_idx on scenes_onhand USING GIST(centroid);
+
 select * from scenes_onhand;
 drop table scenes_onhand;
 delete from scenes_onhand where 1=1;

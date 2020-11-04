@@ -1,4 +1,3 @@
-import argparse
 import glob
 import json
 import os
@@ -8,10 +7,10 @@ import platform
 from tqdm import tqdm
 
 import geopandas as gpd
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon
 
 from logging_utils.logging_utils import create_logger
-from lib import win2linux, linux2win
+from lib.lib import win2linux, linux2win
 
 logger = create_logger(__name__, 'sh', 'INFO')
 

@@ -6,8 +6,7 @@ import shapely
 import geopandas as gpd
 
 from logging_utils.logging_utils import create_logger
-from lib import write_gdf #find_scene_files, gdf_from_metadata
-from lib import find_planet_scenes
+from lib.lib import write_gdf, find_planet_scenes
 
 logger = create_logger(__name__, 'sh', 'INFO')
 

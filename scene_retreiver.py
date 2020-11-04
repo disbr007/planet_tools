@@ -1,15 +1,14 @@
 import argparse
 import os
 from pathlib import Path
-import pathlib
 import shutil
 
 import geopandas as gpd
 from tqdm import tqdm
 
-from db_utils import Postgres, ids2sql
-from lib import read_ids, write_gdf
-from lib import get_platform_location
+from lib.lib import Postgres, ids2sql
+from lib.lib import read_ids, write_gdf
+from lib.lib import get_platform_location
 # from shelve_scenes import shelve_scenes
 from logging_utils.logging_utils import create_logger
 

@@ -10,11 +10,10 @@ from datetime import datetime
 
 import logging
 import os
-from pathlib import Path
 import platform
 import sys
 
-from get_config import get_config
+from lib.lib import get_config
 
 
 class CustomError(Exception):

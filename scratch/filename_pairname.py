@@ -1,7 +1,7 @@
 import geopandas as gpd
 
 from pathlib import Path
-from db_utils import Postgres
+from lib.lib import Postgres
 
 
 scenes_onhand = 'scenes_onhand'
