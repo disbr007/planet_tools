@@ -457,6 +457,8 @@ class Postgres(object):
                                desc='Adding new records to: {}'.format(table),
                                total=len(records)):
                 if dryrun:
+                    if i == 0:
+                        logger.info('-dryrun-')
                     continue
 
                 # Format the INSERT query
@@ -522,7 +524,7 @@ class Postgres(object):
         else:
             logger.info('No new records to be written.')
             
-        logger.info('New count for {}.{}: {}'.format(self.database, table,
+        logger.info('New count for {}.{}: {;,}'.format(self.database, table,
                                                      self.get_table_count(table)))
 
     # TODO: Create overwrite scenes function that removes any scenes in the

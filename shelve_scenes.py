@@ -10,8 +10,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from lib.db import Postgres
-from lib.lib import linux2win, create_scene_manifests
-from lib.lib import PlanetScene
+from lib.lib import linux2win, create_scene_manifests, PlanetScene
 from lib.logging_utils import create_logger, create_logfile_path
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -19,8 +18,10 @@ logger = create_logger(__name__, 'sh', 'INFO')
 # Constants
 # Destination directory for shelving
 planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')
-if platform.system() == 'Windows':
-    planet_data_dir = Path(linux2win(str(planet_data_dir)))
+# TODO: can probably remove as shelving should not occur from Windows -
+#  and the path in the index should always be the linux path
+# if platform.system() == 'Windows':
+#     planet_data_dir = Path(linux2win(str(planet_data_dir)))
 # Index table name
 index_tbl = 'scenes_onhand'
 index_unique_cols = ['identifier']
@@ -328,7 +329,7 @@ if __name__ == '__main__':
     parser.add_argument('-lu', '--locate_unshelveable', action='store_true',
                         help='Locate unshelveable data and handle accourding '
                              'to move_unshelveable argument.')
-    parser.add_argument('--move_unshelveable', type=os.path.abspath,
+    parser.add_argument('-mu', '--move_unshelveable', type=os.path.abspath,
                         help='If provided, move unshelveable files to this '
                              'location. If not provided and '
                              'locate_unshelveable, source files are '
@@ -346,15 +347,15 @@ if __name__ == '__main__':
                              'performing shelving.')
 
     # ALternative routines
-    alt_routine_group.add_argument('--manage_unshelveable_only',
-                              action='store_true',
-                              help='Move or remove unshelveable data and exit.')
     alt_routine_group.add_argument('--generate_manifests_only', action='store_true',
                               help='Only generate scene manifests from master '
                                    'manifests, do not perform copy operation. '
                                    'This is done as part of the copy routine, '
                                    'but this flag can be used to create scene '
                                    'manifests without copying.')
+    alt_routine_group.add_argument('--manage_unshelveable_only',
+                              action='store_true',
+                              help='Move or remove unshelveable data and exit.')
 
     parser.add_argument('--logdir', type=os.path.abspath,
                         help='Path to write logfile to.')

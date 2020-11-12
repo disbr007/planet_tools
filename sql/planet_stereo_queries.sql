@@ -273,6 +273,7 @@ LIMIT 100;
 SELECT COUNT(DISTINCT id) FROM scenes;
 SELECT COUNT(id) FROM scenes;
 
-SELECT * FROM scenes_metadata LIMIT 10;
+/* DELETE records in table */
+DELETE FROM scenes_onhand;
 
-SELECT COUNT(*) FROM scenes LIMIT 10;
+SELECT * FROM scenes_onhand;

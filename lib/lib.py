@@ -917,11 +917,9 @@ class PlanetScene:
         if self._shelved_dir is None:
             acquired_year = self.acquisition_datetime.strftime('%Y')
             # Create month str, like 08_aug
-            month_str = '{}_{}'.format(self.acquisition_datetime.month,
-                                       self.acquisition_datetime.strftime('%b')
-                                       .lower())
+            month_str = self.acquisition_datetime.strftime('%m')
             acquired_day = self.acquisition_datetime.strftime('%d')
-            acquired_hour = self.acquisition_datetime.strftime('%H')
+            # acquired_hour = self.acquisition_datetime.strftime('%H')
             self._shelved_dir = self.shelved_parent / Path(os.path.join(
                                 self.instrument.replace('.', ''),
                                 self.product_type,
@@ -930,7 +928,7 @@ class PlanetScene:
                                 acquired_year,
                                 month_str,
                                 acquired_day,
-                                acquired_hour))
+                                self.strip_id))
         return self._shelved_dir
 
     @property
