@@ -1,3 +1,0 @@
-[submodule "logging_utils"]
-	path = logging_utils
-	url = https://github.com/jeff-diz/logging_utils.git
