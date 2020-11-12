@@ -35,7 +35,7 @@ SELECT location from scenes_onhand WHERE id IN ('20170303_030803_0e0f',
                                                 '20170303_125218_0e20');
 
 SELECT * FROM xml_metadata LIMIT 10;
-SELECT * FROM scenes LIMIT 100;
+SELECT * FROM scenes_onhand;
 SELECT DISTINCT order_id FROM scenes_onhand;
 SELECT * FROM stereo_candidates_onhand LIMIT 10;
 SELECT MIN(acquired) FROM scenes;

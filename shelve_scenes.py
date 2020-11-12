@@ -158,7 +158,7 @@ def shelve_scenes(input_directory, destination_directory=None,
         for ps in scenes:
             ps.skip_checksum = True
 
-    # Manage unshelveable scenes i.e don't have valid  checksum, associated
+    # Manage unshelveable scenes, i.e don't have valid checksum, associated
     # xml not found, etc.
     # TODO: Make this default
     if locate_unshelveable:
@@ -225,27 +225,27 @@ def shelve_scenes(input_directory, destination_directory=None,
     # Determine copy function based on platform
     copy_fxn = determine_copy_fxn(transfer_method)
     prev_order = None  # for logging only
-    # for src, dst in tqdm(srcs_dsts):
-    #     # Log the current order directory being parsed
-    #     current_order = src.relative_to(input_directory).parts[0]
-    #     if current_order != prev_order:
-    #         logger.info('Shelving order directory: {}'.format(current_order))
-    #     # Go no further if dryrun
-    #     if dryrun:
-    #         prev_order = current_order
-    #         continue
-    #     # Perform copy
-    #     if not dst.parent.exists():
-    #         os.makedirs(dst.parent)
-    #     if not dst.exists():
-    #         try:
-    #             copy_fxn(src, dst)
-    #         except Exception as e:
-    #             logger.error('Error copying:\n{}\n\t-->{}'.format(src, dst))
-    #             logger.error(e)
-    #     else:
-    #         logger.debug('Destination exists, skipping: {}'.format(dst))
-    #     prev_order = current_order
+    for src, dst in tqdm(srcs_dsts):
+        # Log the current order directory being parsed
+        current_order = src.relative_to(input_directory).parts[0]
+        if current_order != prev_order:
+            logger.info('Shelving order directory: {}'.format(current_order))
+        # Go no further if dryrun
+        if dryrun:
+            prev_order = current_order
+            continue
+        # Perform copy
+        if not dst.parent.exists():
+            os.makedirs(dst.parent)
+        if not dst.exists():
+            try:
+                copy_fxn(src, dst)
+            except Exception as e:
+                logger.error('Error copying:\n{}\n\t-->{}'.format(src, dst))
+                logger.error(e)
+        else:
+            logger.debug('Destination exists, skipping: {}'.format(dst))
+        prev_order = current_order
 
     # Remove source files that were moved
     if remove_sources:
@@ -265,6 +265,8 @@ def shelve_scenes(input_directory, destination_directory=None,
     if cleanup:
         logger.info('Cleaning up any remaining files...')
         for root, dirs, files in os.walk(input_directory):
+            if dryrun:
+                continue
             for f in files:
                 src = Path(root) / Path(f)
                 dst = Path(move_unshelveable) / Path(f)
@@ -305,13 +307,14 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         required=True,
                         help='Directory holding data to shelve.')
+    # TODO: remove this arg and make a default
     parser.add_argument('--destination_directory', type=os.path.abspath,
                         default=planet_data_dir,
                         help='Base directory upon which to build filepath.')
     parser.add_argument('-sme', '--scene_manifests_exist', action='store_true',
                         help='Use to specify that scene manifests exist '
                              'and recreating is not necessary or not '
-                             'possible, i.e. there are no master manifests)')
+                             'possible, i.e. there are no master manifests.')
     parser.add_argument('--skip_checksums', action='store_true',
                         help='Skip verifying checksums, all new scenes found '
                              'in data directory will be moved to destination.')
