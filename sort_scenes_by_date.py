@@ -1,12 +1,11 @@
 import argparse
 import os
-import pathlib
 from pathlib import Path
 import shutil
 
 from tqdm import tqdm
 
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 
 
 logger = create_logger(__name__, 'sh', 'INFO')

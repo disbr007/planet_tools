@@ -6,7 +6,7 @@ import sys
 import time
 
 from lib.lib import read_ids
-from logging_utils.logging_utils import create_logger, create_logfile_path
+from lib.logging_utils import create_logger, create_logfile_path
 from submit_order import submit_order
 from lib.order import download_parallel
 

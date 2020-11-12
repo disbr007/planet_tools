@@ -6,7 +6,7 @@ import geopandas as gpd
 
 from lib.lib import write_gdf
 from lib.lib import Postgres
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 # TODO: Fix this location

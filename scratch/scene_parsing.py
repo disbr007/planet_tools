@@ -9,7 +9,7 @@ from tqdm import tqdm
 import geopandas as gpd
 from shapely.geometry import Polygon
 
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 from lib.lib import win2linux, linux2win
 
 logger = create_logger(__name__, 'sh', 'INFO')

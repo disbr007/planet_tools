@@ -1,10 +1,9 @@
 import argparse
 import os
-from pathlib import Path
 
-from lib.search import create_search, parse_group_args
-from lib.search import get_search_footprints
-from logging_utils.logging_utils import create_logger
+from lib.lib import parse_group_args
+from lib.search import create_search, get_search_footprints
+from lib.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO',)
 

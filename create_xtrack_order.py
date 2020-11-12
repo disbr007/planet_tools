@@ -6,7 +6,7 @@ import time
 
 import geopandas as gpd
 
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 from lib.db import Postgres
 from lib.search import get_stereo_pairs, pairs_to_list, \
     create_order_request, place_order

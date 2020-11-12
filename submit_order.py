@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 from lib.order import submit_order
 
 # TODO: order compressed?

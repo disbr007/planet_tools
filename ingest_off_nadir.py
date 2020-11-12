@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from lib.lib import Postgres, generate_sql
 # import db_utils.insert_new_records as insert_new_records
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 
 
 # export_dir = r'V:\pgc\data\scratch\jeff\projects\planet\scenes\paris_export\pl_fp_2019oct01_2020jun30\nasa_csv_PE-33905'

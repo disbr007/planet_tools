@@ -10,7 +10,7 @@ from lib.lib import Postgres, ids2sql
 from lib.lib import read_ids, write_gdf
 from lib.lib import get_platform_location
 # from shelve_scenes import shelve_scenes
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 

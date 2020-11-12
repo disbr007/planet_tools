@@ -9,10 +9,10 @@ import time
 import geopandas as gpd
 from tqdm import tqdm
 
-from lib.lib import Postgres
+from lib.db import Postgres
 from lib.lib import linux2win, create_scene_manifests
 from lib.lib import PlanetScene
-from logging_utils.logging_utils import create_logger, create_logfile_path
+from lib.logging_utils import create_logger, create_logfile_path
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
@@ -334,7 +334,7 @@ if __name__ == '__main__':
                         help='Move / remove any remaining files in '
                              'input_directory after shelving and moving any '
                              'unshelveable scenes. This catches any files '
-                             'that were not associated with a master master '
+                             'that were not associated with a master '
                              'manifest.')
 
     parser.add_argument('--index_scenes', action='store_true',

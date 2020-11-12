@@ -8,7 +8,7 @@ from lib.lib import Postgres, intersect_aoi_where
 from lib.lib import write_gdf, parse_group_args
 # TODO: Fix this - place attrib_arg_lut dict somewhere better
 from lib.lib import attrib_arg_lut
-from logging_utils.logging_utils import create_logger
+from lib.logging_utils import create_logger
 
 # logger = create_logger('lib', 'sh', 'INFO')
 scenes_tbl = 'scenes'
