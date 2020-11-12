@@ -524,8 +524,9 @@ class Postgres(object):
         else:
             logger.info('No new records to be written.')
             
-        logger.info('New count for {}.{}: {;,}'.format(self.database, table,
-                                                     self.get_table_count(table)))
+        logger.info('New count for {}.{}: '
+                    '{:,}'.format(self.database, table,
+                                  self.get_table_count(table)))
 
     # TODO: Create overwrite scenes function that removes any scenes in the
     #  input before writing them to DB
