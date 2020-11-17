@@ -132,5 +132,7 @@ if __name__ == '__main__':
     # Parse attribute arguments to filter
     att_group_args = parse_group_args(parser=parser, group_name=att_group)
 
+    # TODO: verify date arguments are valid dates - planet API request will
+    #  fail if something like 2020-06-31 is provided. (June has 30 days)
     add_new_footprints(args, att_group_args)
 

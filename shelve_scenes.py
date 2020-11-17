@@ -151,6 +151,7 @@ def shelve_scenes(input_directory, destination_directory=None,
 
     # Verify checksum, or mark all as skip if not checking
     if verify_checksums:
+        # TODO: Multithread this - this is a slow point
         logger.info('Verifying scene checksums...')
         for ps in tqdm(scenes, desc='Verifying scene checksums...'):
             ps.verify_checksum()
@@ -285,14 +286,15 @@ def shelve_scenes(input_directory, destination_directory=None,
 
 def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     # TODO: Pop this out to it's own script that can index
-    #  any scene, then just import
+    #  any scenes, then just import
     logger.info('Building index rows for shelveable scenes')
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
                            geometry='geometry',
                            crs='epsg:4326')
     logger.info('Indexing shelveable scenes: {}'.format(len(scenes)))
     with Postgres('sandwich-pool.planet') as db_src:
-        db_src.insert_new_records(gdf, table=index_tbl,
+        db_src.insert_new_records(gdf,
+                                  table=index_tbl,
                                   unique_on=index_unique_cols,
                                   geom_cols=geom_cols,
                                   dryrun=dryrun)

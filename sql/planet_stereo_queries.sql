@@ -277,3 +277,4 @@ SELECT COUNT(id) FROM scenes;
 DELETE FROM scenes_onhand;
 
 SELECT * FROM scenes_onhand;
+SELECT * FROM scenes;

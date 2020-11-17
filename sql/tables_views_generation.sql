@@ -30,8 +30,7 @@ CREATE TABLE scenes (
     UNIQUE (id, item_type)
 );
 CREATE INDEX scenes_geom_idx ON scenes USING GIST(geom);
-SELECT COUNT(*) FROM scenes;
-drop table scenes;
+
 /* Add columns from off_nadir table */
 UPDATE scenes
 SET azimuth = off_nadir.sat_satellite_azimuth_mean,
@@ -39,7 +38,6 @@ SET azimuth = off_nadir.sat_satellite_azimuth_mean,
 FROM off_nadir
 WHERE off_nadir.scene_name = scenes_test.id;
 
-select * from scenes_onhand;
 /* Create view with off nadir and xml table joined to scenes - create
    off_nadir_signed column */
 CREATE MATERIALIZED VIEW scenes_metadata AS

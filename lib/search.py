@@ -518,7 +518,6 @@ def create_search(args, att_group_args):
         search_filters.append(fp_noh_filter)
 
     # Create search request using the filters created above
-    from copy import deepcopy
     for f in search_filters:
         if f['type'] == 'NotFilter':
             pf = deepcopy(f)
@@ -818,8 +817,11 @@ def get_search_footprints(args, search_id=None):
 
     if to_tbl:
         with Postgres('sandwich-pool.planet') as db:
-            db.insert_new_records(scenes, table=to_tbl, unique_on=('id', 'item_type'),
-                                  date_cols=['acquired'], dryrun=dryrun)
+            db.insert_new_records(scenes,
+                                  table=to_tbl,
+                                  unique_on=('id', 'item_type'),
+                                  geom_cols=['geometry'],
+                                  dryrun=dryrun)
 
     return scenes
 

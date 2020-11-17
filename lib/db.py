@@ -410,7 +410,7 @@ class Postgres(object):
 
             return row_values in values
 
-        # Get table starting count, or create if new table specified.
+        # Check if table exists, get table starting count
         logger.info('Inserting records into {}...'.format(table))
         if table in self.list_db_tables():
             logger.info('Starting count for {}: '
@@ -448,7 +448,7 @@ class Postgres(object):
             geom_cols = []
 
         # Insert new records
-        # TODO: Fix received datetime format
+        # TODO: Fix received datetime format (?)
         if len(records) != 0:
             logger.info('Writing new records to {}.{}: '
                         '{:,}'.format(self.database, table, len(records)))
@@ -509,7 +509,7 @@ class Postgres(object):
                         f"{str(self.cursor.mogrify(insert_statement, values))}")
                     self.cursor.execute(self.cursor.mogrify(insert_statement,
                                                             values))
-                    time.sleep(0.05)
+                    # time.sleep(0.05)
                 except Exception as e:
                     if e == psycopg2.errors.UniqueViolation:
                         logger.warning('Skipping due to unique violation '
