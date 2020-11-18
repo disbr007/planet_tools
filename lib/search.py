@@ -72,6 +72,7 @@ sym_equal = '='
 f_id = 'id'
 
 # For parsing attribute arguements
+# TODO: move this to a config file?
 attrib_arg_lut = {
     'min_date':             {filter_type: drf, operator: gte,  op_symbol: sym_gte,   field_name: 'acquired'},
     'max_date':             {filter_type: drf, operator: lte,  op_symbol: sym_lte,   field_name: 'acquired'},
@@ -144,12 +145,20 @@ def create_attribute_filter(arg_name, arg_value):
     return filter
 
 
-def create_master_attribute_filter(attribute_args):
-    # Create an AND filter from all attribute arguments provided
+def create_master_attribute_filter(attrib_args):
+    """Create an AND filter from all attribute arguments provided.
+    Parameters
+    ----------
+    attrib_args : dict
+        Dict of {attribute: value}
+    Returns
+    ---------
+    dict : attribute filter
+    """
     # Remove arguments not provided
-    attribute_kwargs = [kwa for kwa in attribute_args._get_kwargs() if kwa[1]]
+    attribute_kwargs = {k: v for k, v in attrib_args.items() if v}
     attribute_filters = []
-    for arg_name, arg_value in attribute_kwargs:
+    for arg_name, arg_value in attribute_kwargs.items():
         att_filter = create_attribute_filter(arg_name, arg_value)
         attribute_filters.append(att_filter)
 
@@ -162,21 +171,6 @@ def create_master_attribute_filter(attribute_args):
         master_attribute_filter = attribute_filters[0]
 
     return master_attribute_filter
-
-
-def vector2geometry_config(vector_file):
-    """Convert vector file to geojson geometry"""
-    if type(vector_file) == str:
-        gdf = gpd.read_file(vector_file)
-    else:
-        # assume gdf
-        gdf = vector_file
-    geoms = gdf.geometry.values
-    geom = gdf.geometry.values[0]
-    gs = gpd.GeoSeries([geom])
-    config = json.loads(gs.to_json())['features'][0]['geometry']
-
-    return config
 
 
 def monthlist(start_date, end_date):
@@ -262,6 +256,13 @@ def create_months_filter(months, min_date=None, max_date=None,
 
 
 def create_noh_filter(tbl=scenes_onhand):
+    # TODO: This does not work with as it exceeds the Planet API payload size
+    #  when more than approximately 35k ids are included. Workaround is to
+    #  subset the IDs using the same parameters as the search filter, and
+    #  add a check that the number of IDs in the not_filter is < 35k. This
+    #  still won't scale perfectly but is a start for reducing returned
+    #  results.
+
     with Postgres('sandwich-pool.planet') as db:
         sql = "SELECT {} FROM {}".format(f_id, tbl)
         oh_ids = list(set(list(db.sql2df(sql_str=sql, columns=[f_id])[f_id])))
@@ -319,7 +320,8 @@ def filter_from_arg(filter_arg):
             vector_file = filter_arg[2]
         logger.debug('Loading geometry from vector file: {}'.format(vector_file))
         assert os.path.exists(vector_file)
-        config = vector2geometry_config(vector_file=vector_file)
+        # config = vector2geometry_config(vector_file=vector_file)
+        config = create_master_geom_filter(vector_file)
     else:
         field_name, config = filter_arg[1], filter_arg[2]
 
@@ -446,35 +448,69 @@ def get_saved_search(session, search_id=None, search_name=None):
     return ss
 
 
-def create_search(args, att_group_args):
-    if args.verbose:
-        log_lvl = 'DEBUG'
-    else:
-        log_lvl = 'INFO'
+def create_search(name, item_types,
+                  aoi=None,
+                  months=None,
+                  month_min_day_args=None,
+                  month_max_day_args=None,
+                  filters=None,
+                  asset_filters=None,
+                  load_filter=None,
+                  not_on_hand=False,
+                  fp_not_on_hand=False,
+                  get_count_only=False,
+                  overwrite_saved=False,
+                  save_filter=False,
+                  attrib_args=None,
+                  dryrun=False,
+                  **kwargs):
+    """Create a saved search using the Planet API, which gets a search ID.
+    The search ID can then be used to retrieve footprints.
+    name : str
+        The name to use when saving the search
+    item_types : list
+        The item_types to include in the search, e.g. ['PSScene4Band']
+    months : list
+        The months to include in the search.
+    month_min_day : list
+        List of lists of ['zero-padded month', 'zero-padded min-day']
+    month_max_day : list
+        List of lists of ['zero-padded month', 'zero-padded max-day']
+    filters : list
+        List of dictionarys that are already formated filters, see:
+        https://developers.planet.com/docs/data/searches-filtering/
+    asset_filters : list
+        List of assests to include in search, e.g. ['basic_analytic']
+    load_filter : str
+        Path to json file containing filter(s) to load and use.
+    not_on_hand : bool
+        Create a NOT filter with all IDs currently on hand.
+    fp_not_on_hand : bool
+        Create a NOT filter with all IDs currently in 'scenes' table
+    get_count_only : bool
+        Get the count of the search and stop - do not get footprints
+    overwrite_saved : bool
+        Overwrite previously created search if exists with same name
+    save_filter : str
+        Path to write filter as json, can then be used with load_filter
+    attrib_args : dict
+        Dictionary of arguments and values to use with
+        create_attribute_filter to create filters
+    dryrun : bool
+        Create filters and get count without saving search.
 
-    logger = create_logger(__name__, 'sh', log_lvl)
+    Returns
+    -------
+    tuple : (str:saved search id, int:search count with filters)
+    """
+
     logger.info('Creating saved search...')
-
-    name = args.name
-    aoi = args.aoi
-    item_types = args.item_types
-    months = args.months
-    month_min_day_args = args.month_min_day
-    month_max_day_args = args.month_max_day
-    filters = args.filters
-    asset_filters = args.asset_filter
-    load_filter = args.load_filter
-    not_on_hand = args.not_on_hand
-    fp_not_on_hand = args.fp_not_on_hand
-    # get_count = args.get_count
-    overwrite_saved = args.overwrite_saved
-    save_filter = args.save_filter
-    dryrun = args.dryrun
 
     search_filters = []
 
-    if any([kwa[1] for kwa in att_group_args._get_kwargs()]):
-        master_attribute_filter = create_master_attribute_filter(att_group_args)
+    if attrib_args and any([v for k, v in attrib_args.items()]):
+        master_attribute_filter = create_master_attribute_filter(attrib_args)
+        print(master_attribute_filter)
         search_filters.append(master_attribute_filter)
 
     # Parse AOI to filter
@@ -493,8 +529,11 @@ def create_search(args, att_group_args):
             month_min_days = {month: day for month, day in month_min_day_args}
         if month_max_day_args:
             month_max_days = {month: day for month, day in month_max_day_args}
-        mf = create_months_filter(months, min_date=args.min_date, max_date=args.max_date,
-                                  month_min_days=month_min_days, month_max_days=month_max_days)
+        mf = create_months_filter(months,
+                                  min_date=attrib_args['min_date'],
+                                  max_date=attrib_args['max_date'],
+                                  month_min_days=month_min_days,
+                                  month_max_days=month_max_days)
         search_filters.append(mf)
 
     # Parse any provided filters
@@ -509,10 +548,14 @@ def create_search(args, att_group_args):
             search_filters.append(f)
 
     if not_on_hand:
+        logger.warning('Not on hand filter may fail due to payload size '
+                       'restriction on Planet API.')
         noh_filter = create_noh_filter(tbl=scenes_onhand)
         search_filters.append(noh_filter)
 
     if fp_not_on_hand:
+        logger.warning('Not on hand filter may fail due to payload size '
+                       'restriction on Planet API.')
         fp_noh_filter = create_noh_filter(tbl=scenes)
         fp_noh_filter['config']['config'] = fp_noh_filter['config']['config'][:10000]
         search_filters.append(fp_noh_filter)
@@ -541,6 +584,8 @@ def create_search(args, att_group_args):
     # if get_count:
     total_count = get_search_count(sr)
     logger.info('Count for new search "{}": {:,}'.format(name, total_count))
+    if get_count_only:
+        return None, total_count
 
     if not dryrun:
         if total_count > 0:
@@ -554,7 +599,7 @@ def create_search(args, att_group_args):
     else:
         ss_id = None
 
-    return ss_id
+    return ss_id, total_count
 
 
 def delete_saved_search(session, search_name=None, search_id=None, dryrun=False):
@@ -600,19 +645,20 @@ def get_search_count(search_request):
         if not str(stats.status_code).startswith('2'):
             logger.error(stats.status_code)
             logger.error(stats.reason)
-            logger.error('Error connecting to {} with request:\n{}'.format(STATS_URL, str(stats_request)[0:500]))
+            logger.error('Error connecting to {} with request:'
+                         '\n{}'.format(STATS_URL, str(stats_request)[0:500]))
             if len(str(stats_request)) > 500:
                 logger.error('...{}'.format(str(stats_request)[-500:]))
-
-            logger.debug(str(stats_request))
+            logger.debug(str(stats_request)[500:])
         logger.debug(stats)
 
     # pprint(stats_request)
-    total_count = sum(bucket[count_key] for bucket in stats.json()[buckets_key])
-    logger.debug('Total count for search request "{}": {:,}'.format(name, total_count))
+    total_count = sum(bucket[count_key]
+                      for bucket in stats.json()[buckets_key])
+    logger.debug('Total count for search request "{}": {:,}'.format(name,
+                                                                    total_count))
 
     return total_count
-
 
 
 def get_session():
@@ -788,19 +834,11 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
     write_gdf(scenes, out_path)
 
 
-def get_search_footprints(args, search_id=None):
-    if not search_id:
-        search_id = args.search_id
-    out_path = args.out_path
-    out_dir = args.out_dir
-    to_tbl = args.to_tbl
-    dryrun = args.dryrun
-    verbose = args.verbose
-
-    # Logging
-    if verbose:
-        log_lvl = 'DEBUG'
-        logger = create_logger(__name__, 'sh', log_lvl)
+def get_search_footprints(out_path=None, out_dir=None,
+                          to_tbl=None, dryrun=False,
+                          search_id=None, **kwargs):
+    # if not search_id:
+    #     search_id = args.search_id
 
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')

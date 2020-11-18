@@ -5,20 +5,34 @@ from lib.lib import parse_group_args
 from lib.search import create_search, get_search_footprints
 from lib.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'INFO',)
+# TODO: Add option to just create search from this script
 
-# TODO: organize search tools in a better way -> move create_search and
-#  get_search_footprints into one search_utils file
-# TODO: Add option to just create search from this script, make this the
-#  script for creating new searches and getting the footprints
+logger = create_logger(__name__, 'sh', 'DEBUG',)
 
 
-def add_new_footprints(args, att_group_args):
+def search4footprints(name, item_types,
+                      aoi=None,
+                      attrib_args=None,
+                      months=None,
+                      month_min_day_args=None,
+                      month_max_day_args=None,
+                      filters=None,
+                      asset_filters=None,
+                      load_filter=None,
+                      not_on_hand=False,
+                      fp_not_on_hand=False,
+                      get_count_only=False,
+                      overwrite_saved=False,
+                      save_filter=False,
+                      out_path=None,
+                      out_dir=None,
+                      to_tbl=None,
+                      dryrun=False):
     logger.info('Creating search...')
-    ssid = create_search(args, att_group_args)
+    ssid, search_count = create_search(**kwargs)
     if ssid:
-        logger.info('Getting footprints')
-        get_search_footprints(args, search_id=ssid)
+        logger.info('Getting footprints: {}'.format(search_count))
+        get_search_footprints(search_id=ssid, **kwargs)
     else:
         logger.warning('No saved search ID returned - no footprints to '
                        'retrieve.')
@@ -92,28 +106,31 @@ if __name__ == '__main__':
     parser.add_argument('-lf', '--load_filter', type=os.path.abspath,
                         help='Base filter to load, upon which any provided '
                              'filters will be added.')
+
     parser.add_argument('--not_on_hand', action='store_true',
                         help='Remove on hand IDs from search.')
     parser.add_argument('--fp_not_on_hand', action='store_true',
                         help='Remove IDs from search if footprint is on hand.')
-    # parser.add_argument('--get_count', action='store_true',
-    #                     help="Pass to get total count for the newly created
-    #                     saved search.")
+
+    parser.add_argument('--get_count_only', action='store_true',
+                        help="Pass to only get total count for the newly "
+                             "created saved search without retreiving "
+                             "footprints.")
+
     parser.add_argument('--overwrite_saved', action='store_true',
                         help='Pass to overwrite a saved search of the same '
                              'name.')
     parser.add_argument('--save_filter', nargs='?', type=os.path.abspath,
                         const='default.json',
                         help='Path to save filter (json).')
-    # get_search_footprints args
-    # TODO: import these arguments as an argument group from
-    #  get_search_footprints
+    # Writing arguments
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
                         help="""Directory to write scenes footprint to. The 
                         search request name will be used for the filename.""")
     parser.add_argument('--to_tbl', type=str,
+
                         help="""Insert search results into this table.""")
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Do not actually create the saved search.')
@@ -121,18 +138,47 @@ if __name__ == '__main__':
 
     # For debugging
     # import sys
-    # sys.argv = [r'C:\code\planet_stereo\new_search_footprints.py',
-    #             '-n', 'scenes_test', '--months', '08', '--month_max_day',
-    #             '08', '05', '--it', 'PSScene4Band', '-af', 'basic_analytic',
+    # sys.argv = [__file__,
+    #             '-n', 'scenes_test',
+    #             '--months', '08',
+    #             '--month_max_day', '08', '05',
+    #             '--it', 'PSScene4Band',
+    #             '-af', 'basic_analytic',
     #             '--aoi', r'V:\pgc\data\scratch\jeff\projects\planet\aois'
-    #             r'\front_range_six_geocell.shp', '--max_cc', '20',
-    #             '--to_tbl', 'scenes_test', '--overwrite_saved']
+    #                      r'\front_range_six_geocell.shp',
+    #             '--max_cc', '20',
+    #             '-op', r'C:\temp\test_fps.shp',
+    #             '--overwrite_saved',
+    #             '--get_count_only']
 
     args = parser.parse_args()
-    # Parse attribute arguments to filter
-    att_group_args = parse_group_args(parser=parser, group_name=att_group)
+    # Parse attribute arguments to handke seperately
+    attrib_args = parse_group_args(parser=parser,
+                                   group_name=att_group)
+    attrib_args = {k: v for k, v in attrib_args._get_kwargs()}
+
+    kwargs = {'name': args.name,
+              'aoi': args.aoi,
+              'item_types': args.item_types,
+              'months': args.months,
+              'month_min_day_args': args.month_min_day,
+              'month_max_day_args': args.month_max_day,
+              'filters': args.filters,
+              'asset_filters': args.asset_filter,
+              'load_filter': args.load_filter,
+              'not_on_hand': args.not_on_hand,
+              'fp_not_on_hand': args.fp_not_on_hand,
+              'get_count_only': args.get_count_only,
+              'overwrite_saved': args.overwrite_saved,
+              'save_filter': args.save_filter,
+              'dryrun': args.dryrun,
+              'attrib_args': attrib_args,
+              'out_path': args.out_path,
+              'out_dir': args.out_dir,
+              'to_tbl': args.to_tbl,
+              'dryrun': args.dryrun,
+              }
 
     # TODO: verify date arguments are valid dates - planet API request will
     #  fail if something like 2020-06-31 is provided. (June has 30 days)
-    add_new_footprints(args, att_group_args)
-
+    search4footprints(**kwargs)

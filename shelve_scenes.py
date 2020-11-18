@@ -81,7 +81,8 @@ def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
         for src, dst in unshelve_src_dst:
             if dryrun:
                 continue
-            copy_fxn(src, dst)
+            if not dst.exists():
+                copy_fxn(src, dst)
     if remove_sources:
         logger.info('Removing unshelveable scenes and meta files from '
                     'original locations...')
@@ -118,8 +119,8 @@ def shelve_scenes(input_directory, destination_directory=None,
     logger.info('Remove source files: {}'.format(remove_sources))
     logger.info('Dryrun: {}\n'.format(dryrun))
 
-    # To allow cancelling if parameter is not correct
-    time.sleep(3)
+    # To allow cancelling if a parameter is not correct
+    time.sleep(5)
 
     # Create scene-level manifests from master manifests
     if not scene_manifests_exist and not dryrun:
