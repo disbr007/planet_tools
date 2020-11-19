@@ -443,8 +443,8 @@ class Postgres(object):
                                                             len(records)))
         logger.debug('Remaining IDs to add: {:,}'.format(len(records)))
 
-        logger.warning('Automatically determining geometry columns.')
         geom_cols = get_geometry_cols(records)
+        logger.warning('Automatically determined geometry columns: {}'.format(geom_cols))
         if geom_cols:
             # Get epsg code
             srid = records.crs.to_epsg()
