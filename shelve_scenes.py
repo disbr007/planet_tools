@@ -340,7 +340,6 @@ def shelve_scenes(input_directory, destination_directory=None,
 def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     # TODO: Pop this out to it's own script that can index
     #  any scenes, then just import
-
     logger.info('Building index rows for shelveable scenes: '
                 '{:,}'.format(len(scenes)))
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
@@ -352,6 +351,65 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
         db_src.insert_new_records(gdf,
                                   table=index_tbl,
                                   dryrun=dryrun)
+
+
+def main(args):
+    input_directory = Path(args.input_directory)
+    destination_directory = Path(args.destination_directory)
+    scene_manifests_exist = args.scene_manifests_exist
+    locate_unshelveable = args.locate_unshelveable
+    move_unshelveable = (Path(args.move_unshelveable)
+                         if args.move_unshelveable is not None else None)
+    verify_checksums = not args.skip_checksums
+
+    run_indexer = args.index_scenes
+    transfer_method = args.transfer_method
+    remove_sources = args.remove_sources
+    cleanup = args.cleanup
+    logdir = args.logdir
+    dryrun = args.dryrun
+
+    generate_manifests_only = args.generate_manifests_only
+    manage_unshelveable_only = args.manage_unshelveable_only
+
+    if logdir:
+        logfile = create_logfile_path('shelve_scenes', logdir)
+        logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
+
+    # Verify arguments
+    if not input_directory.exists():
+        logger.error(
+            'Data directory does not exists: {}'.format(input_directory))
+        sys.exit()
+    if not destination_directory.exists():
+        logger.error('Destination directory does '
+                     'not exist: {}'.format(destination_directory))
+        sys.exit()
+    if platform.system() == 'Windows' and transfer_method == 'link':
+        logger.error('Transfer method "link" not compatible with Windows '
+                     'platforms. Please use "copy".')
+        sys.exit()
+    if generate_manifests_only and not dryrun:
+        # Just create scene manifests and exit
+        logger.info('Creating scene manifests for all master manifests '
+                    'in: {}'.format(input_directory))
+        create_all_scene_manifests(input_directory)
+        sys.exit()
+
+    scenes = shelve_scenes(input_directory,
+                           destination_directory=destination_directory,
+                           scene_manifests_exist=scene_manifests_exist,
+                           verify_checksums=verify_checksums,
+                           locate_unshelveable=locate_unshelveable,
+                           move_unshelveable=move_unshelveable,
+                           manage_unshelveable_only=manage_unshelveable_only,
+                           transfer_method=transfer_method,
+                           remove_sources=remove_sources,
+                           cleanup=cleanup,
+                           dryrun=dryrun)
+
+    if len(scenes) != 0 and run_indexer:
+        index_scenes(scenes, index_tbl=index_tbl, dryrun=dryrun)
 
 
 if __name__ == '__main__':
@@ -441,58 +499,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    input_directory = Path(args.input_directory)
-    destination_directory = Path(args.destination_directory)
-    scene_manifests_exist = args.scene_manifests_exist
-    locate_unshelveable = args.locate_unshelveable
-    move_unshelveable = (Path(args.move_unshelveable)
-                         if args.move_unshelveable is not None else None)
-    verify_checksums = not args.skip_checksums
-
-    run_indexer = args.index_scenes
-    transfer_method = args.transfer_method
-    remove_sources = args.remove_sources
-    cleanup = args.cleanup
-    logdir = args.logdir
-    dryrun = args.dryrun
-
-    generate_manifests_only = args.generate_manifests_only
-    manage_unshelveable_only = args.manage_unshelveable_only
-
-    if logdir:
-        logfile = create_logfile_path('shelve_scenes', logdir)
-        logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
-
-    # Verify arguments
-    if not input_directory.exists():
-        logger.error('Data directory does not exists: {}'.format(input_directory))
-        sys.exit()
-    if not destination_directory.exists():
-        logger.error('Destination directory does '
-                     'not exist: {}'.format(destination_directory))
-        sys.exit()
-    if platform.system() == 'Windows' and transfer_method == 'link':
-        logger.error('Transfer method "link" not compatible with Windows '
-                     'platforms. Please use "copy".')
-        sys.exit()
-    if generate_manifests_only and not dryrun:
-        # Just create scene manifests and exit
-        logger.info('Creating scene manifests for all master manifests '
-                    'in: {}'.format(input_directory))
-        create_all_scene_manifests(input_directory)
-        sys.exit()
-    
-    scenes = shelve_scenes(input_directory,
-                           destination_directory=destination_directory,
-                           scene_manifests_exist=scene_manifests_exist,
-                           verify_checksums=verify_checksums,
-                           locate_unshelveable=locate_unshelveable,
-                           move_unshelveable=move_unshelveable,
-                           manage_unshelveable_only=manage_unshelveable_only,
-                           transfer_method=transfer_method,
-                           remove_sources=remove_sources,
-                           cleanup=cleanup,
-                           dryrun=dryrun)
-
-    if run_indexer:
-        index_scenes(scenes, index_tbl=index_tbl, dryrun=dryrun)
+    main(args)
