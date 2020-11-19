@@ -209,8 +209,9 @@ def shelve_scenes(input_directory, destination_directory=None,
                 # skip_shelving['Indexed'] = True
                 indexed_count += 1
             if ps.is_shelved and ps.indexed:
-            # if skip_shelving['Shelved'] and skip_shelving['Indexed']:
+                unshelveable.append(ps)
                 continue
+
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
@@ -229,16 +230,14 @@ def shelve_scenes(input_directory, destination_directory=None,
                     logger.debug(e)
                 # skip_shelving['Unshelveable'] = True
                 unshelveable_count += 1
+                unshelveable.append(ps)
 
             # Add to list to skip if scene is unshelveable, or it is BOTH
             # shelved and indexed
-            logger.info('{} {} {}'.format(ps.is_shelved, ps.indexed, ps.shelveable))
-            if (ps.is_shelved and ps.indexed) or not ps.shelveable:
-                logger.info('adding to unshelveable')
             # if (skip_shelving['Unshelveable'] or
             #         (skip_shelving['Shelved'] and
             #          skip_shelving['Indexed'])):
-                unshelveable.append(ps)
+
 
         logger.info('Already shelved scenes found: {:,}'.format(shelved_count))
         logger.info('Already indexed scenes found: {:,}'.format(indexed_count))
