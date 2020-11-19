@@ -38,6 +38,7 @@ SET azimuth = off_nadir.sat_satellite_azimuth_mean,
 FROM off_nadir
 WHERE off_nadir.scene_name = scenes_test.id;
 
+
 /* Create view with off nadir and xml table joined to scenes - create
    off_nadir_signed column */
 CREATE MATERIALIZED VIEW scenes_metadata AS
@@ -170,8 +171,3 @@ CREATE TABLE scenes_onhand (
 CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geometry);
 CREATE INDEX scenes_onhand_centroid_idx on scenes_onhand USING GIST(centroid);
 
-select * from scenes_onhand;
-drop table scenes_onhand;
-delete from scenes_onhand where 1=1;
-
-GRANT SELECT ON scenes_onhand TO pgc_users;

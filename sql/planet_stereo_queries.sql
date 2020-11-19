@@ -278,3 +278,12 @@ DELETE FROM scenes_onhand;
 
 SELECT * FROM scenes_onhand;
 SELECT * FROM scenes;
+
+select * from scenes_onhand;
+drop table scenes_onhand;
+delete from scenes_onhand where 1=1;
+
+GRANT SELECT ON scenes_onhand TO pgc_users;
+
+SELECT * FROM scenes_onhand
+WHERE identifier = '20190301_144335_100d_1B_AnalyticMS';

@@ -60,8 +60,8 @@ udm = 'udm'
 image = 'image'
 
 
-config_file = os.path.join(os.path.dirname(__file__), "config", "config.json")
-
+# config_file = Path(__file__).parent.parent / "config" / "config.json"
+config_file = r'C:\code\planet_stereo\config\config.json'
 
 def get_config(param):
     config_params = json.load(open(config_file))

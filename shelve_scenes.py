@@ -10,23 +10,17 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from lib.db import Postgres
-from lib.lib import linux2win, create_scene_manifests, PlanetScene
+from lib.lib import create_scene_manifests, PlanetScene, get_config
 from lib.logging_utils import create_logger, create_logfile_path
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # Constants
 # Destination directory for shelving
-planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')
-# TODO: can probably remove as shelving should not occur from Windows -
-#  and the path in the index should always be the linux path
-# if platform.system() == 'Windows':
-#     planet_data_dir = Path(linux2win(str(planet_data_dir)))
+planet_data_dir = get_config("shelve_loc")
+
 # Index table name
 index_tbl = 'scenes_onhand'
-index_unique_cols = ['identifier']
-# Names of columns holding geometry in index table
-# geom_cols = ['geometry', 'centroid']
 
 
 def determine_copy_fxn(transfer_method):
@@ -62,12 +56,26 @@ def create_all_scene_manifests(directory):
 
 
 def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
-                        remove_sources, dryrun):
+                        remove_sources, dryrun=False):
+    """Handle unshelveable scenes based on parameters specified.
+    Parameters
+    ----------
+    unshelveable : list
+        List of PlanetScene objects
+    transfer_method : str
+        Transfer method to use, one of 'link' or 'copy'
+    move_unshelveable : str
+        If provided, unshelveable data will be moved to this location.
+    remove_sources : bool
+        If true, unshelveable data will be removed from original 
+        locations (after moving if specified)."""
     # Determine whether to copy or link based on transfer method and OS
     copy_fxn = determine_copy_fxn(transfer_method)
 
     logger.info('Creating list of unshelveable scenes and metadata files...')
     unshelve_src_dst = []
+    # Create list of unshelveable files, including metadata files, with
+    # destinations if moving
     for ps in unshelveable:
         for src in ps.scene_files:
             if move_unshelveable:
@@ -75,6 +83,8 @@ def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
             else:
                 dst = None
             unshelve_src_dst.append((src, dst))
+
+    # Move unshelveable data
     if move_unshelveable:
         logger.info('Moving unshelveable scenes and meta files to: '
                     '{}'.format(move_unshelveable))
@@ -83,6 +93,8 @@ def handle_unshelveable(unshelveable, transfer_method, move_unshelveable,
                 continue
             if not dst.exists():
                 copy_fxn(src, dst)
+
+    # Remove sources
     if remove_sources:
         logger.info('Removing unshelveable scenes and meta files from '
                     'original locations...')
@@ -293,15 +305,11 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
                            geometry='geometry',
                            crs='epsg:4326')
-    logger.info('Index gdf: {}'.format(gdf))
-    logger.info('Index gdf dtypes: {}'.format(gdf.dtypes))
 
     logger.info('Indexing shelveable scenes: {}'.format(len(scenes)))
     with Postgres('sandwich-pool.planet') as db_src:
         db_src.insert_new_records(gdf,
                                   table=index_tbl,
-                                  unique_on=index_unique_cols,
-                                  # geom_cols=geom_cols,
                                   dryrun=dryrun)
 
 

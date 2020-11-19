@@ -12,7 +12,7 @@ from psycopg2 import sql
 import pandas as pd
 import geopandas as gpd
 
-from .lib import get_geometry_cols
+from .lib import get_config, get_geometry_cols
 from .logging_utils import create_logger
 
 # Supress pandas SettingWithCopyWarning
@@ -27,7 +27,13 @@ db_confs = {
         Path(__file__).parent.parent / 'config' / 'sandwich-pool.planet.json'
 }
 
+# TODO: Store table unique IDs in config file, rather than passing to
+#  insert_new_records
 # Params
+db_config = get_config("db")
+tables_config = db_config["tables"]
+k_unique_id = "unique_id"  # key in config
+
 stereo_pair_cand = 'stereo_candidates'
 fld_acq = 'acquired'
 fld_acq1 = '{}1'.format(fld_acq)
@@ -369,7 +375,7 @@ class Postgres(object):
         return df
 
     def insert_new_records(self, records, table,
-                           unique_on=None,
+                           # unique_on=None,
                            # geom_cols=None,
                            dryrun=False):
         """
@@ -380,9 +386,6 @@ class Postgres(object):
             DataFrame containing rows to be inserted to table
         table : str
             Name of table to be inserted into
-        unique_on : list / tuple
-            List of columns names in table and records to use as unique ID
-            when removing duplicates
         geom_cols : list
             List of columns containing geometries.
         """
@@ -412,16 +415,20 @@ class Postgres(object):
 
             return row_values in values
 
-        # Check if table exists, get table starting count
+        # Check that records is not empty
+        if len(records) == 0:
+            logger.warning('No records to be added.')
+            return
+
+        # Check if table exists, get table starting count, unique constraint
         logger.info('Inserting records into {}...'.format(table))
         if table in self.list_db_tables():
             logger.info('Starting count for {}: '
                         '{:,}'.format(table, self.get_table_count(table)))
+            unique_on = tables_config[table][k_unique_id]
         else:
-            # logger.info('Creating new table: {}'.format(table))
             logger.warning('Table "{}" not found in database "{}", '
                            'exiting.'.format(table, self.database))
-            # TODO: raise CustomError
             sys.exit()
 
         # Get unique IDs to remove duplicates if provided
