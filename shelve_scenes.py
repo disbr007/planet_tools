@@ -201,7 +201,14 @@ def shelve_scenes(input_directory, destination_directory=None,
             skip_shelving = {'Unshelveable': False,
                              'Shelved': False,
                              'Indexed': False}
-
+            if ps.is_shelved:
+                skip_shelving['Shelved'] = True
+                shelved_count += 1
+            if ps.identifier in indexed_ids:
+                skip_shelving['Indexed'] = True
+                indexed_count += 1
+            if skip_shelving['Shelved'] and skip_shelving['Indexed']:
+                continue
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
@@ -220,12 +227,7 @@ def shelve_scenes(input_directory, destination_directory=None,
                     logger.debug(e)
                 skip_shelving['Unshelveable'] = True
                 unshelveable_count += 1
-            if ps.is_shelved:
-                skip_shelving['Shelved'] = True
-                shelved_count += 1
-            if ps.identifier in indexed_ids:
-                skip_shelving['Indexed'] = True
-                indexed_count += 1
+
             # Add to list to skip if scene is unshelveable, or it is BOTH
             # shelved and indexed
             if (skip_shelving['Unshelveable'] or
@@ -233,14 +235,14 @@ def shelve_scenes(input_directory, destination_directory=None,
                      skip_shelving['Indexed'])):
                 unshelveable.append(ps)
 
-        logger.info('Unshelveable scenes: {}'.format(unshelveable_count))
-        logger.info('Already shelved scenes found: {}'.format(shelved_count))
-        logger.info('Already indexed scenes found: {}'.format(indexed_count))
+        logger.info('Unshelveable scenes: {:,}'.format(unshelveable_count))
+        logger.info('Already shelved scenes found: {:,}'.format(shelved_count))
+        logger.info('Already indexed scenes found: {:,}'.format(indexed_count))
 
         # Remove unshelvable scenes from directory to shelve (optionally move)
         if len(unshelveable) > 0:
             logger.info('Total scenes not being shelved: '
-                        '{}'.format(len(unshelveable)))
+                        '{:,}'.format(len(unshelveable)))
             handle_unshelveable(unshelveable,
                                 transfer_method=transfer_method,
                                 move_unshelveable=move_unshelveable,
@@ -255,8 +257,6 @@ def shelve_scenes(input_directory, destination_directory=None,
                     logger.warning('Unable to remove unshelveable scene from '
                                    'list of scenes to shelve: '
                                    '{}'.format(unsh_ps.scene_path))
-        else:
-            logger.info('No unshelveable scenes found.')
 
     if manage_unshelveable_only:
         logger.info('Managing unshelveable scenes complete, exiting.')
