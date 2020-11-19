@@ -191,13 +191,13 @@ def shelve_scenes(input_directory, destination_directory=None,
 
         # Locate scenes that are not shelveable, or have already been shelved
         # and indexed
-        logger.info('Parsing XML files and locating any unshelveable or '
-                    'previously shelved scenes...')
+        logger.info('Parsing XML files and verifying checks to locate any '
+                    'unshelveable or previously shelved scenes...')
         unshelveable = []
         unshelveable_count = 0
         shelved_count = 0
         indexed_count = 0
-        for ps in tqdm(scenes, desc='Parsing XML files:'):
+        for ps in tqdm(scenes, desc='Parsing XML files and verifying checksums:'):
             if ps.is_shelved:
                 shelved_count += 1
             if ps.identifier in indexed_ids:
