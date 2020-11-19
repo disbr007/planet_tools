@@ -416,7 +416,6 @@ class Postgres(object):
             return row_values in values
 
         # Check that records is not empty
-        logger.info('***records to be added: {}'.format(len(records)))
         if len(records) == 0:
             logger.warning('No records to be added.')
             return
@@ -449,7 +448,10 @@ class Postgres(object):
             if len(records) != starting_count:
                 logger.info('Duplicates removed: {}'.format(starting_count -
                                                             len(records)))
-        logger.debug('Remaining IDs to add: {:,}'.format(len(records)))
+        logger.info('Remaining IDs to add: {:,}'.format(len(records)))
+        if len(records) == 0:
+            logger.info('No new records, skipping indexing.')
+            return
 
         geom_cols = get_geometry_cols(records)
         if geom_cols:
