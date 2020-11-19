@@ -163,6 +163,17 @@ def shelve_scenes(input_directory, destination_directory=None,
 
     logger.info('Scenes loaded: {:,}'.format(len(scenes)))
 
+    # # Verify checksum, or mark all as skip if not checking
+    # if verify_checksums:
+    #     # TODO: Multithread this - this is a slow point
+    #     logger.info('Verifying scene checksums...')
+    #     for ps in tqdm(scenes, desc='Verifying scene checksums...'):
+    #         ps.verify_checksum()
+    # else:
+    #     logger.info('Skipping checksum verification...')
+    #     for ps in scenes:
+    #         ps.skip_checksum = True
+
     # Manage unshelveable scenes, i.e don't have valid checksum, associated
     # xml not found, etc.
     # TODO: Make this default
@@ -187,16 +198,18 @@ def shelve_scenes(input_directory, destination_directory=None,
         shelved_count = 0
         indexed_count = 0
         for ps in tqdm(scenes, desc='Parsing XML files:'):
-            skip_shelving = {'Unshelveable': False,
-                             'Shelved': False,
-                             'Indexed': False}
+            # skip_shelving = {'Unshelveable': False,
+            #                  'Shelved': False,
+            #                  'Indexed': False}
             if ps.is_shelved:
-                skip_shelving['Shelved'] = True
+                # skip_shelving['Shelved'] = True
                 shelved_count += 1
             if ps.identifier in indexed_ids:
-                skip_shelving['Indexed'] = True
+                ps.indexed = True
+                # skip_shelving['Indexed'] = True
                 indexed_count += 1
-            if skip_shelving['Shelved'] and skip_shelving['Indexed']:
+            if ps.is_shelved and ps.indexed:
+            # if skip_shelving['Shelved'] and skip_shelving['Indexed']:
                 continue
             if not ps.shelveable:
                 try:
@@ -214,14 +227,15 @@ def shelve_scenes(input_directory, destination_directory=None,
                     logger.debug('Strip ID: {}'.format(ps.strip_id))
                 except Exception as e:
                     logger.debug(e)
-                skip_shelving['Unshelveable'] = True
+                # skip_shelving['Unshelveable'] = True
                 unshelveable_count += 1
 
             # Add to list to skip if scene is unshelveable, or it is BOTH
             # shelved and indexed
-            if (skip_shelving['Unshelveable'] or
-                    (skip_shelving['Shelved'] and
-                     skip_shelving['Indexed'])):
+            if (ps.is_shelved and ps.indexed) or not ps.shelveable:
+            # if (skip_shelving['Unshelveable'] or
+            #         (skip_shelving['Shelved'] and
+            #          skip_shelving['Indexed'])):
                 unshelveable.append(ps)
 
         logger.info('Already shelved scenes found: {:,}'.format(shelved_count))

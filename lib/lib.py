@@ -605,6 +605,7 @@ class PlanetScene:
         self.skip_checksum = None
         self._index_row = None
         self._footprint_row = None
+        self.indexed = None
 
         # Bundle types that have been tested for compatibility with naming
         # conventions
