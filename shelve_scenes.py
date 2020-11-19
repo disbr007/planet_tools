@@ -190,8 +190,8 @@ def shelve_scenes(input_directory, destination_directory=None,
 
         # Locate scenes that are not shelveable, or have already been shelved
         # and indexed
-        logger.info('Parsing XML files and locating any unshelveable '
-                    'scenes...')
+        logger.info('Parsing XML files and locating any unshelveable or '
+                    'previously shelved scenes...')
         unshelveable = []
         unshelveable_count = 0
         shelved_count = 0
@@ -260,6 +260,10 @@ def shelve_scenes(input_directory, destination_directory=None,
     if manage_unshelveable_only:
         logger.info('Managing unshelveable scenes complete, exiting.')
         sys.exit()
+
+    logger.info('Remaining scenes to shelve: {:,}'.format(len(scenes)))
+    if len(scenes) == 0:
+        return
 
     # Create list of tuples of (src, dst) where dst is shelved location
     logger.info('Determining shelved destinations...')
@@ -409,7 +413,7 @@ def main(args):
                            cleanup=cleanup,
                            dryrun=dryrun)
 
-    if len(scenes) != 0 and run_indexer:
+    if (scenes is not None) and (len(scenes) != 0) and run_indexer:
         index_scenes(scenes, index_tbl=index_tbl, dryrun=dryrun)
 
 
