@@ -186,7 +186,7 @@ def shelve_scenes(input_directory, destination_directory=None,
                                   columns=index_unique_constraint,
                                   distinct=True)
             )
-        logger.info('Indexed IDs: {}'.format(list(indexed_ids[0:10])))
+        logger.info('Indexed IDs: {}'.format(list(indexed_ids)[0:10]))
 
         # Locate scenes that are not shelveable, previously shelved,
         logger.info('Parsing XML files and locating any unshelveable '
