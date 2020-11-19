@@ -578,6 +578,7 @@ class PlanetScene:
         self._shelveable = None
         self._shelved_dir = None
         self._shelved_location = None
+        self._is_shelved = None
         self._meta_files = None
         self._metadata_json = None
         self._xml_path = None
@@ -968,7 +969,9 @@ class PlanetScene:
 
     @ property
     def is_shelved(self):
-        return self.shelved_location.exists()
+        if self._is_shelved is None:
+            self._is_shelved = self.shelved_location.exists()
+        return self._is_shelved
 
     @property
     def index_row(self):

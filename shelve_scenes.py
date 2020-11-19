@@ -232,7 +232,9 @@ def shelve_scenes(input_directory, destination_directory=None,
 
             # Add to list to skip if scene is unshelveable, or it is BOTH
             # shelved and indexed
+            logger.info('{} {} {}'.format(ps.is_shelved, ps.indexed, ps.shelveable))
             if (ps.is_shelved and ps.indexed) or not ps.shelveable:
+                logger.info('adding to unshelveable')
             # if (skip_shelving['Unshelveable'] or
             #         (skip_shelving['Shelved'] and
             #          skip_shelving['Indexed'])):
