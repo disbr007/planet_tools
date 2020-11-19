@@ -246,7 +246,7 @@ def get_geometry_cols(gdf):
     list : Names of columns that are of type 'geometry'
     """
     dtypes = gdf.dtypes
-    geom_cols = list(dtypes[dtypes == 'geometry'])
+    geom_cols = list(dtypes[dtypes == 'geometry'].index)
 
     return geom_cols
 
