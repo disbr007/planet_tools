@@ -25,7 +25,7 @@ logger = create_logger(__name__, 'sh', 'INFO')
 #  (lots of repeated "XML path: None", "XML Path not located")
 
 # Shelve parent directory
-# TODO: move this to a config file?
+# TODO: move this to a config file
 planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')  # /planet?
 if platform.system() == 'Windows':
     planet_data_dir = Path(r'V:\pgc\data\sat\orig')
@@ -72,9 +72,11 @@ def get_config(param):
 
     return config
 
+
 # def linux2win(path):
 #     wp = Path(str(path).replace('/mnt', 'V:').replace('/', '\\'))
 #     return wp
+
 
 def win2linux(path):
     lp = path.replace('V:', r'/mnt').replace('\\', '/')
@@ -230,6 +232,23 @@ def determine_driver(src):
         logger.error('Unrecognized format: {}'.format(out_format))
 
     return driver
+
+
+def get_geometry_cols(gdf):
+    """Gets all columns in a geodataframe that are of type geometry.
+    Parameters
+    ----------
+    gdf : gpd.GeoDataFrame
+        GeoDataFrame to find geometry columns in
+
+    Returns
+    -------
+    list : Names of columns that are of type 'geometry'
+    """
+    dtypes = gdf.dtypes
+    geom_cols = list(dtypes[dtypes == 'geometry'])
+
+    return geom_cols
 
 
 def write_gdf(gdf, out_footprint, out_format=None, date_format=None):

@@ -12,6 +12,7 @@ from psycopg2 import sql
 import pandas as pd
 import geopandas as gpd
 
+from .lib import get_geometry_cols
 from .logging_utils import create_logger
 
 # Supress pandas SettingWithCopyWarning
@@ -369,7 +370,7 @@ class Postgres(object):
 
     def insert_new_records(self, records, table,
                            unique_on=None,
-                           geom_cols=None,
+                           # geom_cols=None,
                            dryrun=False):
         """
         Add records to table, converting data types as necessary for INSERT.
@@ -382,7 +383,8 @@ class Postgres(object):
         unique_on : list / tuple
             List of columns names in table and records to use as unique ID
             when removing duplicates
-        geom_cols :
+        geom_cols : list
+            List of columns containing geometries.
         """
 
         def _row_columns_unique(row, unique_on, values):
@@ -441,6 +443,8 @@ class Postgres(object):
                                                             len(records)))
         logger.debug('Remaining IDs to add: {:,}'.format(len(records)))
 
+        logger.warning('Automatically determining geometry columns.')
+        geom_cols = get_geometry_cols(records)
         if geom_cols:
             # Get epsg code
             srid = records.crs.to_epsg()
