@@ -673,6 +673,7 @@ class PlanetScene:
         return self._scene_files
 
     def verify_checksum(self):
+        logger.warning('verifying checksum')
         return self.valid_md5
 
     @property

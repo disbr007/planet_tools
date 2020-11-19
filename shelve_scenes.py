@@ -198,20 +198,14 @@ def shelve_scenes(input_directory, destination_directory=None,
         shelved_count = 0
         indexed_count = 0
         for ps in tqdm(scenes, desc='Parsing XML files:'):
-            # skip_shelving = {'Unshelveable': False,
-            #                  'Shelved': False,
-            #                  'Indexed': False}
             if ps.is_shelved:
-                # skip_shelving['Shelved'] = True
                 shelved_count += 1
             if ps.identifier in indexed_ids:
                 ps.indexed = True
-                # skip_shelving['Indexed'] = True
                 indexed_count += 1
             if ps.is_shelved and ps.indexed:
                 unshelveable.append(ps)
                 continue
-
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
@@ -228,15 +222,8 @@ def shelve_scenes(input_directory, destination_directory=None,
                     logger.debug('Strip ID: {}'.format(ps.strip_id))
                 except Exception as e:
                     logger.debug(e)
-                # skip_shelving['Unshelveable'] = True
                 unshelveable_count += 1
                 unshelveable.append(ps)
-
-            # Add to list to skip if scene is unshelveable, or it is BOTH
-            # shelved and indexed
-            # if (skip_shelving['Unshelveable'] or
-            #         (skip_shelving['Shelved'] and
-            #          skip_shelving['Indexed'])):
 
 
         logger.info('Already shelved scenes found: {:,}'.format(shelved_count))
