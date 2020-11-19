@@ -97,8 +97,11 @@ attrib_arg_lut = {
 
 
 def create_master_geom_filter(vector_file):
-    # Read in AOI
-    aoi = gpd.read_file(vector_file)
+    if not isinstance(vector_file, gpd.GeoDataFrame):
+        # Read in AOI
+        aoi = gpd.read_file(vector_file)
+    else:
+        aoi = vector_file
     # Create list of geometries to put in separate filters
     geometries = aoi.geometry.values
     json_geoms = [json.loads(gpd.GeoSeries([g]).to_json())['features'][0]['geometry']
@@ -112,7 +115,8 @@ def create_master_geom_filter(vector_file):
             config: jg
         }
         geom_filters.append(geom_filter)
-    # If more than one, nest in OrFilter, otherwise return single GeometryFilter
+    # If more than one, nest in OrFilter, otherwise return single
+    # GeometryFilter
     if len(geom_filters) > 1:
         master_geom_filter = {
             ftype: or_filter,
@@ -450,6 +454,7 @@ def get_saved_search(session, search_id=None, search_name=None):
 
 def create_search(name, item_types,
                   aoi=None,
+                  attrib_args=None,
                   months=None,
                   month_min_day_args=None,
                   month_max_day_args=None,
@@ -461,15 +466,20 @@ def create_search(name, item_types,
                   get_count_only=False,
                   overwrite_saved=False,
                   save_filter=False,
-                  attrib_args=None,
                   dryrun=False,
                   **kwargs):
-    """Create a saved search using the Planet API, which gets a search ID.
-    The search ID can then be used to retrieve footprints.
+    """Create a saved search using the Planet API, which gets a search
+    ID. The search ID can then be used to retrieve footprints.
+
+    Parameters
+    ----------
     name : str
         The name to use when saving the search
     item_types : list
         The item_types to include in the search, e.g. ['PSScene4Band']
+    attrib_args : dict
+        Dictionary of arguments and values to use with
+        create_attribute_filter to create filters
     months : list
         The months to include in the search.
     month_min_day : list
@@ -493,9 +503,6 @@ def create_search(name, item_types,
         Overwrite previously created search if exists with same name
     save_filter : str
         Path to write filter as json, can then be used with load_filter
-    attrib_args : dict
-        Dictionary of arguments and values to use with
-        create_attribute_filter to create filters
     dryrun : bool
         Create filters and get count without saving search.
 
@@ -514,7 +521,7 @@ def create_search(name, item_types,
         search_filters.append(master_attribute_filter)
 
     # Parse AOI to filter
-    if aoi:
+    if aoi is not None:
         aoi_attribute_filter = create_master_geom_filter(vector_file=aoi)
         search_filters.append(aoi_attribute_filter)
 
@@ -572,7 +579,10 @@ def create_search(name, item_types,
 
     if save_filter:
         if os.path.basename(save_filter) == 'default.json':
-            save_filter = os.path.join(os.path.dirname(__file__), 'config', 'search_filters', '{}.json'.format(name))
+            save_filter = os.path.join(os.path.dirname(__file__),
+                                       'config',
+                                       'search_filters',
+                                       '{}.json'.format(name))
         logger.debug('Saving filter to: {}'.format(save_filter))
         with open(save_filter, 'w') as src:
             json.dump(sr, src)
@@ -583,16 +593,18 @@ def create_search(name, item_types,
 
     # if get_count:
     total_count = get_search_count(sr)
-    logger.info('Count for new search "{}": {:,}'.format(name, total_count))
+    logger.debug('Count for new search "{}": {:,}'.format(name, total_count))
     if get_count_only:
         return None, total_count
 
     if not dryrun:
         if total_count > 0:
             # Submit search request as saved search
-            ss_id = create_saved_search(search_request=sr, overwrite_saved=overwrite_saved)
+            ss_id = create_saved_search(search_request=sr,
+                                        overwrite_saved=overwrite_saved)
             if ss_id:
-                logger.info('Successfully created new search. Search ID: {}'.format(ss_id))
+                logger.info('Successfully created new search. '
+                            'Search ID: {}'.format(ss_id))
         else:
             logger.warning('Search returned no results - skipping saving.')
             ss_id = None
@@ -602,7 +614,8 @@ def create_search(name, item_types,
     return ss_id, total_count
 
 
-def delete_saved_search(session, search_name=None, search_id=None, dryrun=False):
+def delete_saved_search(session, search_name=None, search_id=None,
+                        dryrun=False):
     all_searches = get_all_searches(session)
     if search_id:
         if search_id in all_searches.keys():
@@ -837,11 +850,9 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
 def get_search_footprints(out_path=None, out_dir=None,
                           to_tbl=None, dryrun=False,
                           search_id=None, **kwargs):
-    # if not search_id:
-    #     search_id = args.search_id
-
     if not PLANET_API_KEY:
-        logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+        logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
+                     'set?')
 
     scenes, search_name = select_scenes(search_id=search_id, dryrun=dryrun)
     if len(scenes) == 0:
@@ -862,26 +873,3 @@ def get_search_footprints(out_path=None, out_dir=None,
                                   dryrun=dryrun)
 
     return scenes
-
-
-# CLI from get_search_footprints
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser(description="""Get the footprints of a previously created search.""")
-#
-#     parser.add_argument('-i', '--search_id', type=str,
-#                         help='The ID of a previously created search. Use create_search.py to do so.')
-#     parser.add_argument('-op', '--out_path', type=os.path.abspath,
-#                         help='Path to write selected scene footprints to.')
-#     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-#                         help="""Directory to write scenes footprint to -
-#                         the search request name will be used for the filename.""")
-#     parser.add_argument('--to_tbl', type=str,
-#                         help="""Insert search results into this table.""")
-#     parser.add_argument('--dryrun', action='store_true',
-#                         help='Print actions, but do not actually download or write anything.')
-#     parser.add_argument('-v', '--verbose', action='store_true',
-#                         help='Set logging level to DEBUG')
-#
-#     args = parser.parse_args()
-#
-#     get_search_footprints(args, search_id=None)

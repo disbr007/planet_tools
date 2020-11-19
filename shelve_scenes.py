@@ -127,7 +127,7 @@ def shelve_scenes(input_directory, destination_directory=None,
         create_all_scene_manifests(input_directory)
     logger.info('Locating scene manifests...')
     # TODO: Is this an ok way to get all scene manifests?
-    # TODO: Speed up - capture from create all scene manifests?
+    # TODO: Speed up - multithread or - capture from create all scene manifests
     scene_manifests = input_directory.rglob('*_manifest.json')
 
     # Use manifests to create PlanetScene objects, this parses

@@ -608,7 +608,7 @@ class PlanetScene:
                     self.strip_id_found = False
                     logger.warning('Error getting strip_id for scene: '
                                    '{}'.format(self.scene_path))
-                    logger.error(e)
+                    logger.error('Error message: {}'.format(e))
         return self._strip_id
 
     @property
