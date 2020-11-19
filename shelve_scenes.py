@@ -225,6 +225,7 @@ def shelve_scenes(input_directory, destination_directory=None,
         srcs_dsts.extend(move_list)
 
     logger.info('Copying scenes to shelved locations...')
+
     # Determine copy function based on platform
     copy_fxn = determine_copy_fxn(transfer_method)
     prev_order = None  # for logging only
@@ -292,6 +293,9 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
                            geometry='geometry',
                            crs='epsg:4326')
+    logger.info('Index gdf: {}'.format(gdf))
+    logger.info('Index gdf dtypes: {}'.format(gdf.dtypes))
+
     logger.info('Indexing shelveable scenes: {}'.format(len(scenes)))
     with Postgres('sandwich-pool.planet') as db_src:
         db_src.insert_new_records(gdf,
