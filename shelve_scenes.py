@@ -157,7 +157,7 @@ def shelve_scenes(input_directory, destination_directory=None,
         else:
             logger.error('No scenes found. Are master manifests '
                          '("manifest.json") present in input_directory?\n'
-                         'input_directory: {}'.format(input_directory))
+                         'Input_directory: {}'.format(input_directory))
             sys.exit()
 
     logger.info('Scenes loaded: {:,}'.format(len(scenes)))
