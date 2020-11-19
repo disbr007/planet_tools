@@ -340,7 +340,9 @@ def shelve_scenes(input_directory, destination_directory=None,
 def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     # TODO: Pop this out to it's own script that can index
     #  any scenes, then just import
-    logger.info('Building index rows for shelveable scenes')
+
+    logger.info('Building index rows for shelveable scenes: '
+                '{:,}'.format(len(scenes)))
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],
                            geometry='geometry',
                            crs='epsg:4326')
