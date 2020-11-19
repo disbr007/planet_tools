@@ -416,6 +416,7 @@ class Postgres(object):
             return row_values in values
 
         # Check that records is not empty
+        logger.info('***records to be added: {}'.format(len(records)))
         if len(records) == 0:
             logger.warning('No records to be added.')
             return

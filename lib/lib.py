@@ -63,6 +63,7 @@ image = 'image'
 config_file = Path(__file__).parent.parent / "config" / "config.json"
 # config_file = r'C:\code\planet_stereo\config\config.json'
 
+
 def get_config(param):
     config_params = json.load(open(config_file))
     try:
