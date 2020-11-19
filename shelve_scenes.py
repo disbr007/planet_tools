@@ -163,17 +163,6 @@ def shelve_scenes(input_directory, destination_directory=None,
 
     logger.info('Scenes loaded: {:,}'.format(len(scenes)))
 
-    # Verify checksum, or mark all as skip if not checking
-    if verify_checksums:
-        # TODO: Multithread this - this is a slow point
-        logger.info('Verifying scene checksums...')
-        for ps in tqdm(scenes, desc='Verifying scene checksums...'):
-            ps.verify_checksum()
-    else:
-        logger.info('Skipping checksum verification...')
-        for ps in scenes:
-            ps.skip_checksum = True
-
     # Manage unshelveable scenes, i.e don't have valid checksum, associated
     # xml not found, etc.
     # TODO: Make this default
@@ -235,9 +224,9 @@ def shelve_scenes(input_directory, destination_directory=None,
                      skip_shelving['Indexed'])):
                 unshelveable.append(ps)
 
-        logger.info('Unshelveable scenes: {:,}'.format(unshelveable_count))
         logger.info('Already shelved scenes found: {:,}'.format(shelved_count))
         logger.info('Already indexed scenes found: {:,}'.format(indexed_count))
+        logger.info('Unshelveable scenes: {:,}'.format(unshelveable_count))
 
         # Remove unshelvable scenes from directory to shelve (optionally move)
         if len(unshelveable) > 0:
