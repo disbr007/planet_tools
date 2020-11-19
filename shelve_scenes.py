@@ -26,7 +26,7 @@ planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')
 index_tbl = 'scenes_onhand'
 index_unique_cols = ['identifier']
 # Names of columns holding geometry in index table
-geom_cols = ['geometry', 'centroid']
+# geom_cols = ['geometry', 'centroid']
 
 
 def determine_copy_fxn(transfer_method):
@@ -297,7 +297,7 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
         db_src.insert_new_records(gdf,
                                   table=index_tbl,
                                   unique_on=index_unique_cols,
-                                  geom_cols=geom_cols,
+                                  # geom_cols=geom_cols,
                                   dryrun=dryrun)
 
 
