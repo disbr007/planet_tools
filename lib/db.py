@@ -448,7 +448,7 @@ class Postgres(object):
             if len(records) != starting_count:
                 logger.info('Duplicates removed: {}'.format(starting_count -
                                                             len(records)))
-        logger.info('Remaining IDs to add: {:,}'.format(len(records)))
+        logger.info('IDs to add: {:,}'.format(len(records)))
         if len(records) == 0:
             logger.info('No new records, skipping indexing.')
             return
