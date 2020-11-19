@@ -180,13 +180,14 @@ def shelve_scenes(input_directory, destination_directory=None,
     if locate_unshelveable:
         # Get all indexed IDs to skip any repeats
         indexed_ids = []
+        logger.info('Loading indexed IDs...')
         with Postgres('sandwich-pool.planet') as db_src:
             indexed_ids = set(
                 db_src.get_values(layer=index_tbl,
                                   columns=index_unique_constraint,
                                   distinct=True)
             )
-        logger.info('Indexed IDs: {}'.format(list(indexed_ids)[0:10]))
+        logger.debug('Indexed IDs loaded: {:,}'.format((len(indexed_ids))))
 
         # Locate scenes that are not shelveable, or have already been shelved
         # and indexed
