@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 
 import pandas as pd
 import geopandas as gpd
+import shapely
 from shapely.geometry import Point, Polygon
 from tqdm import tqdm
 
@@ -245,8 +246,18 @@ def get_geometry_cols(gdf):
     -------
     list : Names of columns that are of type 'geometry'
     """
-    dtypes = gdf.dtypes
-    geom_cols = list(dtypes[dtypes == 'geometry'].index)
+    shapely_geoms = (shapely.geometry.collection.GeometryCollection,
+                     shapely.geometry.linestring.LineString,
+                     shapely.geometry.polygon.LinearRing,
+                     shapely.geometry.multilinestring.MultiLineString,
+                     shapely.geometry.multipoint.MultiPoint,
+                     shapely.geometry.multipolygon.MultiPolygon,
+                     shapely.geometry.point.Point,
+                     shapely.geometry.polygon.Polygon)
+    geom_cols = []
+    for col in gdf.columns:
+        if type(gdf[col].values[0]) in shapely_geoms:
+            geom_cols.append(col)
 
     return geom_cols
 
@@ -986,7 +997,7 @@ class PlanetScene:
 
         return self._index_row
 
-    # @property
+    @property
     def footprint_row(self, rel_to=None):
         # TODO: write, such that this only includes attributes
         #  we want in footprints
