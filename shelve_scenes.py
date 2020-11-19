@@ -17,10 +17,11 @@ logger = create_logger(__name__, 'sh', 'INFO')
 
 # Constants
 # Destination directory for shelving
-planet_data_dir = get_config("shelve_loc")
+planet_data_dir = get_config('shelve_loc')
 
 # Index table name
 index_tbl = 'scenes_onhand'
+index_unique_constraint = get_config('db')['tables'][index_tbl]['unique_id']
 
 
 def determine_copy_fxn(transfer_method):
@@ -177,11 +178,28 @@ def shelve_scenes(input_directory, destination_directory=None,
     # xml not found, etc.
     # TODO: Make this default
     if locate_unshelveable:
-        # Locate scenes that are not shelveable
+        # Get all indexed IDs to skip any repeats
+        indexed_ids = []
+        with Postgres('sandwich-pool.planet') as db_src:
+            indexed_ids = set(
+                db_src.get_values(layer=index_tbl,
+                                  columns=index_unique_constraint,
+                                  distinct=True)
+            )
+        logger.info('Indexed IDs: {}'.format(indexed_ids[0:10]))
+
+        # Locate scenes that are not shelveable, previously shelved,
         logger.info('Parsing XML files and locating any unshelveable '
                     'scenes...')
         unshelveable = []
         for ps in tqdm(scenes, desc='Parsing XML files:'):
+            skip_shelving = {'Unshelveable': False,
+                             'Shelved': False,
+                             'Indexed': False}
+            unshelveable_count = 0
+            shelved_count = 0
+            indexed_count = 0
+
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
@@ -198,14 +216,35 @@ def shelve_scenes(input_directory, destination_directory=None,
                     logger.debug('Strip ID: {}'.format(ps.strip_id))
                 except Exception as e:
                     logger.debug(e)
+                skip_shelving['Unshelveable'] = True
+                unshelveable_count += 1
+            if ps.is_shelved:
+                skip_shelving['Shelved'] = True
+                shelved_count += 1
+            if ps.identifier in indexed_ids:
+                skip_shelving['Indexed'] = True
+                indexed_count += 1
+            # Add to list to skip if scene is unshelveable, or it is BOTH
+            # shelved and indexed
+            if (skip_shelving['Unshelveable'] or
+                    (skip_shelving['Shelved'] and
+                     skip_shelving['Indexed'])):
                 unshelveable.append(ps)
+
+        logger.info('Unshelveable scenes: {}'.format(unshelveable_count))
+        logger.info('Already shelved scenes found: {}'.format(shelved_count))
+        logger.info('Already indexed scenes found: {}'.format(indexed_count))
+
         # Remove unshelvable scenes from directory to shelve (optionally move)
         if len(unshelveable) > 0:
-            logger.info('Unshelveable scenes found: {}'.format(len(unshelveable)))
-            handle_unshelveable(unshelveable, transfer_method=transfer_method,
+            logger.info('Total scenes not being shelved: '
+                        '{}'.format(len(unshelveable)))
+            handle_unshelveable(unshelveable,
+                                transfer_method=transfer_method,
                                 move_unshelveable=move_unshelveable,
                                 remove_sources=remove_sources,
                                 dryrun=dryrun)
+
             # Remove unshelveable scenes from list of scenes to shelve
             for unsh_ps in unshelveable:
                 if unsh_ps in scenes:

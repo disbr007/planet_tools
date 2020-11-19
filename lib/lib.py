@@ -30,6 +30,10 @@ logger = create_logger(__name__, 'sh', 'INFO')
 planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')  # /planet?
 if platform.system() == 'Windows':
     planet_data_dir = Path(r'V:\pgc\data\sat\orig')
+image = 'image'
+
+config_file = Path(__file__).parent.parent / "config" / "config.json"
+# config_file = r'C:\code\planet_stereo\config\config.json'
 
 # Constants
 windows = 'Windows'
@@ -57,11 +61,6 @@ manifest_suffix = 'manifest'
 # included in unusable data mask files paths
 udm = 'udm'
 # start of media_type in master manifest that indicates imagery
-image = 'image'
-
-
-config_file = Path(__file__).parent.parent / "config" / "config.json"
-# config_file = r'C:\code\planet_stereo\config\config.json'
 
 
 def get_config(param):
@@ -965,6 +964,10 @@ class PlanetScene:
     @property
     def shelved_location(self):
         return self.shelved_dir / self.scene_path.name
+
+    @ property
+    def is_shelved(self):
+        return self.shelved_location.exists()
 
     @property
     def index_row(self):
