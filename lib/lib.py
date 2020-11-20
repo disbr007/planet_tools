@@ -434,7 +434,7 @@ def get_scene_manifests(master_manifest):
     # Get metadata for all images
     scene_manifests = []
     for f in mani[k_files]:
-        # TODO: Identify imagery sections better
+        # TODO: Identify imagery sections of master manifest better
         if f[k_media_type].startswith(image) and udm not in f[k_path]:
             scene_manifests.append(f)
 
@@ -496,6 +496,18 @@ def verify_scene_md5(manifest_md5, scene_file):
         verified = False
 
     return verified
+
+
+def verify_all_checksums(scenes, verify_checksums=True):
+    # Verify checksum, or mark all as skip if not checking
+    if verify_checksums:
+        logger.info('Verifying scene checksums...')
+        for ps in tqdm(scenes, desc='Verifying scene checksums...'):
+            ps.verify_checksum()
+    else:
+        logger.info('Skipping checksum verification...')
+        for ps in scenes:
+            ps.skip_checksum = True
 
 
 def tag_uri_and_name(elem):
@@ -583,7 +595,7 @@ class PlanetScene:
         self._metadata_json = None
         self._xml_path = None
         self._scene_files = None
-        self._valid_md5 = None
+        self._valid_checksum = None
         self._xml_attributes = None # Keep?
         # Attributes from .xml
         self._identifier = None
@@ -604,9 +616,9 @@ class PlanetScene:
         self.xml_valid = True
         self.strip_id_found = True
         self.skip_checksum = None
+        self.indexed = None
         self._index_row = None
         self._footprint_row = None
-        self.indexed = None
 
         # Bundle types that have been tested for compatibility with naming
         # conventions
@@ -617,7 +629,8 @@ class PlanetScene:
                                        'uncalibrated_dn']
         # Ensure bundle_type is suppported
         if self.bundle_type not in self.supported_bundle_types:
-            logger.error('Bundle type not tested: {}'.format(self.bundle_type))
+            logger.warning('Bundle type not tested: '
+                           '{}'.format(self.bundle_type))
 
     @property
     def metadata_json(self):
@@ -672,14 +685,15 @@ class PlanetScene:
             self._scene_files = self.meta_files + [self.scene_path]
         return self._scene_files
 
-    def verify_checksum(self):
-        return self.valid_md5
-
     @property
-    def valid_md5(self):
-        if self._valid_md5 is None and not self.skip_checksum:
-            self._valid_md5 = verify_scene_md5(self.md5, self.scene_path)
-        return self._valid_md5
+    def valid_checksum(self):
+        if self._valid_checksum is None:
+            self._valid_checksum = verify_scene_md5(self.md5, self.scene_path)
+        return self._valid_checksum
+
+    def verify_checksum(self):
+        if not self.skip_checksum:
+            return self.valid_checksum
 
     @property
     def xml_path(self):
@@ -908,6 +922,7 @@ class PlanetScene:
 
     @property
     def shelveable(self):
+        """True if all attributes necessary to shelve are found."""
         required_atts = [self.scene_path.exists(),
                          self.xml_path,
                          self.xml_valid,
@@ -918,14 +933,11 @@ class PlanetScene:
                          self.acquisition_datetime,
                          self.strip_id,
                          self.strip_id_found,
-                         (self.verify_checksum() or self.skip_checksum)
+                         # (self.verify_checksum() or self.skip_checksum)
                          ]
         if not all([ra for ra in required_atts]):
             logger.debug('Scene unshelveable: {}\n'.format(self.scene_path))
             logger.debug('Scene exists: {}'.format(self.scene_path.exists()))
-            logger.debug('Checksum: {}'.format(self.verify_checksum() if not
-                                               self.skip_checksum else
-                                               self.skip_checksum))
             logger.debug('XML path: {}'.format(self.xml_path))
             logger.debug('XML path exists: {}'.format(self.xml_path.exists()
                                                       if self.xml_path else
@@ -938,6 +950,9 @@ class PlanetScene:
             logger.debug('Strip ID: {}'.format(self.strip_id))
             logger.debug('Acquistion datetime: '
                          '{}'.format(self.acquisition_datetime))
+            # logger.debug('Checksum: {}'.format(self.verify_checksum() if not
+            #                                    self.skip_checksum else
+            #                                    self.skip_checksum))
             self._shelveable = False
         else:
             self._shelveable = True
@@ -952,7 +967,7 @@ class PlanetScene:
             month_str = self.acquisition_datetime.strftime('%m')
             acquired_day = self.acquisition_datetime.strftime('%d')
             # acquired_hour = self.acquisition_datetime.strftime('%H')
-            self._shelved_dir = self.shelved_parent / Path(os.path.join(
+            self._shelved_dir = self.shelved_parent.joinpath(
                                 self.instrument.replace('.', ''),
                                 self.product_type,
                                 self.bundle_type,
@@ -960,7 +975,7 @@ class PlanetScene:
                                 acquired_year,
                                 month_str,
                                 acquired_day,
-                                self.strip_id))
+                                self.strip_id)
         return self._shelved_dir
 
     @property

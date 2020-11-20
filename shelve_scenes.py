@@ -163,23 +163,11 @@ def shelve_scenes(input_directory, destination_directory=None,
 
     logger.info('Scenes loaded: {:,}'.format(len(scenes)))
 
-    # # Verify checksum, or mark all as skip if not checking
-    # if verify_checksums:
-    #     # TODO: Multithread this - this is a slow point
-    #     logger.info('Verifying scene checksums...')
-    #     for ps in tqdm(scenes, desc='Verifying scene checksums...'):
-    #         ps.verify_checksum()
-    # else:
-    #     logger.info('Skipping checksum verification...')
-    #     for ps in scenes:
-    #         ps.skip_checksum = True
-
     # Manage unshelveable scenes, i.e don't have valid checksum, associated
     # xml not found, etc.
     # TODO: Make this default
     if locate_unshelveable:
-        # Get all indexed IDs to skip any repeats
-        indexed_ids = []
+        # Get all indexed IDs to skip reindexing
         logger.info('Loading indexed IDs...')
         with Postgres('sandwich-pool.planet') as db_src:
             indexed_ids = set(
@@ -192,28 +180,19 @@ def shelve_scenes(input_directory, destination_directory=None,
         # Locate scenes that are not shelveable, or have already been shelved
         # and indexed
         logger.info('Parsing XML files and verifying checksums...')
-        unshelveable = []
+        skip_scenes = []
         unshelveable_count = 0
         shelved_count = 0
         indexed_count = 0
+        bad_checksum_count = 0
         for ps in tqdm(scenes, desc='Parsing XML files and verifying checksums:'):
-            # Check if scene has been shelved and indexed first to avoid
-            # verifying checksums for scenes that don't need to be reshelved
-            if ps.is_shelved:
-                shelved_count += 1
-            if ps.identifier in indexed_ids:
-                ps.indexed = True
-                indexed_count += 1
-            if ps.is_shelved and ps.indexed:
-                unshelveable.append(ps)
-                continue
+            # Check if scene is shelveable or has been shelved and indexed
+            # first to avoid verifying checksums for scenes that don't are
+            # unshelveable or don't need to be reshelved
             if not ps.shelveable:
                 try:
                     logger.warning('UNSHELVABLE: {}'.format(ps.scene_path))
                     logger.debug('Scene exists: {}'.format(ps.scene_path.exists()))
-                    logger.debug('Checksum: {}'.format(ps.verify_checksum() if
-                                                       not ps.skip_checksum
-                                                       else ps.skip_checksum))
                     logger.debug('XML Path: {}'.format(ps.xml_path))
                     logger.debug('XML parseable: {}'.format(ps.xml_valid))
                     logger.debug('Instrument: {}'.format(ps.instrument))
@@ -224,25 +203,41 @@ def shelve_scenes(input_directory, destination_directory=None,
                 except Exception as e:
                     logger.debug(e)
                 unshelveable_count += 1
-                unshelveable.append(ps)
+                skip_scenes.append(ps)
+                continue
+            if ps.is_shelved:
+                shelved_count += 1
+            if ps.identifier in indexed_ids:
+                ps.indexed = True
+                indexed_count += 1
+            if ps.is_shelved and ps.indexed:
+                skip_scenes.append(ps)
+                continue
+            if verify_checksums:
+                if not ps.verify_checksum():
+                    logger.warning('Invalid checksum: '
+                                   '{}'.format(ps.scene_path))
+                    bad_checksum_count += 1
+                    skip_scenes.append(ps)
 
+        # Report counts of scenes that will not be shelved
+        logger.info('Already shelved scenes found:  {:,}'.format(shelved_count))
+        logger.info('Already indexed scenes found:  {:,}'.format(indexed_count))
+        logger.info('Unshelveable (bad attributes): {:,}'.format(unshelveable_count))
+        logger.info('Bad checksums:                 {:,}'.format(bad_checksum_count))
 
-        logger.info('Already shelved scenes found: {:,}'.format(shelved_count))
-        logger.info('Already indexed scenes found: {:,}'.format(indexed_count))
-        logger.info('Unshelveable scenes: {:,}'.format(unshelveable_count))
-
-        # Remove unshelvable scenes from directory to shelve (optionally move)
-        if len(unshelveable) > 0:
+        # Remove skippable scenes from directory to shelve (optionally move)
+        if len(skip_scenes) > 0:
             logger.info('Total scenes not being shelved: '
-                        '{:,}'.format(len(unshelveable)))
-            handle_unshelveable(unshelveable,
+                        '{:,}'.format(len(skip_scenes)))
+            handle_unshelveable(skip_scenes,
                                 transfer_method=transfer_method,
                                 move_unshelveable=move_unshelveable,
                                 remove_sources=remove_sources,
                                 dryrun=dryrun)
 
-            # Remove unshelveable scenes from list of scenes to shelve
-            for unsh_ps in unshelveable:
+            # Remove skippable scenes from list of scenes to shelve
+            for unsh_ps in skip_scenes:
                 if unsh_ps in scenes:
                     scenes.remove(unsh_ps)
                 else:
