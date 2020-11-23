@@ -532,7 +532,6 @@ class Postgres(object):
                         logger.warning(e)
                     else:
                         logger.error(e)
-                        raise e
 
             self.connection.commit()
         else:
