@@ -269,8 +269,10 @@ class Postgres(object):
         self.connection.close()
 
     def __del__(self):
-        self.cursor.close()
-        self.connection.close()
+        if not self.cursor.closed:
+            self.cursor.close()
+        if not self.connection.closed:
+            self.connection.close()
 
     @property
     def cursor(self):
@@ -279,6 +281,8 @@ class Postgres(object):
         if self._cursor.closed:
             logger.info('Reopening cursor...')
             self._cursor = self.connection.cursor()
+            # TODO: Remove this
+            logger.info('Cursor: {}'.format(self._cursor.closed))
 
         return self._cursor
 
@@ -538,6 +542,8 @@ class Postgres(object):
                         # TODO: Should connection.commit() after every INSERT
                         #  or once at the end?
                         self.connection.commit()
+                        logger.info('Connection: {}'.format(self.connection.closed))
+                        logger.info('Cursor: {}'.format(self.cursor.closed))
                     except Exception as e:
                         if e == psycopg2.errors.UniqueViolation:
                             logger.warning('Skipping due to unique violation '
@@ -545,10 +551,18 @@ class Postgres(object):
                                            '{}'.format(row[unique_on]))
                             logger.warning(e)
                             self.connection.rollback()
+                            logger.info('Connection: {}'.format(
+                                self.connection.closed))
+                            logger.info(
+                                'Cursor: {}'.format(self.cursor.closed))
                         else:
                             logger.debug('Error on statement: {}'.format(
                                 f"{str(self.cursor.mogrify(insert_statement, values))}"))
                             logger.debug(e)
+                            logger.info('Connection: {}'.format(
+                                self.connection.closed))
+                            logger.info(
+                                'Cursor: {}'.format(self.cursor.closed))
             # self.connection.commit()
         else:
             logger.info('No new records to be written.')
