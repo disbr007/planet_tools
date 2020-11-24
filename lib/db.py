@@ -237,14 +237,17 @@ class Postgres(object):
         self.database = config['database']
         self.user = config['user']
         self.password = config['password']
+        self._connection = None
+        self._cursor = None
+
+    @property
+    def connection(self):
         try:
-            self.connection = psycopg2.connect(user=self.user,
+            self._connection = psycopg2.connect(user=self.user,
                                                password=self.password,
                                                host=self.host,
                                                database=self.database)
-            self.cursor = self.connection.cursor()
-            self.cursor.execute('SELECT VERSION()')
-            db_version = self.cursor.fetchone()
+
         except psycopg2.Error as error:
             Postgres._instance = None
             logger.error('Error connecting to {} at {}'.format(self.database,
@@ -252,8 +255,10 @@ class Postgres(object):
             logger.error(error)
             raise error
         else:
-            logger.debug('Connection to {} at {} established. Version: '
-                         '{}'.format(self.database, self.host, db_version))
+            logger.debug('Connection to {} at {} established.'.format(
+                self.database, self.host))
+
+        return self._connection
 
     def __enter__(self):
         return self
@@ -265,6 +270,16 @@ class Postgres(object):
     def __del__(self):
         self.cursor.close()
         self.connection.close()
+
+    @property
+    def cursor(self):
+        if self._cursor is None:
+            self._cursor = self.connection.cursor()
+        if self._cursor.closed:
+            logger.info('Reopening cursor...')
+            self._cursor = self.connection.cursor()
+
+        return self._cursor
 
     def list_db_tables(self):
         logger.debug('Listing tables...')
