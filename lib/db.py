@@ -539,8 +539,6 @@ class Postgres(object):
                         # TODO: Should connection.commit() after every INSERT
                         #  or once at the end?
                         self.connection.commit()
-                        logger.info('Connection: {}'.format(self.connection.closed))
-                        logger.info('Cursor: {}'.format(self.cursor.closed))
                     except Exception as e:
                         if e == psycopg2.errors.UniqueViolation:
                             logger.warning('Skipping due to unique violation '
@@ -548,19 +546,10 @@ class Postgres(object):
                                            '{}'.format(row[unique_on]))
                             logger.warning(e)
                             self.connection.rollback()
-                            logger.info('Connection: {}'.format(
-                                self.connection.closed))
-                            logger.info(
-                                'Cursor: {}'.format(self.cursor.closed))
                         else:
                             logger.debug('Error on statement: {}'.format(
                                 f"{str(self.cursor.mogrify(insert_statement, values))}"))
                             logger.debug(e)
-                            logger.info('Connection: {}'.format(
-                                self.connection.closed))
-                            logger.info(
-                                'Cursor: {}'.format(self.cursor.closed))
-            # self.connection.commit()
         else:
             logger.info('No new records to be written.')
             
