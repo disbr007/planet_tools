@@ -373,7 +373,7 @@ def main(args):
         logfile = create_logfile_path('shelve_scenes', logdir)
         logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
         for sl in subloggers:
-            create_logger(sl, 'fh', 'DEBUG')
+            create_logger(sl, 'fh', 'DEBUG', filename=logfile)
 
     # Verify arguments
     if not input_directory.exists():
