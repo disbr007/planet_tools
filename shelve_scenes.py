@@ -13,7 +13,11 @@ from lib.db import Postgres
 from lib.lib import create_scene_manifests, PlanetScene, get_config
 from lib.logging_utils import create_logger, create_logfile_path
 
+subloggers = ['lib.db', 'lib.lib']
+
 logger = create_logger(__name__, 'sh', 'INFO')
+for sl in subloggers:
+    create_logger(sl, 'sh', 'INFO')
 
 # Constants
 # Destination directory for shelving
@@ -339,7 +343,7 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
                            geometry='geometry',
                            crs='epsg:4326')
 
-    logger.info('Indexing shelveable scenes: {}'.format(len(scenes)))
+    logger.info('Indexing shelveable scenes: {:,}'.format(len(scenes)))
     with Postgres('sandwich-pool.planet') as db_src:
         db_src.insert_new_records(gdf,
                                   table=index_tbl,
@@ -368,6 +372,8 @@ def main(args):
     if logdir:
         logfile = create_logfile_path('shelve_scenes', logdir)
         logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
+        for sl in subloggers:
+            create_logger(sl, 'fh', 'DEBUG')
 
     # Verify arguments
     if not input_directory.exists():

@@ -19,6 +19,7 @@ from .logging_utils import create_logger
 pd.set_option('mode.chained_assignment', None)
 
 logger = create_logger(__name__, 'sh', 'INFO')
+print('lib.db name: {}'.format(__name__))
 
 # Paths to config files for connecting to various DB's
 # TODO: Find paths to config files better
@@ -328,6 +329,9 @@ class Postgres(object):
         self.cursor.execute(sql.SQL(
             """SELECT COUNT(*) FROM {}""").format(layer))
         count = self.cursor.fetchall()[0][0]
+        logger.debug('{} count: {:,}'.format(layer, count))
+        logger.info('{} count: {:,}'.format(layer, count))
+        logger.warning('{} count: {:,}'.format(layer, count))
 
         return count
 

@@ -182,15 +182,18 @@ def project_path():
     return prj_path
 
 
-def project_modules():
-    modules = [f.split('.')[0] for root, dirs, files in os.walk(project_path()) for f in files if f.endswith('.py')]
+def project_modules(repo_path=None):
+    if repo_path is None:
+        repo_path = project_path()
+    modules = [f.split('.')[0] for root, dirs, files in os.walk(repo_path)
+               for f in files if f.endswith('.py')]
 
     return modules
 
 
-def imported_modules():
+def imported_modules(repo_path=None):
     # TODO: modules is missing submodule name, i.e. submodule.fxn is just fxn?
-    modules = project_modules()
+    modules = project_modules(repo_path)
     imported = [m for m in modules if m in sys.modules.keys()]
     
     return imported
