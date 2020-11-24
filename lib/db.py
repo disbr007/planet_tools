@@ -251,8 +251,8 @@ class Postgres(object):
             logger.error(error)
             raise error
         else:
-            logger.debug('Connection to {} at {} established. Version: {}'.format(self.database, self.host,
-                                                                                  db_version))
+            logger.debug('Connection to {} at {} established. Version: '
+                         '{}'.format(self.database, self.host, db_version))
 
     def __enter__(self):
         return self
@@ -374,10 +374,7 @@ class Postgres(object):
 
         return df
 
-    def insert_new_records(self, records, table,
-                           # unique_on=None,
-                           # geom_cols=None,
-                           dryrun=False):
+    def insert_new_records(self, records, table, dryrun=False):
         """
         Add records to table, converting data types as necessary for INSERT.
         Optionally using a unique_id (or combination of columns) to skip
@@ -386,9 +383,9 @@ class Postgres(object):
             DataFrame containing rows to be inserted to table
         table : str
             Name of table to be inserted into
-        geom_cols : list
-            List of columns containing geometries.
         """
+        # TODO: Create overwrite scenes option that removes any scenes in the
+        #  input from the DB before writing them
 
         def _row_columns_unique(row, unique_on, values):
             """Determines if row has combination of columns in unique_on that
@@ -461,7 +458,6 @@ class Postgres(object):
             geom_cols = []
 
         # Insert new records
-        # TODO: Fix received datetime format (?)
         if len(records) != 0:
             logger.info('Writing new records to {}.{}: '
                         '{:,}'.format(self.database, table, len(records)))
@@ -481,9 +477,9 @@ class Postgres(object):
                     for gc in geom_cols:
                         columns.append(sql.Identifier(gc))
                 # Create INSERT statement, parenthesis left open intentionally
-                # to accommodate adding geometry statements
-                # "ST_GeomFromText(..)" closed in else block if no geometry
-                # columns
+                # to accommodate adding geometry statements, e.g.:
+                # "ST_GeomFromText(..)"
+                # paranthesis, closed in else block if no geometry columns
                 insert_statement = sql.SQL(
                     "INSERT INTO {table} ({columns}) VALUES ({values}").format(
                     table=sql.Identifier(table),
@@ -532,7 +528,8 @@ class Postgres(object):
                                            '{}'.format(row[unique_on]))
                             logger.warning(e)
                         else:
-                            logger.error(e)
+                            pass
+                            # logger.error(e)
 
             self.connection.commit()
         else:
@@ -541,6 +538,3 @@ class Postgres(object):
         logger.info('New count for {}.{}: '
                     '{:,}'.format(self.database, table,
                                   self.get_table_count(table)))
-
-    # TODO: Create overwrite scenes function that removes any scenes in the
-    #  input before writing them to DB
