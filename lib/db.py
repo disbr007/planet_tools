@@ -242,21 +242,22 @@ class Postgres(object):
 
     @property
     def connection(self):
-        try:
-            self._connection = psycopg2.connect(user=self.user,
-                                               password=self.password,
-                                               host=self.host,
-                                               database=self.database)
+        if self._connection is None:
+            try:
+                self._connection = psycopg2.connect(user=self.user,
+                                                   password=self.password,
+                                                   host=self.host,
+                                                   database=self.database)
 
-        except psycopg2.Error as error:
-            Postgres._instance = None
-            logger.error('Error connecting to {} at {}'.format(self.database,
-                                                               self.host))
-            logger.error(error)
-            raise error
-        else:
-            logger.debug('Connection to {} at {} established.'.format(
-                self.database, self.host))
+            except psycopg2.Error as error:
+                Postgres._instance = None
+                logger.error('Error connecting to {} at {}'.format(self.database,
+                                                                   self.host))
+                logger.error(error)
+                raise error
+            else:
+                logger.debug('Connection to {} at {} established.'.format(
+                    self.database, self.host))
 
         return self._connection
 
