@@ -269,9 +269,9 @@ class Postgres(object):
         self.connection.close()
 
     def __del__(self):
-        if not self.cursor.closed:
-            self.cursor.close()
         if not self.connection.closed:
+            if not self.cursor.closed:
+                self.cursor.close()
             self.connection.close()
 
     @property

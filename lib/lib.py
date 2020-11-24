@@ -4,7 +4,7 @@ import datetime
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import pathlib
 import platform
 import re
@@ -26,10 +26,11 @@ logger = create_logger(__name__, 'sh', 'INFO')
 #  (lots of repeated "XML path: None", "XML Path not located")
 
 # Shelve parent directory
+
 # TODO: move this to a config file
-planet_data_dir = Path(r'/mnt/pgc/data/sat/orig')  # /planet?
-if platform.system() == 'Windows':
-    planet_data_dir = Path(r'V:\pgc\data\sat\orig')
+planet_data_dir = PurePosixPath(r'/mnt/pgc/data/sat/orig')  # /planet?
+# if platform.system() == 'Windows':
+    # planet_data_dir = Path(r'V:\pgc\data\sat\orig')
 image = 'image'
 
 config_file = Path(__file__).parent.parent / "config" / "config.json"
