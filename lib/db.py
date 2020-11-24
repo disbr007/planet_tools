@@ -279,10 +279,7 @@ class Postgres(object):
         if self._cursor is None:
             self._cursor = self.connection.cursor()
         if self._cursor.closed:
-            logger.info('Reopening cursor...')
             self._cursor = self.connection.cursor()
-            # TODO: Remove this
-            logger.info('Cursor: {}'.format(self._cursor.closed))
 
         return self._cursor
 

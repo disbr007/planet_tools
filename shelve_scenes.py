@@ -406,7 +406,7 @@ def main(args):
                            remove_sources=remove_sources,
                            cleanup=cleanup,
                            dryrun=dryrun)
-    logger.info('Scnes: {}'.format(scenes))
+
     if (scenes is not None) and (len(scenes) != 0) and run_indexer:
         index_scenes(scenes, index_tbl=index_tbl, dryrun=dryrun)
 
