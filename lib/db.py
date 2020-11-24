@@ -345,8 +345,6 @@ class Postgres(object):
             """SELECT COUNT(*) FROM {}""").format(layer))
         count = self.cursor.fetchall()[0][0]
         logger.debug('{} count: {:,}'.format(layer, count))
-        logger.info('{} count: {:,}'.format(layer, count))
-        logger.warning('{} count: {:,}'.format(layer, count))
 
         return count
 
@@ -534,7 +532,6 @@ class Postgres(object):
                 # Make the INSERT
                 with self.cursor as cursor:
                     try:
-                        logger.debug(f"{str(self.cursor.mogrify(insert_statement, values))}")
                         cursor.execute(self.cursor.mogrify(insert_statement,
                                                            values))
                         # TODO: Should connection.commit() after every INSERT
@@ -546,11 +543,12 @@ class Postgres(object):
                                            'for scene: '
                                            '{}'.format(row[unique_on]))
                             logger.warning(e)
+                            self.connection.rollback()
                         else:
-                            pass
-                            # logger.error(e)
-
-            self.connection.commit()
+                            logger.debug('Error on statement: {}'.format(
+                                f"{str(self.cursor.mogrify(insert_statement, values))}"))
+                            logger.debug(e)
+            # self.connection.commit()
         else:
             logger.info('No new records to be written.')
             
