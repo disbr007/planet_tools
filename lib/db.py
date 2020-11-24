@@ -517,22 +517,22 @@ class Postgres(object):
                           else row[f].wkt for f in row.index}
 
                 # Make the INSERT
-                try:
-                    logger.debug(
-                        f"{str(self.cursor.mogrify(insert_statement, values))}")
-                    self.cursor.execute(self.cursor.mogrify(insert_statement,
-                                                            values))
-                    # TODO: Should connection.commit() after every INSERT or
-                    #  once at the end?
-                    self.connection.commit()
-                except Exception as e:
-                    if e == psycopg2.errors.UniqueViolation:
-                        logger.warning('Skipping due to unique violation '
-                                       'for scene: '
-                                       '{}'.format(row[unique_on]))
-                        logger.warning(e)
-                    else:
-                        logger.error(e)
+                with self.cursor as cursor:
+                    try:
+                        logger.debug(f"{str(self.cursor.mogrify(insert_statement, values))}")
+                        cursor.execute(self.cursor.mogrify(insert_statement,
+                                                           values))
+                        # TODO: Should connection.commit() after every INSERT
+                        #  or once at the end?
+                        self.connection.commit()
+                    except Exception as e:
+                        if e == psycopg2.errors.UniqueViolation:
+                            logger.warning('Skipping due to unique violation '
+                                           'for scene: '
+                                           '{}'.format(row[unique_on]))
+                            logger.warning(e)
+                        else:
+                            logger.error(e)
 
             self.connection.commit()
         else:
