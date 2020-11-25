@@ -287,3 +287,6 @@ GRANT SELECT ON scenes_onhand TO pgc_users;
 
 SELECT * FROM scenes_onhand
 WHERE identifier = '20190301_144335_100d_1B_AnalyticMS';
+
+SELECT * FROM scenes_onhand
+WHERE identifier = '20200312_173103_100a_1B_AnalyticMS';

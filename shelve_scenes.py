@@ -233,7 +233,7 @@ def shelve_scenes(input_directory, destination_directory=None,
         # Remove skippable scenes from directory to shelve (optionally move)
         if len(skip_scenes) > 0:
             logger.info('Total scenes not being shelved: '
-                        '{:,}'.format(len(skip_scenes)))
+                        '{:,}\n'.format(len(skip_scenes)))
             handle_unshelveable(skip_scenes,
                                 transfer_method=transfer_method,
                                 move_unshelveable=move_unshelveable,
@@ -277,11 +277,14 @@ def shelve_scenes(input_directory, destination_directory=None,
     # Determine copy function based on platform
     copy_fxn = determine_copy_fxn(transfer_method)
     prev_order = None  # for logging only
-    for src, dst in tqdm(srcs_dsts):
+    pbar = tqdm(srcs_dsts)
+    for src, dst in pbar:
         # Log the current order directory being parsed
         current_order = src.relative_to(input_directory).parts[0]
         if current_order != prev_order:
-            logger.info('Shelving order directory: {}'.format(current_order))
+            logger.debug('Shelving order directory: {}'.format(current_order))
+            pbar.set_description('Shelving order directory: '
+                                 '{}'.format(current_order))
         # Go no further if dryrun
         if dryrun:
             prev_order = current_order
@@ -336,7 +339,7 @@ def shelve_scenes(input_directory, destination_directory=None,
 
 def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
     # TODO: Pop this out to it's own script that can index
-    #  any scenes, then just import
+    #  any scenes, then import here
     logger.info('Building index rows for shelveable scenes: '
                 '{:,}'.format(len(scenes)))
     gdf = gpd.GeoDataFrame([s.index_row for s in scenes if s.shelveable],

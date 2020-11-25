@@ -197,12 +197,12 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
     if columns != '*' and geom_col not in columns:
         columns.append(geom_col)
 
-    sql_statement = generate_sql(layer=stereo_pair_cand, columns=columns, where=where,
-                                limit=limit, orderby=orderby,
-                                orderby_asc=orderby_asc,
-                                remove_id_tbl=remove_id_tbl,
-                                remove_id_tbl_col=remove_id_tbl_col,
-                                remove_id_src_cols=remove_id_src_cols)
+    sql_statement = generate_sql(layer=stereo_pair_cand, columns=columns,
+                                 where=where, limit=limit, orderby=orderby,
+                                 orderby_asc=orderby_asc,
+                                 remove_id_tbl=remove_id_tbl,
+                                 remove_id_tbl_col=remove_id_tbl_col,
+                                 remove_id_src_cols=remove_id_src_cols)
 
     return sql_statement
 
@@ -546,10 +546,17 @@ class Postgres(object):
                                            '{}'.format(row[unique_on]))
                             logger.warning(e)
                             self.connection.rollback()
+                        elif e == psycopg2.errors.IntegrityError:
+                            logger.warning('Skipping due to integrity error '
+                                           'for scene: '
+                                           '{}'.format(row[unique_on]))
+                            logger.warning(e)
+                            self.connection.rollback()
                         else:
                             logger.debug('Error on statement: {}'.format(
                                 f"{str(self.cursor.mogrify(insert_statement, values))}"))
-                            logger.debug(e)
+                            logger.error(e)
+                            self.connection.rollback()
         else:
             logger.info('No new records to be written.')
             
