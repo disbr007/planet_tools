@@ -257,7 +257,7 @@ def shelve_scenes(input_directory, destination_directory=None,
     logger.info('Loading indexed IDs...')
     with Postgres() as db_src:
         indexed_ids = set(
-            db_src.get_values(layer=index_tbl,
+            db_src.get_values(table=index_tbl,
                               columns=index_unique_constraint,
                               distinct=True)
         )
