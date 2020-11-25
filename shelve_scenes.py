@@ -255,7 +255,7 @@ def shelve_scenes(input_directory, destination_directory=None,
     # xml not found, etc.
     # Get all indexed IDs to skip reindexing
     logger.info('Loading indexed IDs...')
-    with Postgres('sandwich-pool.planet') as db_src:
+    with Postgres() as db_src:
         indexed_ids = set(
             db_src.get_values(layer=index_tbl,
                               columns=index_unique_constraint,
