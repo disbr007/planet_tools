@@ -307,30 +307,30 @@ def shelve_scenes(input_directory, destination_directory=None,
                 bad_checksum_count += 1
                 skip_scenes.append(ps)
 
-        # Report counts of scenes that will not be shelved
-        logger.info('Already shelved scenes found:  {:,}'.format(shelved_count))
-        logger.info('Already indexed scenes found:  {:,}'.format(indexed_count))
-        logger.info('Unshelveable (bad attributes): {:,}'.format(unshelveable_count))
-        logger.info('Bad checksums:                 {:,}'.format(bad_checksum_count))
+    # Report counts of scenes that will not be shelved
+    logger.info('Already shelved scenes found:  {:,}'.format(shelved_count))
+    logger.info('Already indexed scenes found:  {:,}'.format(indexed_count))
+    logger.info('Unshelveable (bad attributes): {:,}'.format(unshelveable_count))
+    logger.info('Bad checksums:                 {:,}'.format(bad_checksum_count))
 
-        # Remove skippable scenes from directory to shelve (optionally move)
-        if len(skip_scenes) > 0:
-            logger.info('Total scenes not being shelved: '
-                        '{:,}\n'.format(len(skip_scenes)))
-            handle_unshelveable(skip_scenes,
-                                transfer_method=transfer_method,
-                                move_unshelveable=move_unshelveable,
-                                remove_sources=remove_sources,
-                                dryrun=dryrun)
+    # Remove skippable scenes from directory to shelve (optionally move)
+    if len(skip_scenes) > 0:
+        logger.info('Total scenes not being shelved: '
+                    '{:,}\n'.format(len(skip_scenes)))
+        handle_unshelveable(skip_scenes,
+                            transfer_method=transfer_method,
+                            move_unshelveable=move_unshelveable,
+                            remove_sources=remove_sources,
+                            dryrun=dryrun)
 
-            # Remove skippable scenes from list of scenes to shelve
-            for unsh_ps in skip_scenes:
-                if unsh_ps in scenes:
-                    scenes.remove(unsh_ps)
-                else:
-                    logger.warning('Unable to remove unshelveable scene from '
-                                   'list of scenes to shelve: '
-                                   '{}'.format(unsh_ps.scene_path))
+        # Remove skippable scenes from list of scenes to shelve
+        for unsh_ps in skip_scenes:
+            if unsh_ps in scenes:
+                scenes.remove(unsh_ps)
+            else:
+                logger.warning('Unable to remove unshelveable scene from '
+                               'list of scenes to shelve: '
+                               '{}'.format(unsh_ps.scene_path))
 
     if manage_unshelveable_only:
         logger.info('Managing unshelveable scenes complete, exiting.')
