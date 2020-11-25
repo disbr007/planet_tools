@@ -281,7 +281,9 @@ SELECT * FROM scenes;
 
 select * from scenes_onhand;
 drop table scenes_onhand;
-delete from scenes_onhand where 1=1;
+
+delete from scenes_onhand
+where identifier='20190929_175204_1013_1B_AnalyticMS';
 
 GRANT SELECT ON scenes_onhand TO pgc_users;
 

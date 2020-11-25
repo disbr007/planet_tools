@@ -10,7 +10,7 @@ with Postgres(db_config) as db_src:
     q = db_src.execute_sql("SELECT * FROM {}".format(tbl))
     ct = db_src.get_sql_count("SELECT * FROM {}".format(tbl))
     tct = db_src.get_table_count(tbl)
-    lcols = db_src.get_layer_columns(tbl)
+    lcols = db_src.get_table_columns(tbl)
     vals = db_src.get_values(tbl, columns=columns)
     df = db_src.sql2df("SELECT * FROM {}".format(tbl))
     gdf = db_src.sql2gdf("SELECT * FROM {}".format(tbl),

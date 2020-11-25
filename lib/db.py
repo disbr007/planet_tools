@@ -28,11 +28,11 @@ db_confs = {
         Path(__file__).parent.parent / 'config' / 'sandwich-pool.planet.json'
 }
 
-# TODO: Store table unique IDs in config file, rather than passing to
-#  insert_new_records
 # Params
-db_config = get_config("db")
-tables_config = db_config["tables"]
+db_params = get_config("db")
+db_config = db_params["db_config"]
+tables_config = db_params["tables"]
+
 k_unique_id = "unique_id"  # key in config
 
 stereo_pair_cand = 'stereo_candidates'
@@ -48,11 +48,11 @@ fld_ovlp_perc = 'ovlp_perc'
 fld_geom = 'ovlp_geom'
 
 
-def load_db_config(db_conf):
-    """Load config params for connecting to PostGRES DB"""
-    params = json.load(open(db_conf))
-
-    return params
+# def load_db_config(db_conf):
+#     """Load config params for connecting to PostGRES DB"""
+#     params = json.load(open(db_conf))
+#
+#     return params
 
 
 def check_where(where, join='AND'):
@@ -221,7 +221,7 @@ def intersect_aoi_where(aoi, geom_col):
     return aoi_where
 
 
-class Postgres(object):
+class Postgres(object, db_config=db_config):
     """
     Class for interacting with Postgres database using psycopg2. This
     allows keeping a connection and cursor open while performing multiple
@@ -231,23 +231,23 @@ class Postgres(object):
     """
     _instance = None
 
-    def __init__(self, db_name):
-        config = load_db_config(db_confs[db_name])
-        self.host = config['host']
-        self.database = config['database']
-        self.user = config['user']
-        self.password = config['password']
+    def __init__(self):
+        self.host = db_config['host']
+        self.database = db_config['database']
+        self.user = db_config['user']
+        self.password = db_config['password']
         self._connection = None
         self._cursor = None
 
     @property
     def connection(self):
+        """Establish connection to database."""
         if self._connection is None:
             try:
                 self._connection = psycopg2.connect(user=self.user,
-                                                   password=self.password,
-                                                   host=self.host,
-                                                   database=self.database)
+                                                    password=self.password,
+                                                    host=self.host,
+                                                    database=self.database)
 
             except psycopg2.Error as error:
                 Postgres._instance = None
@@ -265,8 +265,10 @@ class Postgres(object):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.cursor.close()
-        self.connection.close()
+        if not self.connection.closed:
+            if not self.cursor.closed:
+                self.cursor.close()
+            self.connection.close()
 
     def __del__(self):
         if not self.connection.closed:
@@ -284,6 +286,7 @@ class Postgres(object):
         return self._cursor
 
     def list_db_tables(self):
+        """List all tables in the database."""
         logger.debug('Listing tables...')
         tables_sql = sql.SQL("""SELECT table_schema as schema_name,
                                        table_name as view_name
@@ -320,6 +323,7 @@ class Postgres(object):
         return tables
 
     def execute_sql(self, sql_query):
+        """Execute the passed query on the database."""
         if not isinstance(sql_query, (sql.SQL, sql.Composable, sql.Composed)):
             sql_query = sql.SQL(sql_query)
         # logger.debug('SQL query: {}'.format(sql_query))
@@ -329,6 +333,8 @@ class Postgres(object):
         return results
 
     def get_sql_count(self, sql_str):
+        """Get count of records returned by passed query. Query should
+        not have COUNT() in it already."""
         if not isinstance(sql_str, sql.SQL):
             sql_str = sql.SQL(sql_str)
         count_sql = sql.SQL(re.sub('SELECT (.*) FROM',
@@ -340,32 +346,36 @@ class Postgres(object):
 
         return count
 
-    def get_table_count(self, layer):
-        if not isinstance(layer, sql.Identifier):
-            layer = sql.Identifier(layer)
+    def get_table_count(self, table):
+        """Get total count for the passed table."""
+        if not isinstance(table, sql.Identifier):
+            table = sql.Identifier(table)
         self.cursor.execute(sql.SQL(
-            """SELECT COUNT(*) FROM {}""").format(layer))
+            """SELECT COUNT(*) FROM {}""").format(table))
         count = self.cursor.fetchall()[0][0]
-        logger.debug('{} count: {:,}'.format(layer, count))
+        logger.debug('{} count: {:,}'.format(table, count))
 
         return count
 
-    def get_layer_columns(self, layer):
+    def get_table_columns(self, table):
+        """Get columns in passed table."""
         self.cursor.execute(sql.SQL(
-            "SELECT * FROM {} LIMIT 0").format(sql.Identifier(layer)))
+            "SELECT * FROM {} LIMIT 0").format(sql.Identifier(table)))
         columns = [d[0] for d in self.cursor.description]
 
         return columns
 
-    def get_values(self, layer, columns, distinct=False, table=False):
+    def get_values(self, table, columns, distinct=False, is_table=False):
+        """Get values in the passed columns(s) in the passed table. If
+        distinct, unique values returned (across all columns passed)"""
         # if not isinstance(layer, sql.Identifier):
         #     layer = sql.Identifier(layer)
 
         if isinstance(columns, str):
             columns = [columns]
 
-        sql_statement = generate_sql(layer=layer, columns=columns,
-                                     distinct=distinct,)# table=True)
+        sql_statement = generate_sql(layer=table, columns=columns,
+                                     distinct=distinct,)# is_table=True)
         values = self.execute_sql(sql_statement)
 
         # Convert from list of tuples to flat list if only one column
@@ -375,6 +385,7 @@ class Postgres(object):
         return values
 
     def get_engine(self):
+        """Create sqlalchemy.engine object."""
         engine = create_engine('postgresql+psycopg2://'
                                '{}:{}@{}/{}'.format(self.user, self.password,
                                                     self.host, self.database))
@@ -382,12 +393,14 @@ class Postgres(object):
         return engine
 
     def sql2gdf(self, sql_str, geom_col='geometry', crs=4326,):
+        """Get a GeoDataFrame from a passed SQL query"""
         gdf = gpd.GeoDataFrame.from_postgis(sql=sql_str,
                                             con=self.get_engine().connect(),
                                             geom_col=geom_col, crs=crs)
         return gdf
 
     def sql2df(self, sql_str, columns=None):
+        """Get a DataFrame from a passed SQL query"""
         df = pd.read_sql(sql=sql_str, con=self.get_engine().connect(),
                          columns=columns)
 
