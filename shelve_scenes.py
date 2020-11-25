@@ -443,7 +443,6 @@ def main(args):
     input_directory = Path(args.input_directory)
     destination_directory = Path(args.destination_directory)
     scene_manifests_exist = args.scene_manifests_exist
-    locate_unshelveable = args.locate_unshelveable
     move_unshelveable = (Path(args.move_unshelveable)
                          if args.move_unshelveable is not None
                          else None)
@@ -491,7 +490,6 @@ def main(args):
                            destination_directory=destination_directory,
                            scene_manifests_exist=scene_manifests_exist,
                            verify_checksums=verify_checksums,
-                           locate_unshelveable=locate_unshelveable,
                            move_unshelveable=move_unshelveable,
                            manage_unshelveable_only=manage_unshelveable_only,
                            transfer_method=transfer_method,
