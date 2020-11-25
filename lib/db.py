@@ -221,7 +221,7 @@ def intersect_aoi_where(aoi, geom_col):
     return aoi_where
 
 
-class Postgres(object, db_config=db_config):
+class Postgres(object):
     """
     Class for interacting with Postgres database using psycopg2. This
     allows keeping a connection and cursor open while performing multiple
