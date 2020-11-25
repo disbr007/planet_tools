@@ -464,7 +464,7 @@ class Postgres(object):
         if table in self.list_db_tables() and unique_on is not None:
             # Remove duplicate values from rows to insert based on unique_on
             # columns
-            existing_ids = self.get_values(layer=table, columns=unique_on,
+            existing_ids = self.get_values(table=table, columns=unique_on,
                                            distinct=True)
             logger.debug('Removing any existing IDs from search results...')
             logger.debug('Existing unique IDs in table "{}": '
