@@ -432,7 +432,7 @@ def index_scenes(scenes, index_tbl=index_tbl, dryrun=False):
                            crs='epsg:4326')
 
     logger.info('Indexing shelveable scenes: {:,}'.format(len(scenes)))
-    with Postgres('sandwich-pool.planet') as db_src:
+    with Postgres() as db_src:
         db_src.insert_new_records(gdf,
                                   table=index_tbl,
                                   dryrun=dryrun)
