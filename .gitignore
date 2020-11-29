@@ -77,7 +77,7 @@ docs/_build/
 target/
 
 # Pycharm
-.idea/
+.idea/*
 
 
 # Jupyter Notebook
