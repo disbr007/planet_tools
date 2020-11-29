@@ -49,6 +49,14 @@ if __name__ == '__main__':
     choices_quality_category = ['standard', 'test']
 
     parser = argparse.ArgumentParser(
+        "Search for footprints from the Planet archives. "
+        "Search can be specified using attribue arguments, or as using "
+        "the --filters argument and specified syntax. Functionality "
+        "save the created filter out as a .json file, which can later"
+        "be used with the --load_filter argument. Resulting footprints "
+        "can be written out as vector file to --out_path, or --out_dir"
+        "with the created search name. Footprints can also be written "
+        "directly to the database in the  "
         formatter_class=argparse.RawTextHelpFormatter
     )
 
@@ -107,10 +115,10 @@ if __name__ == '__main__':
                         help='Base filter to load, upon which any provided '
                              'filters will be added.')
 
-    parser.add_argument('--not_on_hand', action='store_true',
-                        help='Remove on hand IDs from search.')
-    parser.add_argument('--fp_not_on_hand', action='store_true',
-                        help='Remove IDs from search if footprint is on hand.')
+    # parser.add_argument('--not_on_hand', action='store_true',
+    #                     help='Remove on hand IDs from search.')
+    # parser.add_argument('--fp_not_on_hand', action='store_true',
+    #                     help='Remove IDs from search if footprint is on hand.')
 
     parser.add_argument('--get_count_only', action='store_true',
                         help="Pass to only get total count for the newly "

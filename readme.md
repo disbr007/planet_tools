@@ -1,10 +1,12 @@
-# planet_stereo
+# planet_tools
 
-This repo utilizes the Planet API to facilitate selecting and ordering imagery, specifically focusing on
-identfying scenes that are candidates for stereo DEM production. The primary uses are:
-1. Creating a "search request" based on a set of filters
-2. Getting a footprint or scene count from a search request
+This repository utilizes the Planet API to facilitate selecting and ordering 
+imagery, specifically focusing on identfying scenes that are candidates for 
+stereo DEM production. The primary tools are:
+1. Creating a "search request" based on a set of filters (search4footprints.py)
+2. Getting footprints or scene count from a search request
 3. Ordering and downloading imagery.
+4. Shelving and indexing imagery.
 
 ## Installation
 

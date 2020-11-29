@@ -19,7 +19,6 @@ from .logging_utils import create_logger
 pd.set_option('mode.chained_assignment', None)
 
 logger = create_logger(__name__, 'sh', 'INFO')
-print('lib.db name: {}'.format(__name__))
 
 # Paths to config files for connecting to various DB's
 # TODO: Find paths to config files better
@@ -251,13 +250,13 @@ class Postgres(object):
 
             except psycopg2.Error as error:
                 Postgres._instance = None
-                logger.error('Error connecting to {} at {}'.format(self.database,
-                                                                   self.host))
+                logger.error('Error connecting to {} at '
+                             '{}'.format(self.database, self.host))
                 logger.error(error)
                 raise error
             else:
-                logger.debug('Connection to {} at {} established.'.format(
-                    self.database, self.host))
+                logger.debug('Connection to {} at {} '
+                             'established.'.format(self.database, self.host))
 
         return self._connection
 

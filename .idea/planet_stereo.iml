@@ -5,7 +5,6 @@
     <orderEntry type="jdk" jdkName="Python 3.7 (gps)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="planet_stereo" />
-    <orderEntry type="module" module-name="rts" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
