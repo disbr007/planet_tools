@@ -535,24 +535,24 @@ def add_renamed_attributes(node, renamer, root, attributes):
 
 
 class PlanetScene:
-    """A class to represent a Planet scene, including metadata
-    file paths, attributes, etc.
-
-    Parameters
-    ---------
-    manifest : str
-        Path to scene-level manifest file
-    exclude_meta : list
-        Optional, list of strings used to remove files that
-        otherwise would be matched by self.metafiles.
-        E.g: ['_pan', '_metadata.json']
-    alt_shelved_parent : str
-        Alternative path to build shelved directories on, if not
-        passed, default data directory is used. Useful for "shelving"
-        in other locations, i.e. for deliveries.
-    """
     def __init__(self, manifest, exclude_meta=None,
                  shelved_parent=None):
+        """A class to represent a Planet scene, including metadata
+        file paths, attributes, etc.
+
+        Parameters
+        ---------
+        manifest : str
+            Path to scene-level manifest file
+        exclude_meta : list
+            Optional, list of strings used to remove files that
+            otherwise would be matched by self.metafiles.
+            E.g: ['_pan', '_metadata.json']
+        shelved_parent : str
+            Alternative path to build shelved directories on, if not
+            passed, default data directory is used. Useful for "shelving"
+            in other locations, i.e. for deliveries.
+        """
         self.manifest = Path(manifest)
         self.exclude_meta = exclude_meta
         # Parent directory upon which shelved path is built
@@ -1003,6 +1003,10 @@ class PlanetScene:
             uns_index_row['center_y'] = self._center_y
             uns_index_row['received_datetime'] = self.received_datetime
             uns_index_row['shelved_loc'] = str(self.shelved_location)
+            # Use only linux paths in index - /mnt/pgc/data/.., not V:\pgc\data\...
+            if platform.system() == 'Windows':
+                uns_index_row['shelved_loc'] = linux2win(uns_index_row['shelved_loc'])
+
             # Reorder fields
             field_order = ['id', 'identifier', 'strip_id',
                            'acquisitionDateTime', 'bundle_type', 'center_x',
