@@ -49,15 +49,16 @@ if __name__ == '__main__':
     choices_quality_category = ['standard', 'test']
 
     parser = argparse.ArgumentParser(
-        "Search for footprints from the Planet archives. "
-        "Search can be specified using attribue arguments, or as using "
+        description="Search for footprints from the Planet archives. " 
+        "Search can be specified using attribue arguments, or as using " 
         "the --filters argument and specified syntax. Functionality "
-        "save the created filter out as a .json file, which can later"
-        "be used with the --load_filter argument. Resulting footprints "
-        "can be written out as vector file to --out_path, or --out_dir"
-        "with the created search name. Footprints can also be written "
-        "directly to the database in the  "
-        formatter_class=argparse.RawTextHelpFormatter
+        "provided to save the created filter out as a .json file, which "
+        "can later be used with the --load_filter argument. Resulting "
+        "footprints can be written out as vector file to --out_path, or "
+        "--out_dir with the created search name. Footprints can also be "
+        "written directly to database table provided in --to_tbl in the "
+        "database provided in config/config.json. ",
+        formatter_class=argparse.RawTextHelpFormatter,
     )
 
     attribute_args = parser.add_argument_group(att_group)

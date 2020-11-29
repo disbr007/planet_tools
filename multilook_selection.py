@@ -196,7 +196,10 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Locate multilook 'pairs' that meet the provided minimum "
+                    "criteria: --min_pairs and --min_area."
+    )
 
     parser.add_argument('-o', '--out_multilook_fp', type=os.path.abspath,
                         help='Path to write multilook footprints to.')
@@ -213,11 +216,12 @@ if __name__ == '__main__':
     #
     args = parser.parse_args()
 
-    import sys
-    sys.argv = [r'C:\code\planet_stereo\multilook_selection.py',
-                '-o',
-                '2020oct14_multilook_redo.geojson',
-                '-mp', '3', '-ma', '30000000', '-fn_pn']
+    # For debugging
+    # import sys
+    # sys.argv = [r'C:\code\planet_stereo\multilook_selection.py',
+    #             '-o',
+    #             '2020oct14_multilook_redo.geojson',
+    #             '-mp', '3', '-ma', '30000000', '-fn_pn']
 
     logger.info('Searching for multilook pairs meeting '
                 'thresholds:\nMin. Pairs: {}\nMin. Area: {:,}'.format(min_pairs, min_area))

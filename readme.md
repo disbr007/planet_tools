@@ -1,8 +1,10 @@
 # planet_tools
 
 This repository utilizes the Planet API to facilitate selecting and ordering 
-imagery, specifically focusing on identfying scenes that are candidates for 
-stereo DEM production. The main imagery ordering workflow tools are:
+imagery, including identfying scenes that are candidates for multilook 
+stereo DEM production.  
+
+**Primary workflow tools**
 1. Locate footprints matching specified attributes 
     in the Planet archives (search4footprints.py)  
 2. Ordering and downloading imagery. (order_and_download.py)
@@ -10,7 +12,7 @@ stereo DEM production. The main imagery ordering workflow tools are:
 4. Retrieve on hand imagery using either a list of IDs or 
     a footprint of the index table (scene_retreiver.py)
 
-Additional tools:
+**Additional tools:**
 * Footprint a directory of Planet scenes (fp_planet.py)
 * Ingest off-nadir metadata files that are provided by Planet in 
     csv format (ingest_off_nadir.py)
