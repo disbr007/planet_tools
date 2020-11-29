@@ -2,11 +2,26 @@
 
 This repository utilizes the Planet API to facilitate selecting and ordering 
 imagery, specifically focusing on identfying scenes that are candidates for 
-stereo DEM production. The primary tools are:
-1. Creating a "search request" based on a set of filters (search4footprints.py)
-2. Getting footprints or scene count from a search request
-3. Ordering and downloading imagery.
-4. Shelving and indexing imagery.
+stereo DEM production. The main imagery ordering workflow tools are:
+1. Locate footprints matching specified attributes 
+    in the Planet archives (search4footprints.py)  
+2. Ordering and downloading imagery. (order_and_download.py)
+3. Shelving and indexing imagery. (shelve_scenes.py)
+4. Retrieve on hand imagery using either a list of IDs or 
+    a footprint of the index table (scene_retreiver.py)
+
+Additional tools:
+* Footprint a directory of Planet scenes (fp_planet.py)
+* Ingest off-nadir metadata files that are provided by Planet in 
+    csv format (ingest_off_nadir.py)
+* Manage existing saved searches for your Planet account, including 
+    listing searches, writing to json file, deleting searches. 
+    (manage_searches.py)  
+* Locate multilook 'pairs' from multilook candidates table 
+    (multilook_selection.py)
+* Select footprints from either the footprints or index tables based
+    on attibutes (select_footprints.py)
+
 
 ## Installation
 
@@ -69,3 +84,4 @@ This requires creating the following file at *config/db_config.json*:
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what 
 you would like to change.
+
