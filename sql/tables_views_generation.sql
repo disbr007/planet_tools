@@ -82,7 +82,6 @@ CREATE MATERIALIZED VIEW xtrack_cc20
           ABS(DATE_PART('day', a.acquired - b.acquired)) < 30 AND
           ST_Intersects(a.geom, b.geom);
 
-
 /* Create candidates table with tighter parameters*/
 CREATE MATERIALIZED VIEW stereo_candidates AS
 SELECT *
@@ -94,7 +93,6 @@ WHERE off_nadir_diff > 5 AND
       ovlp_perc >= 0.30 AND
       ovlp_perc <= 0.70 AND
       orbitDirection1 = orbitDirection2;
-
 
 /* Find only pairs that are both onhand, create field:pairname_fn using
    filenames w/o ext */
