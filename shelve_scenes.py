@@ -532,13 +532,9 @@ if __name__ == '__main__':
                         help='Use flag to delete source files after shelving. '
                              'Otherwise source files will be left in '
                              'input_directory.')
-    parser.add_argument('-lu', '--locate_unshelveable', action='store_true',
-                        help='Locate unshelveable data and handle accourding '
-                             'to move_unshelveable argument.')
     parser.add_argument('-mu', '--move_unshelveable', type=os.path.abspath,
                         help='If provided, move unshelveable files to this '
-                             'location. If not provided and '
-                             'locate_unshelveable, source files are '
+                             'location. If not provided source files are '
                              'deleted.')
     parser.add_argument('--cleanup', action='store_true',
                         help='Move / remove any remaining files in '
@@ -552,16 +548,18 @@ if __name__ == '__main__':
                              'performing shelving.')
 
     # ALternative routines
-    alt_routine_group.add_argument('--generate_manifests_only', action='store_true',
-                              help='Only generate scene manifests from master '
+    # TODO: index_only routine
+    alt_routine_group.add_argument('--generate_manifests_only',
+                                   action='store_true',
+                                   help='Only generate scene manifests from master '
                                    'manifests, do not perform copy operation. '
                                    'This is done as part of the copy routine, '
                                    'but this flag can be used to create scene '
                                    'manifests without copying.')
     alt_routine_group.add_argument('--manage_unshelveable_only',
-                              action='store_true',
-                              help='Move or remove unshelveable data and exit.')
-    # TODO: index_only option?
+                                   action='store_true',
+                                   help='Move or remove unshelveable data and exit.')
+
     parser.add_argument('--logdir', type=os.path.abspath,
                         help='Path to write logfile to.')
     parser.add_argument('--dryrun', action='store_true',
