@@ -137,7 +137,7 @@ Highlights:
     for creating a logger anywhere that will retreive logging messages from the 
     specified submodule. For example:  
         In `lib.db.py`:  
-        ```
+        ```python
         from lib.logging_utils import create_logger
         
         logger = create_logger(__name__, 'sh', 'INFO')
