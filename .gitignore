@@ -142,6 +142,7 @@ config/sandwich-pool.planet*.json*
 config/sandwich-pool.*
 config/db_conf.json
 config/aws_creds.json
+config/*
 
 # Development file
 scratch.py
