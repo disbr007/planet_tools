@@ -11,7 +11,7 @@ from itertools import product
 from multiprocessing.dummy import Pool as ThreadPool
 from pathlib import Path
 from requests.auth import HTTPBasicAuth
-# from retrying import retry, RetryError
+from retrying import retry, RetryError
 
 import boto3
 
@@ -19,7 +19,7 @@ import geopandas as gpd
 
 from tqdm import tqdm
 
-from lib.lib import read_ids
+from lib.lib import read_ids, get_config
 from lib.db import Postgres, stereo_pair_sql
 from lib.logging_utils import create_logger
 
@@ -57,8 +57,9 @@ scene_id = 'id'
 fld_id = 'id'
 
 # AWS
-aws_conf = os.path.join(os.path.dirname(__file__),"config", "aws_creds.json")
-aws_params = json.load(open(aws_conf))
+# aws_conf = os.path.join(os.path.dirname(__file__),"config", "aws_creds.json")
+# aws_params = json.load(open(aws_conf))
+aws_params = get_config("aws")
 aws_access_key_id = aws_params["aws_access_key_id"]
 aws_secret_access_key = aws_params["aws_secret_access_key"]
 aws_bucket = aws_params["aws_bucket"]
