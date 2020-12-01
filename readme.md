@@ -28,7 +28,7 @@ stereo DEM production.
 ## Installation
 
 Using conda:
-```
+```commandline
 conda env create -f environment.yml
 conda activate planet_tools
 ```
@@ -37,11 +37,11 @@ conda activate planet_tools
 An environmental variable PL_API_KEY must exist with your Planet API key in 
 order to query the Planet Data API and place orders.  
 On Windows:
-```
+```commandline
 setx PL_API_KEY [your API key]
 ```
 On Linux add the following to your `.bashrc` file:
-```
+```commandline
 export PL_API_KEY=[your API key]
 ```
 
@@ -53,7 +53,7 @@ See `config/config_example.json` for an example.
 ## Usage
 ### Search Planet archive for footprints
 Search using attribute arguments:  
-```
+```commandline
 python search4footprints.py --name my_search \ 
     --item_types PSScene4Band \
     --asset_filter basic_analytic \
@@ -63,7 +63,7 @@ python search4footprints.py --name my_search \
 ```
 
 Search using raw filters:  
-```
+```commandline
 python search4footprints.py --name my_search \ 
     --item_types PSScene4Band \
     --asset_filter basic_analytic \
@@ -85,7 +85,7 @@ the footprints to (needs to be hardcoded to only write to `scenes`
 
 To get the count for a search without saving the search to your Planet 
 account:
-```
+```commandline
 python search4footprints.py 
     --name my_search \ 
     --item_types PSScene4Band \
@@ -99,7 +99,7 @@ python search4footprints.py
 
 ### Select footprints
 Select footprints that have been saved to `scenes` table:
-```
+```commandline
 python select_footprints.py 
     --aoi vectorfile.shp \
     --min_date 2019-01-27 \
@@ -111,7 +111,7 @@ python select_footprints.py
 ### Order and download imagery via AWS
 A selected footprint (or list of IDs) can be used to order and download
 imagery:
-```
+```commandline
 python order_and_download.py 
     --name my_order \
     --selection selection.shp \
