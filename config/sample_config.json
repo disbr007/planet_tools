@@ -1,0 +1,16 @@
+{
+  "shelve_loc": "/mnt/pgc/data/sat/orig",
+  "logdir": "/mnt/pgc/data/scratch/jeff/projects/planet/logs",
+  "db":
+    {"tables": {
+      "scenes": {"unique_id": ["id", "item_type"]},
+      "scenes_onhand": {"unique_id": ["identifier"]}
+    },
+    "db_config": {
+      "host": "sandwich-pool.pgc.umn.edu",
+      "database": "planet",
+      "password": "****",
+      "user": "username"
+      }
+    }
+}

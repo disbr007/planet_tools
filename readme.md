@@ -44,47 +44,55 @@ export PL_API_KEY=[your API key]
 ```
 
 ## Usage
-To create a search from the command line:  
+### Select footprints
+Search using attribute arguments:  
 ```
-python create_saved_search.py --name my_search --item_types PSScene4Band \
+python search4footprints.py --name my_search \ 
+    --item_types PSScene4Band \
+    --asset_filter basic_analytic \
+    --min_date 2019-01-27 \
+    --instrument PS2 \
+    --aoi vectorfile.shp 
+```
+<br />
+
+Search using raw filters:  
+```
+python search4footprints.py --name my_search \ 
+    --item_types PSScene4Band \
+    --asset_filter basic_analytic \
     -f DateRangeFilter acquired gte 2019-01-27 \
     -f StringInFilter instrument PS2 \
-    -f GeometryFilter C:\path\to\vectorfile.shp
+    -f GeometryFilter vectorfile.shp
 ```
-
 where the general syntax is:
 ```
 [type of filter] [field to filter] [comparison (gte, lte, gt, lt)] [value]
 ```
-A simpler method of creating filters is being developed.  
+The above two searches are identical. The footprints returned by the search
+criteria can be saved using any of the following arguments:  
+* `-op`: the path to write the vector file to
+* `-od`: the directory to write the vector file to, where the file name 
+will be the name of the search
+* `--to_tbl`: the name of the table in `sandwich-pool.planet` to write
+the footprints to (needs to be hardcoded to only write to `scenes`  
+<br />
 
-To get the count for a set of filters without creating a search:
+To get the count for a search without saving the search to your Planet 
+account:
 ```
-python create_saved_search.py --name my_search --item_types PSScene4Band \
-    -f DateRangeFilter acquired gte 2019-01-27 \ 
-    -f GeometryFilter C:\path\to\vectorfile.shp \
+python search4footprints.py --name my_search \ 
+    --item_types PSScene4Band \
+    --asset_filter basic_analytic \
+    --min_date 2019-01-27 \
+    --instrument PS2 \
+    --aoi vectorfile.shp \
     --get_count \
     --dryrun
 ```
-Once a search is successfully created, it will return a search ID. This can be used with 
-select_imagery.py to create a footprint of the imagery:
-```
-python select_imagery.py -i [search ID] --out_path C:\path\to\write\footprint.shp
-```
-Alternatively, the fooprint can be piped directly into a Postgres database:
-```
-python select_imagery.py -i [search ID] --to_tbl [table_name]
-```
-This requires creating the following file at *config/db_config.json*:
-```
-{
-  "host": [host],
-  "database": [database name], 
-  "user": [username],
-  "password": [password]
-}
-```
-*Completion of ordering tool underway...*
+
+
+
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what 
