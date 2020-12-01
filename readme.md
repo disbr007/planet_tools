@@ -86,7 +86,8 @@ the footprints to (needs to be hardcoded to only write to `scenes`
 To get the count for a search without saving the search to your Planet 
 account:
 ```
-python search4footprints.py --name my_search \ 
+python search4footprints.py 
+    --name my_search \ 
     --item_types PSScene4Band \
     --asset_filter basic_analytic \
     --min_date 2019-01-27 \
@@ -99,7 +100,8 @@ python search4footprints.py --name my_search \
 ### Select footprints
 Select footprints that have been saved to `scenes` table:
 ```
-python select_footprints.py --aoi vectorfile.shp \
+python select_footprints.py 
+    --aoi vectorfile.shp \
     --min_date 2019-01-27 \
     --instrument PS2 \
     --max_cc 20 \
@@ -110,7 +112,8 @@ python select_footprints.py --aoi vectorfile.shp \
 A selected footprint (or list of IDs) can be used to order and download
 imagery:
 ```
-python order_and_download.py --name my_order \
+python order_and_download.py 
+    --name my_order \
     --selection selection.shp \
     --product_bundle basic_analytic \
     --orders ordered_ids.txt 
@@ -123,8 +126,77 @@ Once an order has been downloaded, it can be shelved and indexed:
 python shelve_scenes.py -i orders/ --index_scenes
 ```
 
+## Miscellaneous
+`lib`  
+A number of submodules are included to group functions that share a common purpose
+* `lib.logging_utils`: The lowest level submodule functions to simplify logging. 
+Highlights:
+    * `logging_utils.create_logger` Create a logger of a given name, handler type, 
+    and handler level. If an identical handler exists, skip duplicating. When 
+    `__name__` is used as the name of the logger within each submodule, this allows
+    for creating a logger anywhere that will retreive logging messages from the 
+    specified submodule. For example:  
+        In `lib.db.py`:  
+        ```
+        from lib.logging_utils import create_logger
+        
+        logger = create_logger(__name__, 'sh', 'INFO')
+        logger.debug('A DEBUG-level message')
+        ```
+        In `shelve_scenes.py`
+        ```
+        from lib.logging_utils import create_logger
+        # Create logger for main file
+        logger = create_logger(__name__, 'sh', 'INFO')
+        # Get logging messages from lib.db, with INFO-level writing to console
+        # and DEBUG level to file.
+        logger = create_logger('lib.db', 'sh', 'INFO')
+        logger = create_logger('lib.db', 'fh', 'DEBUG', filename='lib.db.log')
+        ```
 
-## Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what 
-you would like to change.
+* `lib.lib`: The second lowest level submodule. Highlights:
+    * read configuration file
+    * convert from terranova (`/mnt/pgc/`) paths to Windows (`V:\pgc`)
+    * read ids from file
+    * verify checksums
+    * **PlanetScene**: a class to manage parsing attributes from metadata files,
+        determining if scenes are shelveable, and indexing
 
+* `lib.db`: Functions related to interacting with Postgres databases, namely
+sandwich-pool.planet, highlights:
+    * **Postgres**: a class for managing database interactions
+    * managing SQL queries, including handling geometry columns during SELECT and 
+        INSERT operations
+
+* `lib.search`: Functions for searching for and selecting imagery footprints using
+the [Planet Data API](https://developers.planet.com/docs/apis/data/).
+
+* `lib.order`: Functions for ordering imagery using the 
+[Planet Orders API](https://developers.planet.com/docs/orders/).
+
+`fp_planet.py`  
+Footprint a directory containing Planet imagery. Imagery is identified by locating
+scene-level manifest files. (in progress)
+
+`ingest_off_nadir.py`  
+Parse off-nadir metadata .csv's from Planet into database table `off_nadir`. These
+csv's contain Planet's internal metadata values.
+
+`manage_searches.py`  
+List or delete saved searches using the 
+[Planet Data API](https://developers.planet.com/docs/apis/data/).
+
+`multilook_selection.py`  
+Select multilook 'pairs' from `multilook_candidates` table that meet minimum pairs and
+minimum area arguments.
+  
+`scene_retriever.py`  
+Copy scenes from shelved locations to a destination directory. (in progress)
+  
+`sort_scenes_by_date.py`  
+Simple script to sort scenes by date, using only the filenames.
+
+`submit_order.py`  
+Wrapper around lib.order to provide a stand-alone method of ordering a list of IDs
+or selection footprint. Can likely be removed as `order_and_download.py` can easily
+be modified to just submit an order.
