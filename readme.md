@@ -54,7 +54,6 @@ python search4footprints.py --name my_search \
     --instrument PS2 \
     --aoi vectorfile.shp 
 ```
-<br />
 
 Search using raw filters:  
 ```
@@ -76,7 +75,6 @@ criteria can be saved using any of the following arguments:
 will be the name of the search
 * `--to_tbl`: the name of the table in `sandwich-pool.planet` to write
 the footprints to (needs to be hardcoded to only write to `scenes`  
-<br />
 
 To get the count for a search without saving the search to your Planet 
 account:
