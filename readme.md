@@ -122,7 +122,7 @@ python order_and_download.py
 
 ### Shelving and Indexing
 Once an order has been downloaded, it can be shelved and indexed:
-```
+```commandline
 python shelve_scenes.py -i orders/ --index_scenes
 ```
 
@@ -144,7 +144,7 @@ Highlights:
         logger.debug('A DEBUG-level message')
         ```
         In `shelve_scenes.py`
-        ```
+        ```python
         from lib.logging_utils import create_logger
         # Create logger for main file
         logger = create_logger(__name__, 'sh', 'INFO')
