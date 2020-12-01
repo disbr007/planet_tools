@@ -542,8 +542,6 @@ class Postgres(object):
                     try:
                         cursor.execute(self.cursor.mogrify(insert_statement,
                                                            values))
-                        # TODO: Should connection.commit() after every INSERT
-                        #  or once at the end?
                         self.connection.commit()
                     except Exception as e:
                         if e == psycopg2.errors.UniqueViolation:

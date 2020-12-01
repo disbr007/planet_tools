@@ -50,6 +50,7 @@ auth = HTTPBasicAuth(PLANET_API_KEY, "")
 
 # Postgres
 # Used for finding connection config file -> config/sandwich-pool.planet.json
+# TODO read these from config file
 planet_db = "sandwich-pool.planet"
 scenes_onhand_tbl = 'scenes_onhand'
 # TODO: rename to use the same variable throughout
@@ -57,6 +58,7 @@ scene_id = 'id'
 fld_id = 'id'
 
 # AWS
+# TODO: Update when NASA bucket created
 aws_params = get_config("aws")
 aws_access_key_id = aws_params["aws_access_key_id"]
 aws_secret_access_key = aws_params["aws_secret_access_key"]
@@ -64,10 +66,9 @@ aws_bucket = aws_params["aws_bucket"]
 aws_region = aws_params["aws_region"]
 aws_path_prefix = aws_params["aws_path_prefix"]
 bucket_name = 'pgc-data'
-# TODO: Update when NASA bucket created
 prefix = r'jeff/planet'
-# TODO: Default DL location -> finalize and move to config file
-default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
+
+default_dst_parent = get_config("shelve_loc")
 
 # Check Planet authorization
 auth_resp = requests.get(ORDERS_URL, auth=auth)
