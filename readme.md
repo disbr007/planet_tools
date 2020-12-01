@@ -200,3 +200,7 @@ Simple script to sort scenes by date, using only the filenames.
 Wrapper around lib.order to provide a stand-alone method of ordering a list of IDs
 or selection footprint. Can likely be removed as `order_and_download.py` can easily
 be modified to just submit an order.
+
+### SQL
+`sql\table_views_generation.sql`: Contains the SQL statements to create all tables and
+views on `sandwich-pool.planet`. **Not meant to be run as a standalone script.**
