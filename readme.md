@@ -33,7 +33,9 @@ conda env create -f environment.yml
 conda activate planet_tools
 ```
 ## Setup
-An environmental variable PL_API_KEY must exist with your Planet API key.  
+### Planet API Key
+An environmental variable PL_API_KEY must exist with your Planet API key in 
+order to query the Planet Data API and place orders.  
 On Windows:
 ```
 setx PL_API_KEY [your API key]
@@ -42,6 +44,11 @@ On Linux add the following to your `.bashrc` file:
 ```
 export PL_API_KEY=[your API key]
 ```
+
+### Configuration file
+A number of settings, included database and AWS credentials are set 
+through the use of a config file at: `config/config.json`. 
+See `config/config_example.json` for an example.
 
 ## Usage
 ### Search Planet archive for footprints
