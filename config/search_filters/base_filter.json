@@ -1,0 +1,12 @@
+{"type": "AndFilter",
+  "config": [
+  {
+    "type": "StringInFilter",
+    "field_name": "quality_category",
+    "config": ["standard"]
+  },
+  {
+    "type": "AssetFilter",
+    "config": ["basic_analytic_dn"]
+  }]
+}

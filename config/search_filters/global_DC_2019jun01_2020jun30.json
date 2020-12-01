@@ -1,0 +1,44 @@
+{
+  "filter": {
+    "type": "AndFilter",
+    "config": [
+      {
+        "type": "DateRangeFilter",
+        "field_name": "acquired",
+        "config": {
+          "gte": "2019-10-01T00:00:00.000Z"
+        }
+      },
+      {
+        "type": "DateRangeFilter",
+        "field_name": "acquired",
+        "config": {
+          "lte": "2020-06-31T00:00:00.000Z"
+        }
+      },
+      {
+        "type": "RangeFilter",
+        "field_name": "cloud_percent",
+        "config": {
+          "lt": 20.0
+        }
+      },
+      {
+        "type": "StringInFilter",
+        "field_name": "PS2",
+        "config": []
+      },
+      {
+        "type": "StringInFilter",
+        "field_name": "quality_category",
+        "config": [
+          "standard"
+        ]
+      }
+    ]
+  },
+  "item_types": [
+    "PSScene4Band"
+  ],
+  "interval": "year"
+}
