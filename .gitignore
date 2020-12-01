@@ -145,4 +145,5 @@ config/aws_creds.json
 config/config.json
 
 # Development file
+scratch/*
 scratch.py
