@@ -47,7 +47,7 @@ export PL_API_KEY=[your API key]
 
 ### Configuration file
 A number of settings, included database and AWS credentials are set 
-through the use of a config file at: `config/config.json`. 
+through the use of a configuration file at: `config/config.json`. 
 See `config/config_example.json` for an example.
 
 ## Usage

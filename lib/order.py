@@ -57,8 +57,6 @@ scene_id = 'id'
 fld_id = 'id'
 
 # AWS
-# aws_conf = os.path.join(os.path.dirname(__file__),"config", "aws_creds.json")
-# aws_params = json.load(open(aws_conf))
 aws_params = get_config("aws")
 aws_access_key_id = aws_params["aws_access_key_id"]
 aws_secret_access_key = aws_params["aws_secret_access_key"]

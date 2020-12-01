@@ -21,12 +21,6 @@ pd.set_option('mode.chained_assignment', None)
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # Paths to config files for connecting to various DB's
-# TODO: Find paths to config files better
-db_confs = {
-    'sandwich-pool.planet':
-        Path(__file__).parent.parent / 'config' / 'sandwich-pool.planet.json'
-}
-
 # Params
 db_params = get_config("db")
 db_config = db_params["db_config"]
