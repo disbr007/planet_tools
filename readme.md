@@ -44,7 +44,7 @@ export PL_API_KEY=[your API key]
 ```
 
 ## Usage
-### Select footprints
+### Search Planet archive for footprints
 Search using attribute arguments:  
 ```
 python search4footprints.py --name my_search \ 
@@ -91,7 +91,32 @@ python search4footprints.py --name my_search \
     --dryrun
 ```
 
+### Select footprints
+Select footprints that have been saved to `scenes` table:
+```
+python select_footprints.py --aoi vectorfile.shp \
+    --min_date 2019-01-27 \
+    --instrument PS2 \
+    --max_cc 20 \
+    --out_selection selection.shp
+```
 
+### Order and download imagery via AWS
+A selected footprint (or list of IDs) can be used to order and download
+imagery:
+```
+python order_and_download.py --name my_order \
+    --selection selection.shp \
+    --product_bundle basic_analytic \
+    --orders ordered_ids.txt 
+    --destination_parent_directory orders/
+``` 
+
+### Shelving and Indexing
+Once an order has been downloaded, it can be shelved and indexed:
+```
+python shelve_scenes.py -i orders/ --index_scenes
+```
 
 
 ## Contributing
