@@ -5,16 +5,14 @@ import os
 import sys
 import time
 
-from lib.lib import read_ids
+from lib.lib import read_ids, get_config
 from lib.logging_utils import create_logger, create_logfile_path
 from submit_order import submit_order
 from lib.order import download_parallel
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
-# TODO: Default DL location -> move to config file
-# default_dst_parent = r'V:\pgc\data\scratch\jeff\projects\planet\data'
-default_dst_parent = r'E:\disbr007\projects\planet\data'
+default_dst_parent = get_config("download_loc")
 
 
 def order_and_download(order_name, order_ids_path,
@@ -32,10 +30,14 @@ def order_and_download(order_name, order_ids_path,
     to download_par_dir with subdirectories for each chunk's order ID."""
     if not dl_orders:
         logger.info('Submitting orders...')
-        order_ids = submit_order(name=order_name, ids_path=order_ids_path, selection_path=order_selection_path,
-                                 product_bundle=order_product_bundle, orders_path=out_orders_list,
-                                 remove_onhand=remove_onhand, dryrun=dryrun)
-        logger.info('Waiting {:,} seconds before checking AWS for orders...'.format(initial_wait))
+        order_ids = submit_order(name=order_name, ids_path=order_ids_path,
+                                 selection_path=order_selection_path,
+                                 product_bundle=order_product_bundle,
+                                 orders_path=out_orders_list,
+                                 remove_onhand=remove_onhand,
+                                 dryrun=dryrun)
+        logger.info('Waiting {:,} seconds before checking AWS for '
+                    'orders...'.format(initial_wait))
         now = datetime.datetime.now()
         waiting_start = datetime.datetime.now()
         resume_time = waiting_start + datetime.timedelta(seconds=initial_wait)
@@ -44,7 +46,8 @@ def order_and_download(order_name, order_ids_path,
             sys.exit()
         while now < resume_time:
             now = datetime.datetime.now()
-            logger.info('...waiting. {:,}s remain'.format(round((resume_time - now).total_seconds())))
+            logger.info('...waiting. {:,}s remain'.format(
+                round((resume_time - now).total_seconds())))
             time.sleep(wait_interval)
     else:
         logger.info('Loading order IDs from file...')
