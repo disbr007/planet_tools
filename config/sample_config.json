@@ -1,5 +1,6 @@
 {
   "shelve_loc": "/mnt/pgc/data/sat/orig",
+  "download_loc": "/mnt/pgc/data/scratch/jeff/planet/data",
   "logdir": "/mnt/pgc/data/scratch/jeff/projects/planet/logs",
   "db":
     {"tables": {
@@ -12,5 +13,12 @@
       "password": "****",
       "user": "username"
       }
-    }
+    },
+  "aws": {
+    "aws_access_key_id": "******",
+    "aws_secret_access_key": "******",
+    "aws_bucket": "pgc-data",
+    "aws_region": "us-east-2",
+    "aws_path_prefix": "jeff/planet/"
+  }
 }
