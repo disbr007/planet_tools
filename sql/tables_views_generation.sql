@@ -29,27 +29,36 @@ CREATE TABLE scenes (
     geometry            geometry(Polygon, 4326),
     UNIQUE (id, item_type)
 );
-CREATE INDEX scenes_geom_idx ON scenes USING GIST(geom);
+CREATE INDEX scenes_geom_idx ON scenes USING GIST(geometry);
 
-/* Add columns from off_nadir table */
+/* Create empty off_nadir table. Populated by ingest_off_nadir.py*/
+CREATE TABLE off_nadir (
+    ogc_fid             SERIAL PRIMARY KEY,
+    scene_name          varchar(30),
+    off_nadir           numeric(7, 5),
+    azimuth             numeric(11, 8),
+    off_nadir_signed    numeric(7, 5)
+);
+
+/*Add columns from off_nadir table */
 UPDATE scenes
-SET azimuth = off_nadir.sat_satellite_azimuth_mean,
-    off_nadir_signed = off_nadir.sat_off_nadir
+SET azimuth = off_nadir.azimuth,
+    off_nadir_signed = off_nadir.off_nadir_signed
 FROM off_nadir
-WHERE off_nadir.scene_name = scenes_test.id;
+WHERE off_nadir.scene_name = scenes.id;
 
-
+/* Not using any more, off nadirs are directly in scenes table. */
 /* Create view with off nadir and xml table joined to scenes - create
    off_nadir_signed column */
-CREATE MATERIALIZED VIEW scenes_metadata AS
-    SELECT s.*,
-           o.sat_satellite_azimuth_mean as azimuth,
-           o.sat_off_nadir as off_nadir_unsigned,
-           x."orbitDirection" as orbitDirection,
-           SIGN(o.sat_satellite_azimuth_mean)*o.sat_off_nadir as off_nadir_signed
-           FROM scenes as s
-INNER JOIN off_nadir as o ON s.id = o.scene_name
-INNER JOIN xml_metadata as x ON s.id = SUBSTR(x.identifier, 0, 21);
+-- CREATE MATERIALIZED VIEW scenes_metadata AS
+--     SELECT s.*,
+--            o.sat_satellite_azimuth_mean as azimuth,
+--            o.sat_off_nadir as off_nadir_unsigned,
+--            x."orbitDirection" as orbitDirection,
+--            SIGN(o.sat_satellite_azimuth_mean)*o.sat_off_nadir as off_nadir_signed
+--            FROM scenes as s
+-- INNER JOIN off_nadir as o ON s.id = o.scene_name
+-- INNER JOIN xml_metadata as x ON s.id = SUBSTR(x.identifier, 0, 21);
 
 /* Create xtrack table with all intersections within WHERE parameteres */
 CREATE MATERIALIZED VIEW xtrack_cc20
@@ -65,35 +74,54 @@ CREATE MATERIALIZED VIEW xtrack_cc20
               b.off_nadir_signed AS off_nadir2,
               a.azimuth AS azimuth1,
               b.azimuth AS azimuth2,
-              a.orbitDirection as orbitDirection1,
-              b.orbitDirection as orbitDirection2,
+--               a.orbitDirection as orbitDirection1,
+--               b.orbitDirection as orbitDirection2,
               ABS(a.off_nadir_signed - b.off_nadir_signed) AS off_nadir_diff,
               ABS(DATE_PART('day', a.acquired - b.acquired)) AS date_diff,
               ABS(a.azimuth - b.azimuth) as azimuth_diff,
-              ST_Area(ST_INTERSECTION(a.geom, b.geom))
-                  / ST_Area(ST_Union(a.geom, b.geom)) AS ovlp_perc,
-              ST_INTERSECTION(a.geom, b.geom) AS ovlp_geom
-    FROM scenes_metadata AS a, scenes_metadata AS b
+              ST_Area(ST_INTERSECTION(a.geometry, b.geometry))
+                  / ST_Area(ST_Union(a.geometry, b.geometry)) AS ovlp_perc,
+              ST_INTERSECTION(a.geometry, b.geometry) AS ovlp_geom
+    FROM scenes AS a, scenes AS b
     WHERE a.id > b.id AND
           a.ground_control=1 AND
           b.ground_control=1 AND
           a.cloud_cover < 0.20 AND
           b.cloud_cover < 0.20 AND
-          ABS(DATE_PART('day', a.acquired - b.acquired)) < 30 AND
-          ST_Intersects(a.geom, b.geom);
+          ABS(DATE_PART('day', a.acquired - b.acquired)) < 15 AND
+          ST_Intersects(a.geometry, b.geometry);
 
 /* Create candidates table with tighter parameters*/
 CREATE MATERIALIZED VIEW stereo_candidates AS
 SELECT *
 FROM xtrack_cc20
 WHERE off_nadir_diff > 5 AND
-      cloud_cover1 < 10 AND
-      cloud_cover2 < 10 AND
+      cloud_cover1 < 0.10 AND
+      cloud_cover2 < 0.10 AND
       date_diff < 10 AND
       ovlp_perc >= 0.30 AND
-      ovlp_perc <= 0.70 AND
-      orbitDirection1 = orbitDirection2;
+      ovlp_perc <= 0.70;
+--       orbitDirection1 = orbitDirection2;
 
+/* Multilook table from scenes */
+CREATE MATERIALIZED VIEW multilook_candidates AS
+SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+    SELECT a.id AS src_id,
+           b.id AS int_id
+    FROM scenes a, scenes b
+    WHERE a.id < b.id AND
+          a.cloud_cover < 0.20 AND
+          b.cloud_cover < 0.20 AND
+          ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
+          ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
+          ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
+          ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+          ST_Intersects(a.geometry, b.geometry)
+) all_int
+GROUP BY 1
+HAVING count(*) > 2;
+
+/* ONHAND TABLES */
 /* Find only pairs that are both onhand, create field:pairname_fn using
    filenames w/o ext */
 CREATE MATERIALIZED VIEW stereo_candidates_onhand AS
@@ -169,3 +197,7 @@ CREATE TABLE scenes_onhand (
 CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geometry);
 CREATE INDEX scenes_onhand_centroid_idx on scenes_onhand USING GIST(centroid);
 
+GRANT SELECT on off_nadir to pgc_users;
+GRANT SELECT on xtrack_cc20 to pgc_users;
+GRANT SELECT on stereo_candidates to pgc_users;
+GRANT SELECT on stereo_candidates_onhand to pgc_users;

@@ -39,6 +39,8 @@ SELECT * FROM scenes_onhand;
 SELECT DISTINCT order_id FROM scenes_onhand;
 SELECT * FROM stereo_candidates_onhand LIMIT 10;
 SELECT MIN(acquired) FROM scenes;
+SELECT * FROM planet.public.scenes
+WHERE off_nadir_signed IS NOT NULL LIMIT 10;
 
 /* Count distinct occurences of values in column */
 SELECT orbitDirection, COUNT(*) AS num
