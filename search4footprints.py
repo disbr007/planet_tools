@@ -10,24 +10,26 @@ from lib.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'DEBUG',)
 
 
-def search4footprints(name, item_types,
-                      aoi=None,
-                      attrib_args=None,
-                      months=None,
-                      month_min_day_args=None,
-                      month_max_day_args=None,
-                      filters=None,
-                      asset_filters=None,
-                      load_filter=None,
-                      not_on_hand=False,
-                      fp_not_on_hand=False,
-                      get_count_only=False,
-                      overwrite_saved=False,
-                      save_filter=False,
-                      out_path=None,
-                      out_dir=None,
-                      to_tbl=None,
-                      dryrun=False):
+# def search4footprints(name, item_types,
+#                       aoi=None,
+#                       attrib_args=None,
+#                       ids=None,
+#                       months=None,
+#                       month_min_day_args=None,
+#                       month_max_day_args=None,
+#                       filters=None,
+#                       asset_filters=None,
+#                       load_filter=None,
+#                       not_on_hand=False,
+#                       fp_not_on_hand=False,
+#                       get_count_only=False,
+#                       overwrite_saved=False,
+#                       save_filter=False,
+#                       out_path=None,
+#                       out_dir=None,
+#                       to_tbl=None,
+#                       dryrun=False):
+def search4footprints(**kwargs):
     logger.info('Creating search...')
     ssid, search_count = create_search(**kwargs)
     if ssid:
@@ -66,6 +68,8 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--name', type=str,
                         help='Name of search to create')
 
+    parser.add_argument('--ids', type=os.path.abspath,
+                        help='Text file of IDs to include.')
     parser.add_argument('--months', type=str, nargs='+',
                         help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',
@@ -106,12 +110,12 @@ if __name__ == '__main__':
                         help='Asset filter to include. E.g.: basic_analytic')
     parser.add_argument('-f', '--filters', action='append', nargs='*',
                         # metavar=('filter_type', 'field_name', 'config'),
-                        help="""Add any raw filters. Filter types and syntax:\n
-                        'DateRangeFilter' 'acquired'   [compare] [yyyy-mm-dd]\n
-                        'NumberInFilter'  [field_name] [value]\n
-                        'StringInFilter'  [field_name] [value]\n
-                        'GeometryFilter'  [path]\n
-                        'RangeFilter'     [field]      [compare] [value]""")
+                        help="Add any raw filters. Filter types and syntax:\n"
+                             "'DateRangeFilter' 'acquired'   [compare] [yyyy-mm-dd]\n"
+                             "'NumberInFilter'  [field_name] [value]\n"
+                             "'StringInFilter'  [field_name] [value]\n"
+                             "'GeometryFilter'  [path]\n"
+                             "'RangeFilter'     [field]      [compare] [value]")
     parser.add_argument('-lf', '--load_filter', type=os.path.abspath,
                         help='Base filter to load, upon which any provided '
                              'filters will be added.')
@@ -169,14 +173,15 @@ if __name__ == '__main__':
     kwargs = {'name': args.name,
               'aoi': args.aoi,
               'item_types': args.item_types,
+              'ids': args.ids,
               'months': args.months,
               'month_min_day_args': args.month_min_day,
               'month_max_day_args': args.month_max_day,
               'filters': args.filters,
               'asset_filters': args.asset_filter,
               'load_filter': args.load_filter,
-              'not_on_hand': args.not_on_hand,
-              'fp_not_on_hand': args.fp_not_on_hand,
+              # 'not_on_hand': args.not_on_hand,
+              # 'fp_not_on_hand': args.fp_not_on_hand,
               'get_count_only': args.get_count_only,
               'overwrite_saved': args.overwrite_saved,
               'save_filter': args.save_filter,

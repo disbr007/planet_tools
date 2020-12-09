@@ -15,7 +15,7 @@ from retrying import retry
 from shapely.geometry import Point, Polygon
 from tqdm import tqdm
 
-from lib.lib import write_gdf
+from lib.lib import read_ids, write_gdf
 from lib.db import Postgres
 from lib.logging_utils import create_logger
 
@@ -147,6 +147,12 @@ def create_attribute_filter(arg_name, arg_value):
     }
 
     return filter
+
+def create_ids_filter(ids, field='id'):
+    ids_filter = {ftype: sif,
+                  field_name: field,
+                  config: ids}
+    return ids_filter
 
 
 def create_master_attribute_filter(attrib_args):
@@ -453,6 +459,7 @@ def get_saved_search(session, search_id=None, search_name=None):
 
 
 def create_search(name, item_types,
+                  ids=None,
                   aoi=None,
                   attrib_args=None,
                   months=None,
@@ -477,6 +484,8 @@ def create_search(name, item_types,
         The name to use when saving the search
     item_types : list
         The item_types to include in the search, e.g. ['PSScene4Band']
+    ids : list, path to text file of IDs
+        A list of scene ID's to select.
     attrib_args : dict
         Dictionary of arguments and values to use with
         create_attribute_filter to create filters
@@ -528,6 +537,15 @@ def create_search(name, item_types,
     # Parse raw filters
     if filters:
         search_filters.extend([filter_from_arg(f) for f in filters])
+
+    if ids:
+        if isinstance(ids, str):
+            # Assume path
+            include_ids = read_ids(ids)
+        else:
+            include_ids = ids
+        ids_filter = create_ids_filter(include_ids)
+        search_filters.append(ids_filter)
 
     if months:
         month_min_days = None
@@ -865,11 +883,9 @@ def get_search_footprints(out_path=None, out_dir=None,
             write_scenes(scenes, out_path=out_path)
 
     if to_tbl:
-        with Postgres('sandwich-pool.planet') as db:
+        with Postgres() as db:
             db.insert_new_records(scenes,
                                   table=to_tbl,
-                                  unique_on=('id', 'item_type'),
-                                  geom_cols=['geometry'],
                                   dryrun=dryrun)
 
     return scenes
