@@ -11,6 +11,8 @@ from lib.lib import read_ids, write_gdf, get_platform_location
 # from shelve_scenes import shelve_scenes
 from lib.logging_utils import create_logger
 
+# TODO: Add ability to select by either ID (current method) or filename
+
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
 # Params
@@ -43,7 +45,8 @@ def load_selection(scene_ids_path=None, footprint_path=None):
 
         with Postgres() as db_src:
             gdf = db_src.sql2gdf(sql_str=sql)
-            # TODO: Remove this once Postgres restriction on DUPS is implemented -> there should be no DUPs in scenes table
+            # TODO: Remove this once Postgres restriction on DUPS is
+            #  implemented -> there should be no DUPs in scenes table
             gdf = gdf.drop_duplicates(subset=scene_id)
             logger.info('IDs found in {}: {}'.format(scenes_onhand_table, len(gdf)))
 
