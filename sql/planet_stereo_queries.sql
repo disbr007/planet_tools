@@ -294,3 +294,15 @@ WHERE identifier = '20190301_144335_100d_1B_AnalyticMS';
 
 SELECT * FROM scenes_onhand
 WHERE identifier = '20200312_173103_100a_1B_AnalyticMS';
+
+SELECT * FROM scenes_onhand_metadata LIMIT 10;
+
+/* Count IDs in scenes_onhand not in scenes */
+SELECT COUNT(*) FROM scenes_onhand as so
+LEFT JOIN scenes ON (so.id = scenes.id)
+WHERE scenes.id is NULL;
+
+SELECT LEFT(filename, LENGTH(filename)-4) from scenes_onhand_metadata;
+SELECT * FROM scenes WHERE id = '20191008_130238_101e';
+SELECT * FROM multilook_candidates WHERE src_id = '20191008_130238_101e';
+SELECT * FROM scenes_onhand WHERE id = '20191008_130238_101e';

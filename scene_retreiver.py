@@ -6,9 +6,8 @@ import shutil
 import geopandas as gpd
 from tqdm import tqdm
 
-from lib.lib import Postgres, ids2sql
-from lib.lib import read_ids, write_gdf
-from lib.lib import get_platform_location
+from lib.db import Postgres, ids2sql
+from lib.lib import read_ids, write_gdf, get_platform_location
 # from shelve_scenes import shelve_scenes
 from lib.logging_utils import create_logger
 
@@ -19,7 +18,7 @@ db = 'sandwich-pool.planet'
 scenes_onhand_table = 'scenes_onhand'
 scene_id = 'id'
 # TODO: Change this to 'location' and convert to platform specific path in script
-location = 'location'
+location = 'shelved_loc'
 platform_location = 'platform_location'
 opf = None
 required_fields = [scene_id, location]
@@ -42,8 +41,8 @@ def load_selection(scene_ids_path=None, footprint_path=None):
         WHERE {} IN ({})""".format(scenes_onhand_table, scene_id,
                                    ids2sql(scene_ids))
 
-        with Postgres(db) as db_src:
-            gdf = db_src.sql2gdf(sql=sql)
+        with Postgres() as db_src:
+            gdf = db_src.sql2gdf(sql_str=sql)
             # TODO: Remove this once Postgres restriction on DUPS is implemented -> there should be no DUPs in scenes table
             gdf = gdf.drop_duplicates(subset=scene_id)
             logger.info('IDs found in {}: {}'.format(scenes_onhand_table, len(gdf)))

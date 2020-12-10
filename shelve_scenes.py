@@ -566,17 +566,17 @@ if __name__ == '__main__':
                         help='Print actions without performing.')
 
     # For debugging
-    sys.argv = ['shelve_scenes.py',
-                '--input_directory',
-                r'V:\pgc\data\scratch\jeff\projects\planet\data'
-                r'\1fb3047b-705e-4ed0-b900-a86110b82dca',
-                '--move_unshelveable',
-                r'V:\pgc\data\scratch\jeff\projects\planet\unshelveable',
-                '--skip_checksums',
-                '--index_scenes',
-                '-sme',
-                '--logdir',
-                r'V:\pgc\data\scratch\jeff\projects\planet\logs']
+    # sys.argv = ['shelve_scenes.py',
+    #             '--input_directory',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\data'
+    #             r'\1fb3047b-705e-4ed0-b900-a86110b82dca',
+    #             '--move_unshelveable',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\unshelveable',
+    #             '--skip_checksums',
+    #             '--index_scenes',
+    #             '-sme',
+    #             '--logdir',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\logs']
 
     args = parser.parse_args()
 

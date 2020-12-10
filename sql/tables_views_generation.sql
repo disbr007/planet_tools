@@ -105,8 +105,12 @@ WHERE off_nadir_diff > 5 AND
 
 /* Multilook table from scenes */
 CREATE MATERIALIZED VIEW multilook_candidates AS
-SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed,
+       string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
     SELECT a.id AS src_id,
+           a.acquired as src_acquired,
+           a.azimuth as src_azimuth,
+           a.off_nadir_signed as src_off_nadir_signed,
            b.id AS int_id
     FROM scenes a, scenes b
     WHERE a.id < b.id AND
@@ -118,7 +122,7 @@ SELECT src_id, string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
           ST_Intersects(a.geometry, b.geometry)
 ) all_int
-GROUP BY 1
+GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed
 HAVING count(*) > 2;
 
 /* ONHAND TABLES */
@@ -134,7 +138,7 @@ FROM stereo_candidates as s
 INNER JOIN scenes_onhand as so1 ON s.id1 = so1.id
 INNER JOIN scenes_onhand as so2 ON s.id2 = so2.id;
 
-/* Create scenes on hand table */
+/* Create scenes_onhand table */
 CREATE TABLE scenes_onhand (
     ogc_fid                         SERIAL PRIMARY KEY,
     id                              varchar(30),
@@ -197,6 +201,20 @@ CREATE TABLE scenes_onhand (
 CREATE INDEX scenes_onhand_geometry_idx on scenes_onhand USING GIST(geometry);
 CREATE INDEX scenes_onhand_centroid_idx on scenes_onhand USING GIST(centroid);
 
+/* Create scenes_onhand_metadata table */
+CREATE VIEW scenes_onhand_metadata AS
+SELECT so.*,
+       ((so.rowgsd + so.columngsd) / 2) as gsd_avg,
+--        s.gsd,
+       o.off_nadir_signed,
+       o.azimuth
+FROM scenes_onhand as so
+LEFT JOIN off_nadir as o
+    ON so.id = o.scene_name;
+-- LEFT JOIN scenes as s
+--     ON so.id = s.id;
+
+/* Grant permissions */
 GRANT SELECT on off_nadir to pgc_users;
 GRANT SELECT on xtrack_cc20 to pgc_users;
 GRANT SELECT on stereo_candidates to pgc_users;

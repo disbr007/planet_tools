@@ -28,7 +28,7 @@ off_nadir = 'sat.off_nadir'
 azimuth = 'sat.satellite_azimuth_mean'
 
 # Created / renamed field names
-signed_off_nadir = 'signed_off_nadir'
+signed_off_nadir = 'off_nadir_signed'
 tbl_off_nadir = 'off_nadir'
 tbl_azimuth = 'azimuth'
 

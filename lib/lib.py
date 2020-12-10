@@ -282,6 +282,10 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
 
     # Write out in format specified
     driver = determine_driver(out_footprint)
+    if out_format == 'geojson' and gdf.crs != 'epsg:4326':
+        logger.warning('Attempting to write GeoDataFrame that is not in '
+                       'EPSG:4326. Reprojecting before writing.')
+        gdf = gdf.to_crs('epsg:4326')
     if out_format == 'gpkg':
         gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
                     driver='GPKG')
