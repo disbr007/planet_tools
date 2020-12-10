@@ -65,7 +65,12 @@ udm = 'udm'
 
 
 def get_config(param):
-    config_params = json.load(open(config_file))
+    try:
+        config_params = json.load(open(config_file))
+    except FileNotFoundError:
+        print('Config file not found at: {}'.format(config_file))
+        print('Please create a config.json file based on the example.')
+
     try:
         config = config_params[param]
     except KeyError:
