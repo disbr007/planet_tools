@@ -5,7 +5,7 @@ import pandas as pd
 import geopandas as gpd
 
 from lib.lib import write_gdf
-from lib.db import Postgres
+from lib.db import Postgres, intersect_aoi_where
 from lib.logging_utils import create_logger
 
 # TODO: See if this can be done on scenes table, to facilitate ordering only
@@ -22,6 +22,7 @@ from lib.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'INFO')
 
 ml_mv = 'multilook_candidates'
+ml_mv_geom = 'geometry'
 scenes = 'scenes'
 scenes_onhand = 'scenes_onhand'
 s_id = 'id'
@@ -187,8 +188,8 @@ def multilook_intersections(src_id, pair_ids, footprints, min_pairs=min_pairs,
 
         # Check if min area has been met
         if sub_intersect['area'].values[0] < min_area:
-            logger.debug('Minimum area criteria not met, moving to next '
-                         'source ID.')
+            # logger.debug('Minimum area criteria not met, moving to next '
+            #              'source ID.')
             break
 
         # Add new ID to pairname
@@ -204,18 +205,21 @@ def multilook_intersections(src_id, pair_ids, footprints, min_pairs=min_pairs,
     return multilook_pairs
 
 
-def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, onhand=True):
+def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, aoi=None,
+                        onhand=True):
     """Loads all records in multilook_candidates table and determines
     if each combination of src_id and overlapping pair meets minimum
     number of pairs and minimum area requirements. See
     multilook_intersections for details."""
     logger.info('Loading multilook candidates from: {}'.format(ml_mv))
-    # TODO: Add WHERE pairname NOT IN [multilook_pairs]
     sql = "SELECT * FROM {}".format(ml_mv)
+    if aoi:
+        logger.info('Loading AOI...')
+        aoi_gdf = gpd.read_file(aoi)
+        aoi_where = intersect_aoi_where(aoi_gdf, geom_col=ml_mv_geom)
+        sql += ' WHERE {}'.format(aoi_where)
     with Postgres() as db_src:
         df = db_src.sql2df(sql_str=sql)
-
-        # db_src = None
 
     logger.info('Records loaded: {:,}'.format(len(df)))
 
@@ -230,7 +234,8 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, onhand=True):
         logger.info('Footprints loaded: {:,}'.format(len(footprints)))
 
         if onhand:
-            logger.info('Keeping only IDs including pairnames...')
+            logger.info('Keeping only onhand IDs including those in '
+                        'pairnames...')
             oh_ids = db_src.get_values(scenes_onhand, 'id', distinct=True)
             # Drop records where source ID isn't onhand
             df = df[df[ml_id].isin(oh_ids)]
@@ -277,23 +282,27 @@ if __name__ == '__main__':
     parser.add_argument('-oi', '--out_ids', type=os.path.abspath,
                         help='Path to write text file of all IDs in multilook '
                              'footprint.')
+    parser.add_argument('--aoi', type=os.path.abspath,
+                        help='Path to AOI polygon to select pairs with.')
     parser.add_argument('-mp', '--min_pairs', type=int, default=min_pairs)
     parser.add_argument('-ma', '--min_area', type=float, default=min_area)
 
     args = parser.parse_args()
 
     # For debugging
-    import sys
+    # import sys
     # sys.argv = [r'C:\code\planet_stereo\multilook_selection.py',
     #             '-o',
-    #             '2020oct14_multilook_redo.geojson',
-    #             '-mp', '3', '-ma', '30000000', '-fn_pn']
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+    #             r'\2020dec09_multilook\2020dec09_multilook_pairs.geojson',
+    #             '-mp', '3']
 
     logger.info('Searching for multilook pairs meeting thresholds:\n'
                 'Min. Pairs: {}\n'
                 'Min. Area: {:,}'.format(min_pairs, min_area))
     multilook_pairs = get_multilook_pairs(min_pairs=args.min_pairs,
-                                          min_area=args.min_area)
+                                          min_area=args.min_area,
+                                          aoi=args.aoi)
 
     logger.info('Writing multilook pairs to file: '
                 '{}'.format(args.out_multilook_fp))

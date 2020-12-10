@@ -103,14 +103,37 @@ WHERE off_nadir_diff > 5 AND
       ovlp_perc <= 0.70;
 --       orbitDirection1 = orbitDirection2;
 
+
 /* Multilook table from scenes */
+-- CREATE MATERIALIZED VIEW multilook_candidates AS
+-- SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed,
+--        string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+--     SELECT a.id AS src_id,
+--            a.acquired as src_acquired,
+--            a.azimuth as src_azimuth,
+--            a.off_nadir_signed as src_off_nadir_signed,
+--            b.id AS int_id
+--     FROM scenes a, scenes b
+--     WHERE a.id < b.id AND
+--           a.cloud_cover < 0.20 AND
+--           b.cloud_cover < 0.20 AND
+--           ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
+--           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
+--           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
+--           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+--           ST_Intersects(a.geometry, b.geometry)
+-- ) all_int
+-- GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed
+-- HAVING count(*) > 2;
+
 CREATE MATERIALIZED VIEW multilook_candidates AS
-SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed,
+SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry,
        string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
     SELECT a.id AS src_id,
            a.acquired as src_acquired,
            a.azimuth as src_azimuth,
            a.off_nadir_signed as src_off_nadir_signed,
+           a.geometry as geometry,
            b.id AS int_id
     FROM scenes a, scenes b
     WHERE a.id < b.id AND
@@ -122,9 +145,10 @@ SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed,
           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
           ST_Intersects(a.geometry, b.geometry)
 ) all_int
-GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed
+GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry
 HAVING count(*) > 2;
 
+DROP MATERIALIZED VIEW multilook_candidates;
 /* ONHAND TABLES */
 /* Find only pairs that are both onhand, create field:pairname_fn using
    filenames w/o ext */

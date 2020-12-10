@@ -48,7 +48,8 @@ def load_selection(scene_ids_path=None, footprint_path=None):
             # TODO: Remove this once Postgres restriction on DUPS is
             #  implemented -> there should be no DUPs in scenes table
             gdf = gdf.drop_duplicates(subset=scene_id)
-            logger.info('IDs found in {}: {}'.format(scenes_onhand_table, len(gdf)))
+            logger.info('IDs found in {}: {}'.format(scenes_onhand_table,
+                                                     len(gdf)))
 
     elif footprint_path:
         # Use provided footprint
@@ -56,7 +57,8 @@ def load_selection(scene_ids_path=None, footprint_path=None):
         # Make sure required fields are present
         for field in [location, scene_id]:
             if field not in gdf.columns:
-                logger.error('Selection footprint missing required field: "{}"').format(field)
+                logger.error('Selection footprint missing required field: '
+                             '"{}"').format(field)
 
     return gdf
 
@@ -64,12 +66,16 @@ def load_selection(scene_ids_path=None, footprint_path=None):
 def locate_source_files(selection):
     # Locate scene files
     logger.info('Locating scene files...')
-    selection[platform_location] = selection[location].apply(lambda x: get_platform_location(x))
+    # Convert location to correct platform (Windows/Linux) if necessary
+    selection[platform_location] = selection[location].apply(
+        lambda x: get_platform_location(x))
 
-    # Create glob generators for each scene to find to all scene files (metadata, etc.)
-    # e.g. "..\PSScene4Band\20191009_160416_100d*"
-    scene_path_globs = [Path(p).parent.glob('{}*'.format(sid)) for p, sid in zip(list(selection[platform_location]),
-                                                                                 list(selection[scene_id]))]
+    # Create glob generators for each scene to find to all scene files
+    # (metadata, etc.) e.g. "..\PSScene4Band\20191009_160416_100d*"
+    scene_path_globs = [Path(p).parent.glob('{}*'.format(sid))
+                        for p, sid in zip(list(selection[platform_location]),
+                                          list(selection[scene_id]))]
+    # scene_manifests = []
 
     src_files = []
     for g in tqdm(scene_path_globs):
@@ -83,7 +89,8 @@ def locate_source_files(selection):
 
 def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=False):
     # Create destination folder structure
-    # TODO: Option to build directory tree the same way we will index (and other options, --opf)
+    # TODO: Option to build directory tree the same way we will index
+    #  (and other options, --opf)
     # Flat structure, just add the filename to the destination path
     src_dsts = [(src, destination_path / src.name) for src in src_files]
 
@@ -119,7 +126,8 @@ def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=N
         destination_path = Path(destination_path)
 
     # Load selection
-    selection = load_selection(scene_ids_path=scene_ids_path, footprint_path=footprint_path)
+    selection = load_selection(scene_ids_path=scene_ids_path,
+                               footprint_path=footprint_path)
     # Locate source files
     src_files = locate_source_files(selection=selection)
     # Copy to destination

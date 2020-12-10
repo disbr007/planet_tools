@@ -36,6 +36,7 @@ PAN_SFX = '_pan'  # in output
 
 add_fields = [SON_FLD, AZI_FLD, GSD_OUT_FLD]
 
+coord_prec = 4  # precision to use for coordinates
 
 def multilook_table(input_table_path, add_pan_fn):
     logger.info('Loading input table...')
@@ -71,8 +72,8 @@ def multilook_table(input_table_path, add_pan_fn):
         minx, miny, maxx, maxy = row['geometry'].bounds
         new_row = {SRC_ID_FLD: row_pairs[0],
                    PAIR_COUNT_FLD: row[PAIR_COUNT_FLD],
-                   UL_FLD: (minx, maxy),
-                   LR_FLD: (maxx, miny)
+                   UL_FLD: (round(minx, coord_prec), round(maxy, coord_prec)),
+                   LR_FLD: (round(maxx, coord_prec), round(miny, coord_prec))
                    }
         for j, pair in enumerate(row_pairs):
             new_row['{}{}'.format(FILENAME_FLD, j+1)] = pair
@@ -80,7 +81,7 @@ def multilook_table(input_table_path, add_pan_fn):
                 new_row['{}{}'.format(field, j+1)] = records.at[pair, field]
             if add_pan_fn:
                 new_row[PAN_FN_FLD] = '{}{}{}'.format(row_pairs[0], PAN_SFX, j)
-        out_table = pd.concat([out_table, pd.DataFrame(new_row)])
+        out_table = pd.concat([out_table, pd.DataFrame([new_row])])
 
     logger.info('Done.')
 
@@ -101,6 +102,17 @@ if __name__ == '__main__':
                         help='Path to write new table to.')
     parser.add_argument('--add_pan_name', action='store_true',
                         help='Use to also included "filename_pan" fields.')
+
+    # For debugging
+    import sys
+    sys.argv = [r'C:\code\planet_stereo\multilook_table.py',
+                '-i',
+                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+                r'\2020dec09_multilook\2020dec09_multilook_pairs.geojson',
+                '-o',
+                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+                r'\2020dec09_multilook\2020dec09_multilook_pairs_wide.csv',
+                '--add_pan_name']
 
     args = parser.parse_args()
 

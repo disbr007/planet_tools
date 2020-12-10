@@ -100,7 +100,6 @@ def linux2win(path):
 
 
 def get_platform_location(path):
-    # TODO: Remove? Not being used as far as I can tell
     if platform.system() == 'Linux':
         pl = win2linux(path)
     elif platform.system() == 'Windows':
@@ -562,6 +561,11 @@ class PlanetScene:
             passed, default data directory is used. Useful for "shelving"
             in other locations, i.e. for deliveries.
         """
+        # TODO: Refactor so that a scene tif or metadata can be passed. Some
+        #  methods won't be available, but can still be used for locating other
+        #  scene metadata files, structuring directories by other available
+        #  metadata
+
         self.manifest = Path(manifest)
         self.exclude_meta = exclude_meta
         # Parent directory upon which shelved path is built
