@@ -137,11 +137,11 @@ def copy_files(scenes, destination_path,
             logger.debug('Destination file exists, skipping: {}'.format(sf.name))
             continue
         if not dryrun:
+            if not df.parent.exists():
+                os.makedirs(df.parent)
             if transfer_method == tm_link:
                 os.link(sf, df)
             else:
-                if not df.parent.exists():
-                    os.makedirs(df.parent)
                 shutil.copy2(sf, df)
 
     logger.info('File transfer complete.')
