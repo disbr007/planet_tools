@@ -196,17 +196,6 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing copy.')
 
-    # For debugging
-    import sys
-    sys.argv = [r'C:\code\planet_tools\scene_retreiver.py',
-                '--ids',
-                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-                r'\2020dec09_multilook\2020dec09_multilook_pairs_ids_subset.txt',
-                '-d',
-                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-                r'\2020dec09_multilook\data',
-                '-uss']
-
     args = parser.parse_args()
 
     scene_ids_path = args.ids
