@@ -42,13 +42,14 @@ def load_selection(scene_ids_path=None, footprint_path=None):
         SELECT * FROM {}
         WHERE {} IN ({})""".format(scenes_onhand_table, scene_id,
                                    ids2sql(scene_ids))
-
+        logger.info('Loading shelved locations from onhand database: '
+                    '{}'.format(scenes_onhand_table))
         with Postgres() as db_src:
             gdf = db_src.sql2gdf(sql_str=sql)
             # TODO: Remove this once Postgres restriction on DUPS is
             #  implemented -> there should be no DUPs in scenes table
             gdf = gdf.drop_duplicates(subset=scene_id)
-            logger.info('IDs found in {}: {}'.format(scenes_onhand_table,
+            logger.info('IDs found in {}: {:,}'.format(scenes_onhand_table,
                                                      len(gdf)))
 
     elif footprint_path:
@@ -75,9 +76,13 @@ def locate_scenes(selection, destination_path):
     # scene_path_globs = [Path(p).parent.glob('{}*'.format(sid))
     #                     for p, sid in zip(list(selection[platform_location]),
     #                                       list(selection[scene_id]))]
-    scenes = [PlanetScene(pl, shelved_parent=destination_path,
-                          scene_file_source=True)
-              for pl in selection[platform_location].unique()]
+    # scenes = [PlanetScene(pl, shelved_parent=destination_path,
+    #                       scene_file_source=True)
+    #           for pl in selection[platform_location].unique()]
+    scenes = []
+    for pl in tqdm(selection[platform_location].unique()):
+        scenes.append(PlanetScene(pl, shelved_parent=destination_path,
+                                  scene_file_source=True))
 
     return scenes
 
