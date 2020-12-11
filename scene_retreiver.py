@@ -113,7 +113,7 @@ def copy_files(scenes, destination_path,
     #  (and other options, --opf)
     logger.info('Creating destination paths...')
     src_dsts = []
-    for s in scenes:
+    for s in tqdm(scenes):
         for sf in s.scene_files:
             src = sf
             if use_shelved_struct:
