@@ -116,13 +116,13 @@ def get_oids(prefix=prefix):
 
 def manifest_exists(order_id, bucket):
     """
-    Check if manifest for given order id exists in AWS bucket.
+    Check if source for given order id exists in AWS bucket.
     Manifest is last file delivered for order and so presence
     order is ready to download.
     """
-    # Path to manifest for order
-    mani_path = prefix / Path(order_id) / 'manifest.json'
-    # Get files that match manifest path - should only be one
+    # Path to source for order
+    mani_path = prefix / Path(order_id) / 'source.json'
+    # Get files that match source path - should only be one
     mani_filter = bucket.objects.filter(Prefix=mani_path.as_posix())
     objs = list(mani_filter)
     if len(objs) >= 1 and objs[0].key == mani_path.as_posix():
@@ -208,7 +208,7 @@ def dl_order_when_ready(order_id, dst_par_dir, bucket,
                         wait_start=2, wait_interval=10,
                         wait_max_interval=300, wait_max=5400):
     """
-    Wrapper for dl_order that checks if manifest.json is present
+    Wrapper for dl_order that checks if source.json is present
     in order subdirectory in AWS bucket before downloading. Checks
     every [wait_start] seconds, increasing by [wait_interval] until
     [wait_max_interval] is reached and then every [wait_max_interval]
@@ -219,7 +219,7 @@ def dl_order_when_ready(order_id, dst_par_dir, bucket,
     running_time = (datetime.datetime.now() - start_time).total_seconds()
     wait = wait_start
     start_dl = False
-    # Check for presence of manifest, sleeping between checks.
+    # Check for presence of source, sleeping between checks.
     while running_time < wait_max and not start_dl:
         exists = manifest_exists(order_id, bucket=bucket)
         if not exists:

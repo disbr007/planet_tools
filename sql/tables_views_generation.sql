@@ -134,15 +134,16 @@ SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry,
            a.azimuth as src_azimuth,
            a.off_nadir_signed as src_off_nadir_signed,
            a.geometry as geometry,
+           ABS(DATE_PART('day', a.acquired - b.acquired)) as date_diff,
            b.id AS int_id
     FROM scenes a, scenes b
     WHERE a.id < b.id AND
           a.cloud_cover < 0.20 AND
           b.cloud_cover < 0.20 AND
-          ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
-          ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
-          ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
-          ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+--           ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
+--           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
+--           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
+--           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
           ST_Intersects(a.geometry, b.geometry)
 ) all_int
 GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry

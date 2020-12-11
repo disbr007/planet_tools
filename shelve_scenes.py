@@ -57,7 +57,7 @@ def determine_copy_fxn(transfer_method):
 
 def create_all_scene_manifests(directory):
     """
-    Finds all master manifests ('manifest.json') in the given directory,
+    Finds all master manifests ('source.json') in the given directory,
     then parses each for the sections corresponding to scenes and
     creates new scene-level ([identifier]_manifest.json) files for each
     scene, adjacent to the rest of the scene files.
@@ -71,7 +71,7 @@ def create_all_scene_manifests(directory):
     None
     """
     # Get all master manifests
-    master_manifests = set(directory.rglob('manifest.json'))
+    master_manifests = set(directory.rglob('source.json'))
     logger.info('Master manifests found: '
                 '{}'.format(len(master_manifests)))
     logger.debug('Master manifests found:\n'
@@ -82,7 +82,7 @@ def create_all_scene_manifests(directory):
     for mm in pbar:
         pbar.set_description('Creating scene manifests for: '
                              '{}'.format(mm.parent.name))
-        # Create scene manifests (*_manifest.json) from a master manifest
+        # Create scene manifests (*_manifest.json) from a master source
         create_scene_manifests(mm, overwrite=False)
 
 
@@ -157,10 +157,10 @@ def shelve_scenes(input_directory, destination_directory=None,
                   dryrun=False):
     """
     Shelve all Planet scenes found in the input_directory. Scenes are
-    located by their scene-level manifest files
+    located by their scene-level source files
     ([scene_identifier]_manifest.json),
-    which are created from order-level manifest files,
-    which are located by as 'manifest.json' files in the input_directory.
+    which are created from order-level source files,
+    which are located by as 'source.json' files in the input_directory.
 
     Parameters
     ----------
@@ -169,7 +169,7 @@ def shelve_scenes(input_directory, destination_directory=None,
     destination_directory : pathlib.Path, str
         Path to parent directory under which to shelve scenes.
     scene_manifests_exist : bool
-        Set to True if scene-level manifest files
+        Set to True if scene-level source files
         ([scene_identifier]_manifest.json files have already been
         created from master manifests.
         TODO: option to just create scene-level manifests and exit
@@ -232,7 +232,7 @@ def shelve_scenes(input_directory, destination_directory=None,
     scene_manifests = input_directory.rglob('*_manifest.json')
 
     # Use manifests to create PlanetScene objects, this parses
-    # the information in the scene manifest files into attributes
+    # the information in the scene source files into attributes
     # (scene_path, md5, bundle_type, received_date, etc.)
     logger.info('Loading scene metadata from scene manifests...')
 
@@ -247,7 +247,7 @@ def shelve_scenes(input_directory, destination_directory=None,
                         'rest of dryrun.')
         else:
             logger.error('No scenes found. Are master manifests '
-                         '("manifest.json") present in input_directory?\n'
+                         '("source.json") present in input_directory?\n'
                          'Input_directory: {}'.format(input_directory))
             sys.exit()
 
@@ -541,7 +541,7 @@ if __name__ == '__main__':
                              'input_directory after shelving and moving any '
                              'unshelveable scenes. This catches any files '
                              'that were not associated with a master '
-                             'manifest.')
+                             'source.')
 
     parser.add_argument('--index_scenes', action='store_true',
                         help='Add shelveable scenes to index table after '

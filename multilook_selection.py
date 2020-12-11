@@ -219,6 +219,7 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, aoi=None,
         aoi_where = intersect_aoi_where(aoi_gdf, geom_col=ml_mv_geom)
         sql += ' WHERE {}'.format(aoi_where)
     with Postgres() as db_src:
+        logger.info('Loading multilook candidates...')
         df = db_src.sql2df(sql_str=sql)
 
     logger.info('Records loaded: {:,}'.format(len(df)))
