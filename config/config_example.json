@@ -1,5 +1,5 @@
 {
-  "shelve_loc": "/mnt/pgc/data/sat/orig",
+  "shelved_loc": "/mnt/pgc/data/sat/orig",
   "download_loc": "/mnt/pgc/data/scratch/jeff/planet/data",
   "logdir": "/mnt/pgc/data/scratch/jeff/projects/planet/logs",
   "db": {
