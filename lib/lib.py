@@ -75,7 +75,7 @@ def get_config(param):
         config = config_params[param]
     except KeyError:
         print('Config parameter not found: {}'.format(param))
-        print('Available configs:\n{}'.format('\n'.join(config.keys())))
+        print('Available configs:\n{}'.format('\n'.join(config_params.keys())))
 
     return config
 
