@@ -1,13 +1,15 @@
 import argparse
 import os
 from pathlib import Path
+import platform
 import shutil
 
 import geopandas as gpd
 from tqdm import tqdm
 
 from lib.db import Postgres, ids2sql
-from lib.lib import read_ids, write_gdf, get_platform_location, PlanetScene
+from lib.lib import get_config, linux2win, read_ids, write_gdf, \
+    get_platform_location, PlanetScene
 # from shelve_scenes import shelve_scenes
 from lib.logging_utils import create_logger
 
@@ -27,6 +29,11 @@ required_fields = [scene_id, location]
 # Transfer methods
 tm_link = 'link'
 tm_copy = 'copy'
+shelved_base = get_config(location)
+if platform.system() == 'Windows':
+    shelved_base = Path(linux2win(shelved_base))
+else:
+    shelved_base = Path(shelved_base)
 
 
 def load_selection(scene_ids_path=None, footprint_path=None):
@@ -81,7 +88,8 @@ def locate_scenes(selection, destination_path):
     #           for pl in selection[platform_location].unique()]
     scenes = []
     for pl in tqdm(selection[platform_location].unique()):
-        scenes.append(PlanetScene(pl, shelved_parent=destination_path,
+        scenes.append(PlanetScene(pl,
+                                  # shelved_parent=destination_path,
                                   scene_file_source=True))
 
     return scenes
@@ -103,16 +111,15 @@ def copy_files(scenes, destination_path,
     # Create destination folder structure
     # TODO: Option to build directory tree the same way we will index
     #  (and other options, --opf)
-
+    logger.info('Creating destination paths...')
     src_dsts = []
     for s in scenes:
         for sf in s.scene_files:
             src = sf
             if use_shelved_struct:
-                # Use same folder structure as shelved data. s.shelved_dir
-                # is always computed using destination_path whether
-                # use_shelved_struct is True or False
-                dst = s.shelved_dir / sf.name
+                # Use same folder structure as shelved data
+                dst_suffix = sf.relative_to(shelved_base)
+                dst = destination_path / dst_suffix
             else:
                 # Flat structure, just add the filename to the destination path
                 dst = destination_path / sf.name
