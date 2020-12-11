@@ -7,7 +7,7 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from lib.db import Postgres, ids2sql
-from lib.lib import read_ids, write_gdf, get_platform_location
+from lib.lib import read_ids, write_gdf, get_platform_location, PlanetScene
 # from shelve_scenes import shelve_scenes
 from lib.logging_utils import create_logger
 
@@ -63,7 +63,7 @@ def load_selection(scene_ids_path=None, footprint_path=None):
     return gdf
 
 
-def locate_source_files(selection):
+def locate_scenes(selection, destination_path):
     # Locate scene files
     logger.info('Locating scene files...')
     # Convert location to correct platform (Windows/Linux) if necessary
@@ -72,29 +72,48 @@ def locate_source_files(selection):
 
     # Create glob generators for each scene to find to all scene files
     # (metadata, etc.) e.g. "..\PSScene4Band\20191009_160416_100d*"
-    scene_path_globs = [Path(p).parent.glob('{}*'.format(sid))
-                        for p, sid in zip(list(selection[platform_location]),
-                                          list(selection[scene_id]))]
-    # scene_manifests = []
+    # scene_path_globs = [Path(p).parent.glob('{}*'.format(sid))
+    #                     for p, sid in zip(list(selection[platform_location]),
+    #                                       list(selection[scene_id]))]
+    scenes = [PlanetScene(pl, shelved_parent=destination_path,
+                          scene_file_source=True)
+              for pl in selection[platform_location].unique()]
 
-    src_files = []
-    for g in tqdm(scene_path_globs):
-        for f in g:
-            src_files.append(f)
+    return scenes
 
-    logger.info('Source files found: {:,}'.format(len(src_files)))
+    # src_files = []
+    # for g in tqdm(scene_path_globs):
+    #     for f in g:
+    #         src_files.append(f)
+    #
+    # logger.info('Source files found: {:,}'.format(len(src_files)))
+    #
+    # return src_files
 
-    return src_files
 
-
-def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=False):
+def copy_files(scenes, destination_path,
+               use_shelved_struct=False,
+               transfer_method=tm_copy,
+               dryrun=False):
     # Create destination folder structure
     # TODO: Option to build directory tree the same way we will index
     #  (and other options, --opf)
-    # Flat structure, just add the filename to the destination path
-    src_dsts = [(src, destination_path / src.name) for src in src_files]
 
-    # Remove any destinations that exist
+    src_dsts = []
+    for s in scenes:
+        for sf in s.scene_files:
+            src = sf
+            if use_shelved_struct:
+                # Use same folder structure as shelved data. s.shelved_dir
+                # is always computed using destination_path whether
+                # use_shelved_struct is True or False
+                dst = s.shelved_dir / sf.name
+            else:
+                # Flat structure, just add the filename to the destination path
+                dst = destination_path / sf.name
+            src_dsts.append((src, dst))
+
+    # Remove any destinations that already exist from copy list
     src_dsts = [s_d for s_d in src_dsts if not s_d[1].exists()]
 
     # Move files
@@ -109,14 +128,20 @@ def copy_files(src_files, destination_path, transfer_method=tm_copy, dryrun=Fals
             if transfer_method == tm_link:
                 os.link(sf, df)
             else:
+                if not df.parent.exists():
+                    os.makedirs(df.parent)
                 shutil.copy2(sf, df)
-        # pbar.write('Copied {} -> {}'.format(sf, df))
 
     logger.info('File transfer complete.')
 
 
-def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=None,
-                    transfer_method=tm_copy, out_footprint=None, dryrun=False):
+def scene_retreiver(scene_ids_path=None,
+                    footprint_path=None,
+                    destination_path=None,
+                    use_shelved_struct=False,
+                    transfer_method=tm_copy,
+                    out_footprint=None,
+                    dryrun=False):
     # Convert string paths to pathlib.Path
     if scene_ids_path:
         scene_ids_path = Path(scene_ids_path)
@@ -129,15 +154,19 @@ def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=N
     selection = load_selection(scene_ids_path=scene_ids_path,
                                footprint_path=footprint_path)
     # Locate source files
-    src_files = locate_source_files(selection=selection)
+    scenes = locate_scenes(selection=selection,
+                           destination_path=destination_path)
     # Copy to destination
-    copy_files(src_files=src_files, destination_path=destination_path,
+    copy_files(scenes=scenes, destination_path=destination_path,
+               use_shelved_struct=use_shelved_struct,
                transfer_method=transfer_method, dryrun=dryrun)
 
     if out_footprint:
         if footprint_path:
-            logger.warning('Footprint selection provided - output footprint will be identical.')
-        # If IDs were passed and a footprint is desired (otherwise would be identical to input footprint)
+            logger.warning('Footprint selection provided - output footprint '
+                           'will be identical.')
+        # If IDs were passed and a footprint is desired
+        # (otherwise would be identical to input footprint)
         logger.info('Writing footprint to file: {}'.format(out_footprint))
         write_gdf(selection, out_footprint=out_footprint)
 
@@ -145,30 +174,53 @@ def scene_retreiver(scene_ids_path=None, footprint_path=None, destination_path=N
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=('Scene retriever for Planet data. Input can either be '
-                                                  'list of IDs or selection from onhand table.'))
+    parser = argparse.ArgumentParser(
+        description=('Scene retriever for Planet data. Input can either be '
+                     'list of IDs or selection from onhand table.'))
     parser.add_argument('--ids', type=os.path.abspath,
                         help='Path to list of IDs to retrieve.')
     parser.add_argument('--footprint', type=os.path.abspath,
-                        help='Path to footprint of scenes to retreive. Must contain field: {}'.format(required_fields))
+                        help='Path to footprint of scenes to retreive. Must '
+                             'contain field: {}'.format(required_fields))
     parser.add_argument('-d', '--destination', type=os.path.abspath,
                         help='Path to directory to write scenes to.')
+    parser.add_argument('-uss', '--use_shelved_struct', action='store_true',
+                        help='Use the same folder structure in destination '
+                             'directory that is used for shelving.')
     parser.add_argument('--out_footprint', type=os.path.abspath,
-                        help='Path to write footprint (only useful if providing a list of IDs.)')
-    parser.add_argument('-tm', '--transfer_method', type=str, choices=[tm_copy, tm_link],
+                        help='Path to write footprint (only useful if '
+                             'providing a list of IDs.)')
+    parser.add_argument('-tm', '--transfer_method', type=str,
+                        choices=[tm_copy, tm_link],
                         help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing copy.')
+
+    # For debugging
+    import sys
+    sys.argv = [r'C:\code\planet_tools\scene_retreiver.py',
+                '--ids',
+                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+                r'\2020dec09_multilook\2020dec09_multilook_pairs_ids_subset.txt',
+                '-d',
+                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+                r'\2020dec09_multilook\data',
+                '-uss']
 
     args = parser.parse_args()
 
     scene_ids_path = args.ids
     footprint_path = args.footprint
     destination_path = args.destination
+    use_shelved_struct = args.use_shelved_struct
     out_footprint = args.out_footprint
     transfer_method = args.transfer_method
     dryrun = args.dryrun
 
-    scene_retreiver(scene_ids_path=scene_ids_path, footprint_path=footprint_path,
-                    destination_path=destination_path, out_footprint=out_footprint,
-                    transfer_method=transfer_method, dryrun=dryrun)
+    scene_retreiver(scene_ids_path=scene_ids_path,
+                    footprint_path=footprint_path,
+                    destination_path=destination_path,
+                    use_shelved_struct=use_shelved_struct,
+                    out_footprint=out_footprint,
+                    transfer_method=transfer_method,
+                    dryrun=dryrun)
