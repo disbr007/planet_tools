@@ -68,7 +68,7 @@ aws_path_prefix = aws_params["aws_path_prefix"]
 bucket_name = 'pgc-data'
 prefix = r'jeff/planet'
 
-default_dst_parent = get_config("shelve_loc")
+default_dst_parent = get_config("shelved_loc")
 
 # Check Planet authorization
 auth_resp = requests.get(ORDERS_URL, auth=auth)
