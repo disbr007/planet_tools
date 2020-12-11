@@ -21,7 +21,7 @@ for sl in subloggers:
 
 # Constants
 # Destination directory for shelving
-planet_data_dir = get_config('shelve_loc')
+planet_data_dir = get_config('shelved_loc')
 if platform.system() == 'Windows':
     planet_data_dir = linux2win(planet_data_dir)
 
