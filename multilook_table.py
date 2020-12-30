@@ -11,19 +11,16 @@ from lib.logging_utils import create_logger
 
 
 logger = create_logger(__name__, 'sh', 'INFO')
-#
-# # Inputs
-# multilook_src_tbl_p = r'V:\pgc\data\scratch\jeff\projects\planet\deliveries' \
-#                       r'\2020oct14_multilook\2020oct14_multilook_pairs.geojson'
-# pan_fn = True
 
 # Constants
-PER_SCENE_FLDS = ['fn_id', 'off_nadir_signed', 'azimuth', 'gsd_avg']
+# PER_SCENE_FLDS = ['fn_id', 'off_nadir_signed', 'azimuth', 'gsd_avg',
+#                   'strip_id']
 SOMD_VIEW = 'scenes_onhand_metadata'
 FILENAME_FLD = 'filename'  # in database table
 SON_FLD = 'off_nadir_signed'  # in database
 AZI_FLD = 'azimuth'  # in database
 GSD_FLD = 'gsd_avg'  # in database
+SID_FLD = 'strip_id' # in database
 PAIR_COUNT_FLD = 'pair_count'  # in both input and output
 PAIRNAME_FLD = 'fn_pairname'  # in input table
 SRC_ID_FLD = 'src_id'  # in output table
@@ -34,27 +31,28 @@ LR_FLD = 'lower_right'  # in output
 PAN_FN_FLD = 'pan_filename'  # in output
 PAN_SFX = '_pan'  # in output
 
-add_fields = [SON_FLD, AZI_FLD, GSD_OUT_FLD]
+add_fields = [SID_FLD, SON_FLD, AZI_FLD, GSD_OUT_FLD]
 
 coord_prec = 4  # precision to use for coordinates
+
 
 def multilook_table(input_table_path, add_pan_fn):
     logger.info('Loading input table...')
     input_table = gpd.read_file(input_table_path)
-    logger.info('Pairs located: {}'.format(len(input_table)))
+    logger.info('Pairs located: {:,}'.format(len(input_table)))
 
     # Get all filenames present in all pairnames
     pair_filenames = set(list(input_table[PAIRNAME_FLD]))
     all_pairs = list(input_table[PAIRNAME_FLD].apply(lambda x: x.split('-')))
     filenames = {fn for pairs in all_pairs for fn in pairs}
-    logger.info('Unique scenes: {}'.format(len(filenames)))
+    logger.info('Unique scenes: {:,}'.format(len(filenames)))
 
     # Load all filenames from stereo_onhand table to get metadata
     logger.info('Loading metadata for scenes...')
     sql_statement = "" \
     "SELECT id, " \
     "LEFT(filename, LENGTH(filename)-4) as filename, " \
-    "off_nadir_signed, azimuth, gsd_avg FROM {} " \
+    "off_nadir_signed, azimuth, gsd_avg, strip_id FROM {} " \
     "WHERE LEFT(filename, LENGTH(filename)-4) " \
                     "IN ({}) ".format(SOMD_VIEW, str(filenames)[1:-1])
 
@@ -66,7 +64,8 @@ def multilook_table(input_table_path, add_pan_fn):
 
     # Build new table
     logger.info('Creating output table...')
-    out_table = pd.DataFrame()
+    # Store each created row as its own dataframe, to be merged later
+    dfs = []
     for i, row in tqdm(input_table.iterrows(), total=len(input_table)):
         row_pairs = row[PAIRNAME_FLD].split('-')
         minx, miny, maxx, maxy = row['geometry'].bounds
@@ -80,8 +79,12 @@ def multilook_table(input_table_path, add_pan_fn):
             for field in add_fields:
                 new_row['{}{}'.format(field, j+1)] = records.at[pair, field]
             if add_pan_fn:
-                new_row[PAN_FN_FLD] = '{}{}{}'.format(row_pairs[0], PAN_SFX, j)
-        out_table = pd.concat([out_table, pd.DataFrame([new_row])])
+                new_row['{}{}'.format(PAN_FN_FLD, j)] = '{}{}'.format(
+                    row_pairs[0], PAN_SFX)
+        dfs.append(pd.DataFrame([new_row]))
+
+    # Merge rows into a single table
+    out_table = pd.concat(dfs)
 
     logger.info('Done.')
 
@@ -104,15 +107,15 @@ if __name__ == '__main__':
                         help='Use to also included "filename_pan" fields.')
 
     # For debugging
-    import sys
-    sys.argv = [r'C:\code\planet_stereo\multilook_table.py',
-                '-i',
-                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-                r'\2020dec09_multilook\2020dec09_multilook_pairs.geojson',
-                '-o',
-                r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-                r'\2020dec09_multilook\2020dec09_multilook_pairs_wide.csv',
-                '--add_pan_name']
+    # import sys
+    # sys.argv = [r'C:\code\planet_stereo\multilook_table.py',
+    #             '-i',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+    #             r'\2020dec09_multilook\2020dec09_multilook_pairs.geojson',
+    #             '-o',
+    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
+    #             r'\2020dec09_multilook\2020dec09_multilook_pairs_wide.csv',
+    #             '--add_pan_name']
 
     args = parser.parse_args()
 
