@@ -86,7 +86,8 @@ def generate_sql(layer, columns=None, where=None, orderby=False,
     geom_col not needed for PostGIS if loading SQL with geopandas -
         gpd can interpet the geometry column without encoding
     """
-
+    if isinstance(columns, str):
+        columns = [columns]
     if distinct:
         sql_select = 'SELECT DISTINCT'
     else:
@@ -394,6 +395,11 @@ class Postgres(object):
 
     def sql2df(self, sql_str, columns=None):
         """Get a DataFrame from a passed SQL query"""
+        if isinstance(sql_str, sql.Composed):
+            sql_str = sql_str.as_string(self.cursor)
+        if isinstance(columns, str):
+            columns = [columns]
+
         df = pd.read_sql(sql=sql_str, con=self.get_engine().connect(),
                          columns=columns)
 
@@ -530,9 +536,10 @@ class Postgres(object):
                                     srid=sql.Literal(srid)))
                     geom_statement = sql.Composed(geom_statements)
                     insert_statement = insert_statement + geom_statement
-                # TODO: Test insert statement w/o geometry columns
                 else:
-                    insert_statement = insert_statement + sql.Literal(')')
+                    # Close paranthesis that was left open for geometries
+                    insert_statement = sql.SQL("{statement})").format(
+                        statement=insert_statement)
 
                 values = {f: row[f] if f not in geom_cols
                           else row[f].wkt for f in row.index}

@@ -57,20 +57,25 @@ k_item_type = 'planet/item_type'
 k_digests = 'digests'
 k_md5 = 'md5'
 # Manifest Constants
-# suffix to append to filenames for individual manifest files
-manifest_suffix = 'manifest'
+# suffix to append to filenames for individual source files
+manifest_suffix = 'source'
 # included in unusable data mask files paths
 udm = 'udm'
-# start of media_type in master manifest that indicates imagery
+# start of media_type in master source that indicates imagery
 
 
 def get_config(param):
-    config_params = json.load(open(config_file))
+    try:
+        config_params = json.load(open(config_file))
+    except FileNotFoundError:
+        print('Config file not found at: {}'.format(config_file))
+        print('Please create a config.json file based on the example.')
+
     try:
         config = config_params[param]
     except KeyError:
         print('Config parameter not found: {}'.format(param))
-        print('Available configs:\n{}'.format('\n'.join(config.keys())))
+        print('Available configs:\n{}'.format('\n'.join(config_params.keys())))
 
     return config
 
@@ -88,14 +93,13 @@ def win2linux(path):
 
 def linux2win(path):
     wp = path.replace(r'//mnt', 'V:')
-    wp = wp.replace(r'\mnt', 'V:')
+    wp = wp.replace(r'/mnt', 'V:')
     wp = wp.replace('/', '\\')
 
     return wp
 
 
 def get_platform_location(path):
-    # TODO: Remove? Not being used as far as I can tell
     if platform.system() == 'Linux':
         pl = win2linux(path)
     elif platform.system() == 'Windows':
@@ -282,6 +286,10 @@ def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
 
     # Write out in format specified
     driver = determine_driver(out_footprint)
+    if out_format == 'geojson' and gdf.crs != 'epsg:4326':
+        logger.warning('Attempting to write GeoDataFrame that is not in '
+                       'EPSG:4326. Reprojecting before writing.')
+        gdf = gdf.to_crs('epsg:4326')
     if out_format == 'gpkg':
         gdf.to_file(out_footprint.parent, layer=out_footprint.stem,
                     driver='GPKG')
@@ -407,7 +415,7 @@ def gdf_from_metadata(scene_md_paths, relative_directory=None,
 def write_scene_manifest(scene_manifest, master_manifest,
                          manifest_suffix=manifest_suffix,
                          overwrite=False):
-    """Write the section of the parent manifest for an individual scene
+    """Write the section of the parent source for an individual scene
     to a new file with that scenes name."""
     scene_path = Path(scene_manifest[k_path])
     scene_mani_name = '{}_{}.json'.format(scene_path.stem, manifest_suffix)
@@ -415,18 +423,18 @@ def write_scene_manifest(scene_manifest, master_manifest,
                        scene_mani_name)
     exists = scene_mani_path.exists()
     if not exists or (exists and overwrite):
-        logger.debug('Writing manifest for: {}'.format(scene_path.stem))
+        logger.debug('Writing source for: {}'.format(scene_path.stem))
         with open(scene_mani_path, 'w') as scene_mani_out:
             json.dump(scene_manifest, scene_mani_out)
     elif exists and not overwrite:
-        logger.debug('Scene manifest exists, skipping.')
+        logger.debug('Scene source exists, skipping.')
 
     return scene_mani_path
 
 
 def get_scene_manifests(master_manifest):
     """
-    Parse a parent manifest file for the sections corresponding
+    Parse a parent source file for the sections corresponding
     to scenes.
     """
     with open(master_manifest, 'r') as src:
@@ -435,7 +443,7 @@ def get_scene_manifests(master_manifest):
     # Get metadata for all images
     scene_manifests = []
     for f in mani[k_files]:
-        # TODO: Identify imagery sections of master manifest better
+        # TODO: Identify imagery sections of master source better
         if f[k_media_type].startswith(image) and udm not in f[k_path]:
             scene_manifests.append(f)
 
@@ -444,9 +452,9 @@ def get_scene_manifests(master_manifest):
 
 def create_scene_manifests(master_manifest, overwrite=False):
     """
-    Create scene manifest files for each scene section in the master manifest.
+    Create scene source files for each scene section in the master source.
     """
-    logger.debug('Locating scene manifests within master manifest\n'
+    logger.debug('Locating scene manifests within master source\n'
                  '{}'.format(master_manifest))
     scene_manifests = get_scene_manifests(master_manifest)
     logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
@@ -458,14 +466,14 @@ def create_scene_manifests(master_manifest, overwrite=False):
 
     scene_manifest_files = []
     pbar = tqdm(scene_manifests,
-                desc='Writing scene-level manifest.json files')
+                desc='Writing scene-level source.json files')
     for sm in pbar:
         # TODO: is it worth checking for existence of scene files here?
         #  Any missing scene files are found when determining if shelveable
         # Check for existence of scene file (image file)
         # sf = master_manifest.parent / Path(sm[k_path])
         # if not sf.exists():
-        #     logger.warning('Scene file location in master manifest not found: '
+        #     logger.warning('Scene file location in master source not found: '
         #                    '{}'.format(sf))
         # else:
         #     logger.debug('Scene file found')
@@ -534,16 +542,43 @@ def add_renamed_attributes(node, renamer, root, attributes):
             attributes[name] = e.text
 
 
+def find_planet_scenes(directory, exclude_meta=None,
+                       shelved_parent=None):
+    if not isinstance(directory, pathlib.PurePath):
+        directory = Path(directory)
+    manifest_files = directory.rglob('*_manifest.json')
+
+    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta,
+                                 shelved_parent=shelved_parent)
+                     for mf in manifest_files]
+
+    return planet_scenes
+
+
+def locate_manifest(scene):
+    pass
+
+
 class PlanetScene:
-    def __init__(self, manifest, exclude_meta=None,
-                 shelved_parent=None):
+    def __init__(self, source, exclude_meta=None,
+                 shelved_parent=None,
+                 scene_file_source=False):
         """A class to represent a Planet scene, including metadata
         file paths, attributes, etc.
 
         Parameters
         ---------
-        manifest : str
-            Path to scene-level manifest file
+        source : str
+            Path to source file to create PlanetScene objects.
+            Preference is to pass scene-level manifest file as all
+            metadata can be parsed if the manifest (and .xml) is
+            present. However, the path to the scene file itself can be
+            passed and the associated manifest will attempt to be
+            located. If it cannot be located,
+            self.scene_manifest_present will be marked False, and an
+            error will be raised.
+            TODO: if self.scene_manifest_present == False, allow
+              PlanetScene to be created and limit the available attributes.
         exclude_meta : list
             Optional, list of strings used to remove files that
             otherwise would be matched by self.metafiles.
@@ -553,7 +588,28 @@ class PlanetScene:
             passed, default data directory is used. Useful for "shelving"
             in other locations, i.e. for deliveries.
         """
-        self.manifest = Path(manifest)
+        # TODO: Refactor so that a scene tif or metadata can be passed
+        #  as source. Some methods won't be available, but this class
+        #  can still be used for locating scene metadata files,
+        #  structuring directories by other available metadata, footprinting,
+        #  etc.
+        if scene_file_source:
+            # Try to locate manifest
+            source = Path(source)
+            manifest = Path('{}_manifest.json'.format(source.parent /
+                                                      source.stem))
+            if manifest.exists():
+                source = manifest
+                self.scene_manifest_present = True
+            else:
+                self.scene_manifest_present = False
+                logger.error('Could not locate scene-manifest associated '
+                             'with:\n {}'.format(source))
+
+        self.manifest = Path(source)
+        if self.manifest.suffix != '.json':
+            logger.error('Must pass *_manifest.json file.')
+
         self.exclude_meta = exclude_meta
         # Parent directory upon which shelved path is built
         if shelved_parent:
@@ -561,12 +617,10 @@ class PlanetScene:
         else:
             self.shelved_parent = planet_data_dir
 
-        if self.manifest.suffix != '.json':
-            logger.error('Must pass *_manifest.json file.')
-        # Parse manifest for attributes
+        # Parse source for attributes
         with open(str(self.manifest), 'r') as src:
             data = json.load(src)
-            # Find the scene path within the manifest
+            # Find the scene path within the source
             _digests = data['digests']
             _annotations = data['annotations']
             self.scene_path = self.manifest.parent / Path(data['path']).name
@@ -1038,14 +1092,3 @@ class PlanetScene:
         return self._footprint_row
 
 
-def find_planet_scenes(directory, exclude_meta=None,
-                       shelved_parent=None):
-    if not isinstance(directory, pathlib.PurePath):
-        directory = Path(directory)
-    manifest_files = directory.rglob('*_manifest.json')
-
-    planet_scenes = [PlanetScene(mf, exclude_meta=exclude_meta,
-                                 shelved_parent=shelved_parent)
-                     for mf in manifest_files]
-
-    return planet_scenes

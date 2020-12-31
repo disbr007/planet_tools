@@ -24,7 +24,7 @@ def sort_scene_by_date(src_dir, dst_dir,
     logger.info('Locating scene files...')
     scenes = data_dir.rglob('*.tif')
 
-    logger.info('Copying scenes to shelved locations...')
+    logger.info('Copying scenes to sorted destination locations...')
     pbar = tqdm(scenes)
     for s in pbar:
         sp = Path(s)
@@ -67,7 +67,7 @@ def sort_scene_by_date(src_dir, dst_dir,
                     os.link(sf, df)
                 else:
                     shutil.copy2(sf, df)
-            pbar.write('Copied {} ->\n\t{}'.format(sf, df))
+            # pbar.write('Copied {} ->\n\t{}'.format(sf, df))
 
 
 if __name__ == '__main__':
