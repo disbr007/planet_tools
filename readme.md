@@ -81,7 +81,7 @@ criteria can be saved using any of the following arguments:
 * `-od`: the directory to write the vector file to, where the file name 
 will be the name of the search
 * `--to_tbl`: the name of the table in `sandwich-pool.planet` to write
-the footprints to (needs to be hardcoded to only write to `scenes`  
+the footprints to
 
 To get the count for a search without saving the search to your Planet 
 account:

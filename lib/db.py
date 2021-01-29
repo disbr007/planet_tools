@@ -153,6 +153,7 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
     # Ensure properly quoted identifiers
     remove_id_tbl = make_identifier(remove_id_tbl)
 
+    # TODO: make this a loop over a dict of fields and argss
     where = ""
     if date_min:
         where = check_where(where)
