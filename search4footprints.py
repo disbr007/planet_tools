@@ -7,7 +7,7 @@ from lib.logging_utils import create_logger
 
 # TODO: Add option to just create search from this script
 
-logger = create_logger(__name__, 'sh', 'DEBUG',)
+logger = create_logger(__name__, 'sh', 'INFO',)
 
 
 # def search4footprints(name, item_types,
@@ -152,14 +152,11 @@ if __name__ == '__main__':
     # For debugging
     # import sys
     # sys.argv = [__file__,
-    #             '-n', 'scenes_test',
-    #             '--months', '08',
-    #             '--month_max_day', '08', '05',
+    #             '-n', 'mcdv_test',
     #             '--it', 'PSScene4Band',
     #             '-af', 'basic_analytic',
     #             '--aoi', r'V:\pgc\data\scratch\jeff\projects\planet\aois'
-    #                      r'\front_range_six_geocell.shp',
-    #             '--max_cc', '20',
+    #                      r'\taylor_valley\Taylor_Valley_check.shp',
     #             '-op', r'C:\temp\test_fps.shp',
     #             '--overwrite_saved',
     #             '--get_count_only']
