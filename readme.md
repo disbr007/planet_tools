@@ -46,7 +46,7 @@ export PL_API_KEY=[your API key]
 ```
 
 ### Configuration file
-A number of settings, included database and AWS credentials are set 
+A number of settings, including database and AWS credentials are set 
 through the use of a configuration file at: `config/config.json`. 
 See `config/config_example.json` for an example.
 
@@ -131,8 +131,13 @@ python shelve_scenes.py -i orders/ --index_scenes
 
 ### Multilook Stereo Selection 
 `multilook_selection.py`  
-Select multilook 'pairs' from `multilook_candidates` table that meet minimum pairs and
-minimum area arguments.
+Select multilook 'pairs' (really groups of scenes) from `multilook_candidates` table that meet 
+minimum number of scene and minimum area (in <sup>m2</sup>) arguments.
+```python
+python multilook_selection.py -oi multilook_ids.txt -ofp multilook_overlaps.shp 
+--aoi my_aoi.shp --min_pairs 3 --min_area 32_000_000
+```
+
 ## Miscellaneous
 `lib`  
 A number of submodules are included to group functions that share a common purpose.
@@ -214,3 +219,8 @@ be modified to just submit an order.
 ### SQL
 `sql\table_views_generation.sql`: Contains the SQL statements to create all tables and
 views on `sandwich-pool.planet`. **Not meant to be run as a standalone script.**
+
+
+### TODO:
+- [] Use Planet API key from config.json, not a system environmental variable
+- [] Make boto3 import dependent on delivery method
