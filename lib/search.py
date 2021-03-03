@@ -19,7 +19,7 @@ from lib.lib import read_ids, write_gdf
 from lib.db import Postgres
 from lib.logging_utils import create_logger
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 # TODO: convert to search_session class (all fxns that take session)
 # TODO: Add filter: id NOT IN [list of existing IDs]
@@ -39,7 +39,7 @@ thread_local = threading.local()
 
 # CREATE SEARCHES
 # Footprint tables
-scenes = 'scenes'
+SCENES_TBL = 'scenes'
 scenes_onhand = 'scenes_onhand'
 
 # To ensure passed filter type is valid
@@ -544,7 +544,7 @@ def create_search(name, item_types,
 
     if attrib_args and any([v for k, v in attrib_args.items()]):
         master_attribute_filter = create_master_attribute_filter(attrib_args)
-        print(master_attribute_filter)
+        # print(master_attribute_filter)
         search_filters.append(master_attribute_filter)
 
     # Parse AOI to filter
@@ -599,7 +599,7 @@ def create_search(name, item_types,
     if fp_not_on_hand:
         logger.warning('Not on hand filter may fail due to payload size '
                        'restriction on Planet API.')
-        fp_noh_filter = create_noh_filter(tbl=scenes)
+        fp_noh_filter = create_noh_filter(tbl=SCENES_TBL)
         fp_noh_filter['config']['config'] = fp_noh_filter['config']['config'][:10000]
         search_filters.append(fp_noh_filter)
 
@@ -704,7 +704,7 @@ def get_search_count(search_request):
     # pprint(stats_request)
     total_count = sum(bucket[count_key]
                       for bucket in stats.json()[buckets_key])
-    logger.debug('Total count for search request "{}": {:,}'.format(name,
+    logger.info('Total count for search request "{}": {:,}'.format(name,
                                                                     total_count))
 
     return total_count
@@ -863,7 +863,6 @@ def select_scenes(search_id, dryrun=False):
     sr = get_saved_search(session=session, search_id=search_id)
     sr_name = sr['name']
     total_count = get_search_count(search_request=sr)
-    logger.info('Total count for search parameters: {:,}'.format(total_count))
 
     # Perform requests to API to return features, which are converted to footprints in a geodataframe
     master_footprints = gpd.GeoDataFrame()
@@ -884,7 +883,7 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
 
 
 def get_search_footprints(out_path=None, out_dir=None,
-                          to_tbl=None, dryrun=False,
+                          to_scenes_tbl=False, dryrun=False,
                           search_id=None, **kwargs):
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
@@ -900,10 +899,10 @@ def get_search_footprints(out_path=None, out_dir=None,
         else:
             write_scenes(scenes, out_path=out_path)
 
-    if to_tbl:
+    if to_scenes_tbl:
         with Postgres() as db:
             db.insert_new_records(scenes,
-                                  table=to_tbl,
+                                  table=SCENES_TBL,
                                   dryrun=dryrun)
 
     return scenes

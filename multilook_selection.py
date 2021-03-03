@@ -21,6 +21,7 @@ from lib.logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+# Constants
 ml_mv = 'multilook_candidates'
 ml_mv_geom = 'geometry'
 scenes = 'scenes'
@@ -32,9 +33,15 @@ ml_id = 'src_id'
 ml_pairname = 'pairname'
 fn_id = 'fn_id'
 fn_pn = 'fn_pairname'
+PAIR_IDS = 'pair_ids'
+COUNT_FLD = 'ct'
+
+# Global Equal Area projection for area calculation
 eckertIV = r'+proj=eck4 +lon_0=0 +datum=WGS84 +units=m +no_defs'
-min_area = 32_670_000  # meters^2
-min_pairs = 3
+
+# Default arguments
+DEF_MIN_AREA = 32_670_000  # meters^2
+DEF_MIN_PAIRS = 3
 
 
 def get_src_gdf(src_id, db_src):
@@ -47,7 +54,7 @@ def get_src_gdf(src_id, db_src):
 
 
 def get_multilook_pair_gdf(ids, db_src, geom_col=so_geom):
-    """Loads one record per pair in list of ids from db_src"""
+    """Loads each scene in list of ids as GeoDataFrame"""
     pairs_sql = "SELECT * FROM {} WHERE {} IN ({})".format(scenes_onhand,
                                                            s_id,
                                                            str(ids)[1:-1])
@@ -64,6 +71,7 @@ def get_ids_from_multilook(df, src_id_fld, pairname_fld):
 
     return all_ids
 
+
 def all_pairs_oh(pairname, oh_ids):
     pair_ids = pairname.split('-')
     oh_pair_ids = set(pair_ids).intersection(oh_ids)
@@ -73,8 +81,10 @@ def all_pairs_oh(pairname, oh_ids):
     else:
         return True
 
-def multilook_intersections(src_id, pair_ids, footprints, min_pairs=min_pairs,
-                            min_area=min_area):
+
+def multilook_intersections(src_id, pair_ids, footprints,
+                            min_pairs=DEF_MIN_PAIRS,
+                            min_area=DEF_MIN_AREA):
     """Takes a source ID of one footprint and pair ids of all other
     footprints that overlap it. Computes the intersections of each pair
     of src-other and sorts by largest intersection. Starting with the
@@ -205,26 +215,29 @@ def multilook_intersections(src_id, pair_ids, footprints, min_pairs=min_pairs,
     return multilook_pairs
 
 
-def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, aoi=None,
-                        onhand=True):
+def get_multilook_pairs(min_pairs=DEF_MIN_PAIRS, min_area=DEF_MIN_AREA,
+                        aoi=None, onhand=True):
     """Loads all records in multilook_candidates table and determines
     if each combination of src_id and overlapping pair meets minimum
     number of pairs and minimum area requirements. See
     multilook_intersections for details."""
-    logger.info('Loading multilook candidates from: {}'.format(ml_mv))
+    logger.info('Loading multilook candidate groups from: '
+                'planet.{}'.format(ml_mv))
     sql = "SELECT * FROM {}".format(ml_mv)
+    sql += " WHERE {} > {}".format(COUNT_FLD, min_pairs)
     if aoi:
         logger.info('Loading AOI...')
         aoi_gdf = gpd.read_file(aoi)
         aoi_where = intersect_aoi_where(aoi_gdf, geom_col=ml_mv_geom)
-        sql += ' WHERE {}'.format(aoi_where)
+        sql += ' AND {}'.format(aoi_where)
+
     with Postgres() as db_src:
-        logger.info('Loading multilook candidates...')
+        # logger.info('Loading multilook candidates...')
         df = db_src.sql2df(sql_str=sql)
 
     logger.info('Records loaded: {:,}'.format(len(df)))
 
-    df['pair_ids'] = df.pairname.str.split('-')
+    df[PAIR_IDS] = df.pairname.str.split('-')
     with Postgres() as db_src:
         logger.info('Loading source footprints for all IDs found in '
                     'multilook table, including pairnames...')
@@ -234,12 +247,18 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, aoi=None,
         footprints = get_multilook_pair_gdf(all_ids, db_src)
         logger.info('Footprints loaded: {:,}'.format(len(footprints)))
 
+        # If onhand only, get onhand IDs while connected to database
         if onhand:
             logger.info('Keeping only onhand IDs including those in '
                         'pairnames...')
-            oh_ids = db_src.get_values(scenes_onhand, 'id', distinct=True)
+            oh_ids = db_src.get_values(scenes_onhand, so_id, distinct=True)
             # Drop records where source ID isn't onhand
+            logger.debug('Dropping records with not-onhand source IDs...')
             df = df[df[ml_id].isin(oh_ids)]
+            # Drop records where all IDs aren't onhand
+            # logger.debug('Dropping records with not-onhand pair IDs...')
+            # df = df[df[PAIR_IDS].apply(lambda x: all(pair_id in oh_ids
+            #                                          for pair_id in x))]
 
     # Add filename column
     footprints[fn_id] = footprints['filename'].apply(lambda x: x[:-4])
@@ -248,12 +267,17 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, aoi=None,
     logger.debug('Converting to equal area crs: {}'.format(eckertIV))
     footprints = footprints.to_crs(eckertIV)
 
+    # Ensure records remain
+    if len(df) == 0:
+        logger.info('No remaining pairs, exiting.')
+        sys.exit(-1)
+
     logger.info('Finding multilook pairs meeting thresholds:\nMin. '
                 'Pairs: {}\n'
-                'Min. Area: {:,}'.format(min_pairs, min_area))
+                'Min. Area: {:,.2f}'.format(min_pairs, min_area))
     df['multilook_pairs'] = df.apply(
-        lambda x: multilook_intersections(x['src_id'],
-                                          x['pair_ids'],
+        lambda x: multilook_intersections(x[ml_id],
+                                          x[PAIR_IDS],
                                           footprints=footprints,
                                           min_pairs=min_pairs,
                                           min_area=min_area),
@@ -261,15 +285,49 @@ def get_multilook_pairs(min_pairs=min_pairs, min_area=min_area, aoi=None,
 
     logger.info('Merging multilook pair records into single dataframe...')
     multilook_pairs = pd.concat(df['multilook_pairs'].values)
+    if len(multilook_pairs) == 0:
+        logger.info('No multilook pairs found, exiting.')
+        sys.exit(-1)
     # Reproject back to WGS84
-    logger.debug('Reprojecting back to EPSG:4326')
+    logger.debug('Reprojecting back to EPSG:4326...')
     multilook_pairs = multilook_pairs.to_crs('epsg:4326')
 
     logger.info('Total multilook pairs found: '
                 '{:,}'.format(len(multilook_pairs)))
 
-
     return multilook_pairs
+
+
+def multilook_selection(out_ids: str,
+                        out_overlaps: str = None,
+                        min_pairs: int = DEF_MIN_PAIRS,
+                        min_area: int = DEF_MIN_AREA,
+                        aoi: str = None
+                        ):
+
+    logger.info('Searching for multilook pairs meeting thresholds:\n'
+                'Min. Pairs: {:,}\n'
+                'Min. Area: {:,}'.format(min_pairs, min_area))
+    multilook_pairs = get_multilook_pairs(min_pairs=min_pairs,
+                                          min_area=min_area,
+                                          aoi=aoi)
+
+    logger.info('Writing multilook pairs to file: '
+                '{}'.format(out_overlaps))
+    write_gdf(multilook_pairs, out_overlaps)
+
+    if out_ids:
+        logger.info('Writing IDs to file: {}'.format(out_ids))
+        # TODO: Confirm the ID field is correct (should it be 'src_id'?)
+        all_ids = get_ids_from_multilook(multilook_pairs,
+                                         src_id_fld=so_id,
+                                         pairname_fld=ml_pairname)
+        with open(out_ids, 'w') as dst:
+            for each_id in all_ids:
+                dst.write(each_id)
+                dst.write('\n')
+
+    logger.info('Done.')
 
 
 if __name__ == '__main__':
@@ -277,45 +335,35 @@ if __name__ == '__main__':
         description="Locate multilook 'pairs' that meet the provided minimum "
                     "criteria: --min_pairs and --min_area."
     )
-
-    parser.add_argument('-o', '--out_multilook_fp', type=os.path.abspath,
-                        help='Path to write multilook footprints to.')
     parser.add_argument('-oi', '--out_ids', type=os.path.abspath,
+                        required=True,
                         help='Path to write text file of all IDs in multilook '
                              'footprint.')
+    parser.add_argument('-o', '--out_overlaps', type=os.path.abspath,
+                        help='Path to write multilook footprints to.')
+
     parser.add_argument('--aoi', type=os.path.abspath,
                         help='Path to AOI polygon to select pairs with.')
-    parser.add_argument('-mp', '--min_pairs', type=int, default=min_pairs)
-    parser.add_argument('-ma', '--min_area', type=float, default=min_area)
+    parser.add_argument('-mp', '--min_pairs', type=int,
+                        default=DEF_MIN_PAIRS)
+    parser.add_argument('-ma', '--min_area', type=float,
+                        default=DEF_MIN_AREA)
+
+    import sys
+    sys.argv = [__file__,
+                "-oi", r'C:\temp\mlids.txt',
+                "-mp", "100"]
 
     args = parser.parse_args()
 
-    # For debugging
-    # import sys
-    # sys.argv = [r'C:\code\planet_stereo\multilook_selection.py',
-    #             '-o',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-    #             r'\2020dec09_multilook\2020dec09_multilook_pairs.geojson',
-    #             '-mp', '3']
+    min_pairs = args.min_pairs
+    min_area = args.min_area
+    out_ids = args.out_ids
+    out_overlaps = args.out_overlaps
+    aoi = args.aoi
 
-    logger.info('Searching for multilook pairs meeting thresholds:\n'
-                'Min. Pairs: {}\n'
-                'Min. Area: {:,}'.format(min_pairs, min_area))
-    multilook_pairs = get_multilook_pairs(min_pairs=args.min_pairs,
-                                          min_area=args.min_area,
-                                          aoi=args.aoi)
-
-    logger.info('Writing multilook pairs to file: '
-                '{}'.format(args.out_multilook_fp))
-    write_gdf(multilook_pairs, args.out_multilook_fp)
-
-    if args.out_ids:
-        logger.info('Writing IDs to file: {}'.format(args.out_ids))
-        all_ids = get_ids_from_multilook(multilook_pairs,
-                                         src_id_fld='id',
-                                         pairname_fld='pairname')
-        with open(args.out_ids, 'w') as dst:
-            for each_id in all_ids:
-                dst.write(each_id)
-                dst.write('\n')
-    logger.info('Done.')
+    multilook_selection(out_ids=out_ids,
+                        out_overlaps=out_overlaps,
+                        min_pairs=min_pairs,
+                        min_area=min_area,
+                        aoi=aoi)

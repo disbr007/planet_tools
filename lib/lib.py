@@ -259,7 +259,8 @@ def get_geometry_cols(gdf):
     return geom_cols
 
 
-def write_gdf(gdf, out_footprint, out_format=None, date_format=None):
+def write_gdf(gdf, out_footprint, out_format=None,
+              date_format='%Y-%m-%d %H:%M:%S'):
     if not isinstance(out_footprint, pathlib.PurePath):
         out_footprint = Path(out_footprint)
 

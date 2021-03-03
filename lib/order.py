@@ -293,7 +293,7 @@ def get_stereo_pairs(**kwargs):
     """Load stereo pairs from DB"""
     sql = stereo_pair_sql(**kwargs)
     # Load records
-    with Postgres(planet_db) as db:
+    with Postgres() as db:
         results = gpd.GeoDataFrame.from_postgis(sql=sql,
                                                 con=db.get_engine().connect(),
                                                 geom_col="ovlp_geom",
@@ -533,7 +533,7 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     if remove_onhand:
         logger.info('Removing onhand IDs...')
-        with Postgres(planet_db) as db:
+        with Postgres() as db:
             onhand = set(db.get_values(scenes_onhand_tbl, columns=[scene_id]))
 
         ids = list(set(ids) - onhand)

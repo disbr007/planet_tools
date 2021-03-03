@@ -5,14 +5,18 @@ import geopandas as gpd
 from sqlalchemy.exc import ProgrammingError
 
 from lib.db import Postgres, intersect_aoi_where
-from lib.lib import write_gdf, parse_group_args
+from lib.lib import read_ids, write_gdf, parse_group_args
 # TODO: Fix this - place attrib_arg_lut dict somewhere better
 from lib.search import attrib_arg_lut
 from lib.logging_utils import create_logger
 
 # logger = create_logger('lib', 'sh', 'INFO')
+# Database Tables
 scenes_tbl = 'scenes'
 scenes_onhand_tbl = 'scenes_onhand'
+
+# Databse Fields
+GEOMETRY_FLD = 'geometry'
 
 
 def build_argument_sql(att_args=None, months=None,
@@ -41,7 +45,7 @@ def build_argument_sql(att_args=None, months=None,
     if aoi_path:
         # Build AOI sql
         aoi = gpd.read_file(aoi_path)
-        aoi_sql = intersect_aoi_where(aoi, 'geom')
+        aoi_sql = intersect_aoi_where(aoi, GEOMETRY_FLD)
         where_statements.append(aoi_sql)
 
     where = ""
@@ -77,23 +81,24 @@ def build_argument_sql(att_args=None, months=None,
         else:
             where = ids_where
 
-    sql = """SELECT * FROM {} WHERE {}""".format(table, where)
+    sql_str = """SELECT * FROM {} WHERE {}""".format(table, where)
 
-    logger.debug('SQL: {}'.format(sql[:500]))
-    if len(sql) > 500:
-        logger.debug('...{}'.format(sql[-500:]))
+    logger.debug('SQL: {}'.format(sql_str[:500]))
+    if len(sql_str) > 500:
+        logger.debug('...{}'.format(sql_str[-500:]))
 
-    return sql
+    return sql_str
 
 
-def make_selection(sql):
-    with Postgres('sandwich-pool.planet') as db:
+def make_selection(sql_str):
+    with Postgres() as db:
         try:
-            selection = db.sql2gdf(sql=sql)
+            selection = db.sql2gdf(sql_str=sql_str)
         except ProgrammingError as sql_error:
-            logger.error('SQL: {}'.format(sql[:500]))
-            if len(sql) > 500:
-                logger.error('...{}'.format(sql[-500:]))
+            logger.error(sql_error)
+            logger.error('SQL: {}'.format(sql_str[:500]))
+            if len(sql_str) > 500:
+                logger.error('...{}'.format(sql_str[-500:]))
             raise ProgrammingError
 
     logger.info('Selected features: {:,}'.format(len(selection)))
@@ -110,16 +115,20 @@ def select_scenes(att_args, aoi_path=None, ids=None, ids_field='id', months=None
         tbl = scenes_tbl
 
     if ids:
-        with open(ids, 'r') as src:
-            selection_ids = src.readlines()
-            selection_ids = [i.strip() for i in selection_ids]
+        selection_ids = read_ids(ids, field=ids_field)
+        # with open(ids, 'r') as src:
+        #     selection_ids = src.readlines()
+        #     selection_ids = [i.strip() for i in selection_ids]
+    else:
+        selection_ids = None
 
-    sql = build_argument_sql(att_args=att_args, months=months, ids=selection_ids, ids_field=ids_field,
+    sql_str = build_argument_sql(att_args=att_args, months=months, ids=selection_ids, ids_field=ids_field,
                              month_min_days=month_min_days, month_max_days=month_max_days,
                              aoi_path=aoi_path, table=tbl)
-    selection = make_selection(sql)
+    selection = make_selection(sql_str=sql_str)
 
     if out_selection and not dryrun:
+        logger.info('Writing selected features to: {}'.format(out_selection))
         write_gdf(selection, out_selection)
 
     logger.info('Done.')
@@ -157,11 +166,11 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
         else:
             where = aoi_where
 
-    sql = """SELECT * FROM {} WHERE {}""".format(stereo_tbl, where)
-    logger.debug('SQL for stereo selection:\n{}'.format(sql))
+    sql_str = """SELECT * FROM {} WHERE {}""".format(stereo_tbl, where)
+    logger.debug('SQL for stereo selection:\n{}'.format(sql_str))
 
     with Postgres('sandwich-pool.planet') as db:
-        gdf = db.sql2gdf(sql=sql, geom_col='ovlp_geom')
+        gdf = db.sql2gdf(sql_str=sql_str, geom_col='ovlp_geom')
 
     logger.info('Pairs found: {:,}'.format(len(gdf)))
 
@@ -181,10 +190,10 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
         all_sids = list(set(all_sids))
         logger.info('Unique scene ids: {:,}'.format(len(all_sids)))
 
-        sql = """SELECT * FROM {} WHERE {} IN ({})""".format(scenes, sid_col, str(all_sids)[1:-1])
-        logger.debug('SQL for selecting scenes footprint:\n{}...'.format(sql[:500]))
-        with Postgres('sandwich-pool.planet') as db:
-            scene_footprint = db.sql2gdf(sql=sql)
+        sql_str = """SELECT * FROM {} WHERE {} IN ({})""".format(scenes, sid_col, str(all_sids)[1:-1])
+        logger.debug('SQL for selecting scenes footprint:\n{}...'.format(sql_str[:500]))
+        with Postgres() as db:
+            scene_footprint = db.sql2gdf(sql_str=sql_str)
 
         write_gdf(scene_footprint, out_scene_footprint)
 
@@ -252,7 +261,6 @@ if __name__ == '__main__':
                                 choices=choices_quality_category)
     attribute_args.add_argument('--ground_control', type=bool, nargs='+')
 
-    # TODO: Add multi-aoi support - join aoi_wheres with ' OR '
     parser.add_argument('--aoi', type=os.path.abspath,
                         help='Path to AOI vector file to use for selection.')
     parser.add_argument('--ids', type=os.path.abspath,
@@ -265,6 +273,9 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
 
+    # import sys
+    # sys.argv = [__file__,
+    #             '--onhand']
     args = parser.parse_args()
 
     if args.verbose:

@@ -10,25 +10,6 @@ from lib.logging_utils import create_logger
 logger = create_logger(__name__, 'sh', 'INFO',)
 
 
-# def search4footprints(name, item_types,
-#                       aoi=None,
-#                       attrib_args=None,
-#                       ids=None,
-#                       months=None,
-#                       month_min_day_args=None,
-#                       month_max_day_args=None,
-#                       filters=None,
-#                       asset_filters=None,
-#                       load_filter=None,
-#                       not_on_hand=False,
-#                       fp_not_on_hand=False,
-#                       get_count_only=False,
-#                       overwrite_saved=False,
-#                       save_filter=False,
-#                       out_path=None,
-#                       out_dir=None,
-#                       to_tbl=None,
-#                       dryrun=False):
 def search4footprints(**kwargs):
     logger.info('Creating search...')
     ssid, search_count = create_search(**kwargs)
@@ -58,8 +39,7 @@ if __name__ == '__main__':
         "can later be used with the --load_filter argument. Resulting "
         "footprints can be written out as vector file to --out_path, or "
         "--out_dir with the created search name. Footprints can also be "
-        "written directly to database table provided in --to_tbl in the "
-        "database provided in config/config.json. ",
+        "written directly to 'scenes' database table by using --to_scenes_tbl.",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
@@ -78,8 +58,10 @@ if __name__ == '__main__':
     parser.add_argument('--month_max_day', nargs=2, action='append',
                         help='Maximum day to include in a given month: '
                              'eg. 12 20. Can be repeated multiple times.')
-    attribute_args.add_argument('--min_date', type=str,)
-    attribute_args.add_argument('--max_date', type=str,)
+    attribute_args.add_argument('--min_date', type=str,
+                                help='Minimum date to include: YYYY-MM-DD')
+    attribute_args.add_argument('--max_date', type=str,
+                                help='Maximum date to include: YYYY-MM-DD')
     attribute_args.add_argument('--max_cc', type=float, )
     attribute_args.add_argument('--min_ulx', type=float, )
     attribute_args.add_argument('--max_ulx', type=float, )
@@ -140,11 +122,10 @@ if __name__ == '__main__':
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-                        help="""Directory to write scenes footprint to. The 
-                        search request name will be used for the filename.""")
-    parser.add_argument('--to_tbl', type=str,
-
-                        help="""Insert search results into this table.""")
+                        help="Directory to write scenes footprint to. The "
+                             "search request name will be used for the filename.")
+    parser.add_argument('--to_scenes_tbl', action='store_true',
+                        help="Insert search results into the scenes table.")
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -186,7 +167,7 @@ if __name__ == '__main__':
               'attrib_args': attrib_args,
               'out_path': args.out_path,
               'out_dir': args.out_dir,
-              'to_tbl': args.to_tbl,
+              'to_scenes_tbl': args.to_scenes_tbl,
               'dryrun': args.dryrun,
               }
 

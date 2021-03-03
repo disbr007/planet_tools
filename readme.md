@@ -132,9 +132,9 @@ python shelve_scenes.py -i orders/ --index_scenes
 ### Multilook Stereo Selection 
 `multilook_selection.py`  
 Select multilook 'pairs' (really groups of scenes) from `multilook_candidates` table that meet 
-minimum number of scene and minimum area (in <sup>m2</sup>) arguments.
+minimum number of scene and minimum area (in m<sup>2</sup>) arguments.
 ```python
-python multilook_selection.py -oi multilook_ids.txt -ofp multilook_overlaps.shp 
+python multilook_selection.py --out_ids multilook_ids.txt --out_overlaps multilook_overlaps.shp 
 --aoi my_aoi.shp --min_pairs 3 --min_area 32_000_000
 ```
 

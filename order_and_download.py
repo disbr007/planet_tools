@@ -8,8 +8,8 @@ import time
 
 from lib.lib import read_ids, get_config, linux2win
 from lib.logging_utils import create_logger, create_logfile_path
-from lib.order import poll_for_success
-from submit_order import submit_order
+from lib.order import submit_order, poll_for_success
+# from submit_order import submit_order
 from lib.order import download_parallel
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                             help='Path to selection of footprints to order, by ID.')
     order_args.add_argument('--product_bundle', type=str, default='basic_analytic_dn',
                             choices=all_bundle_types, metavar='', nargs='+',
-                            help='Product bundle types to include in order.')
+                            help='Product bundle types to include in order, e.g.: basic_analytic')
     order_args.add_argument('--orders', type=os.path.abspath,
                             default=os.path.join(os.getcwd(), 'planet_orders.txt'),
                             help='Path to write order IDs to.')
