@@ -150,6 +150,7 @@ GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry
 HAVING count(*) > 2;
 
 DROP MATERIALIZED VIEW multilook_candidates;
+
 /* ONHAND TABLES */
 /* Find only pairs that are both onhand, create field:pairname_fn using
    filenames w/o ext */

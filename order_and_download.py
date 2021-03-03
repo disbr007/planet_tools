@@ -123,17 +123,17 @@ if __name__ == '__main__':
                         help='Print actions without downloading.')
 
     # DEBUGGING
-    import sys
-    sys.argv = [
-        r'C:\code\planet_tools\order_and_download.py',
-        '-n', 'zip_test',
-        '--selection', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\test_zip.geojson',
-        '--product_bundle', 'basic_analytic',
-        '--orders',  r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
-        '--download_orders', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
-        '--delivery', 'zip',
-        '--do_not_remove_onhand'
-    ]
+    # import sys
+    # sys.argv = [
+    #     r'C:\code\planet_tools\order_and_download.py',
+    #     '-n', 'zip_test',
+    #     '--selection', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\test_zip.geojson',
+    #     '--product_bundle', 'basic_analytic',
+    #     '--orders',  r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
+    #     '--download_orders', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
+    #     '--delivery', 'zip',
+    #     '--do_not_remove_onhand'
+    # ]
 
     args = parser.parse_args()
 

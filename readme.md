@@ -108,7 +108,7 @@ python select_footprints.py
     --out_selection selection.shp
 ```
 
-### Order and download imagery via AWS
+### Order and download imagery
 A selected footprint (or list of IDs) can be used to order and download
 imagery:
 ```commandline
@@ -118,7 +118,10 @@ python order_and_download.py
     --product_bundle basic_analytic \
     --orders ordered_ids.txt 
     --destination_parent_directory orders/
+    --delivery zip
 ``` 
+Delivery via AWS is also possible, using `--delivery aws`, but requires 
+that AWS account credentials are present in `config/config.json`
 
 ### Shelving and Indexing
 Once an order has been downloaded, it can be shelved and indexed:
@@ -126,10 +129,14 @@ Once an order has been downloaded, it can be shelved and indexed:
 python shelve_scenes.py -i orders/ --index_scenes
 ```
 
+### Multilook Stereo Selection 
+`multilook_selection.py`  
+Select multilook 'pairs' from `multilook_candidates` table that meet minimum pairs and
+minimum area arguments.
 ## Miscellaneous
 `lib`  
-A number of submodules are included to group functions that share a common purpose
-* `lib.logging_utils`: The lowest level submodule functions to simplify logging. 
+A number of submodules are included to group functions that share a common purpose.
+* `lib.logging_utils`: Functions to simplify logging. 
 Highlights:
     * `logging_utils.create_logger` Create a logger of a given name, handler type, 
     and handler level. If an identical handler exists, skip duplicating. When 
@@ -154,10 +161,10 @@ Highlights:
         logger = create_logger('lib.db', 'fh', 'DEBUG', filename='lib.db.log')
         ```
 
-* `lib.lib`: The second lowest level submodule. Highlights:
+* `lib.lib`: General purpose functions. Highlights:
     * read configuration file
-    * convert from terranova (`/mnt/pgc/`) paths to Windows (`V:\pgc`)
-    * read ids from file
+    * convert from Terranova (`/mnt/pgc/`) paths to Windows (`V:\pgc`) (PGC specific)
+    * read scene ids from a variety of file source types (.txt, .csv, .shp, .geojson, etc.)
     * verify checksums
     * **PlanetScene**: a class to manage parsing attributes from metadata files,
         determining if scenes are shelveable, and indexing
@@ -174,21 +181,24 @@ the [Planet Data API](https://developers.planet.com/docs/apis/data/).
 * `lib.order`: Functions for ordering imagery using the 
 [Planet Orders API](https://developers.planet.com/docs/orders/).
 
+* `lib.aws_utils`: Functions for working with AWS:
+    * connecting to an AWS bucket
+    * checking for existence of *_manifest.json file (indicates delivery to bucket is complete)
+    * creating an aws_delivery dictionary containing all necessary parameters to pass to the 
+      [Planet Orders API](https://developers.planet.com/docs/orders/)
+
 `fp_planet.py`  
 Footprint a directory containing Planet imagery. Imagery is identified by locating
 scene-level manifest files. (in progress)
 
 `ingest_off_nadir.py`  
 Parse off-nadir metadata .csv's from Planet into database table `off_nadir`. These
-csv's contain Planet's internal metadata values.
+csv's contain Planet's internal metadata values for each scene's off-nadir and azimuth
 
 `manage_searches.py`  
 List or delete saved searches using the 
 [Planet Data API](https://developers.planet.com/docs/apis/data/).
 
-`multilook_selection.py`  
-Select multilook 'pairs' from `multilook_candidates` table that meet minimum pairs and
-minimum area arguments.
   
 `scene_retriever.py`  
 Copy scenes from shelved locations to a destination directory. (in progress)

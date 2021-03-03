@@ -80,14 +80,8 @@ def get_config(param):
     return config
 
 
-# def linux2win(path):
-#     wp = Path(str(path).replace('/mnt', 'V:').replace('/', '\\'))
-#     return wp
-
-
 def win2linux(path):
     lp = path.replace('V:', r'/mnt').replace('\\', '/')
-
     return lp
 
 
@@ -95,7 +89,6 @@ def linux2win(path):
     wp = path.replace(r'//mnt', 'V:')
     wp = wp.replace(r'/mnt', 'V:')
     wp = wp.replace('/', '\\')
-
     return wp
 
 
@@ -104,13 +97,12 @@ def get_platform_location(path):
         pl = win2linux(path)
     elif platform.system() == 'Windows':
         pl = linux2win(path)
-
     return pl
 
 
 def type_parser(filepath):
     """
-    takes a file path (or dataframe) in and determines whether it is a dbf,
+    Takes a file path (or dataframe) in and determines whether it is a dbf,
     excel, txt, csv (or df), ADD SUPPORT FOR SHP****
     """
     if isinstance(filepath, pathlib.PurePath):
@@ -161,7 +153,7 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
                      'csv', 'excel', 'geojson') and not field:
         logger.error('Must provide field name with file type: '
                      '{}'.format(file_type))
-        sys.exit()
+        sys.exit(-1)
 
     # Text file
     if file_type == 'id_only_txt':
@@ -214,7 +206,7 @@ def datetime2str_df(df, date_format='%Y-%m-%d %H:%M:%S'):
     # Convert datetime columns to str
     date_cols = df.select_dtypes(include=['datetime64']).columns
     for dc in date_cols:
-        df[dc] = df[dc].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S'))
+        df[dc] = df[dc].apply(lambda x: x.strftime(date_format))
 
 
 def determine_driver(src):
@@ -311,7 +303,10 @@ def parse_group_args(parser, group_name):
 
 
 def id_from_scene(scene, scene_levels=['1B', '3B']):
-    """scene : pathlib.Path"""
+    """
+    Get the scene id from a given scene's file path
+    scene: pathlib.Path
+    """
     if not isinstance(scene, pathlib.PurePath):
         scene = Path(scene)
     scene_name = scene.stem

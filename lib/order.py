@@ -264,14 +264,16 @@ def download_parallel(order_ids, dst_par_dir, delivery,
     pool = ThreadPool(threads)
     # Create a dl_order_when_ready call for each order id in order_ids,
     # with the specified arguments
-    results = pool.starmap(dl_order_when_ready, product(order_ids, [dst_par_dir], [delivery],
-                                                        [bucket], [overwrite], [dryrun],
-                                                        [2], [10], [wait_max]))
+    results = pool.starmap(dl_order_when_ready,
+                           product(order_ids, [dst_par_dir], [delivery],
+                                   [bucket], [overwrite], [dryrun], [2], [10],
+                                   [wait_max]))
     pool.close()
     pool.join()
 
     logger.info('Download statuses:\nOrder ID\t\tStarted\t\tIssue\n{}'.format(
-        '\n'.join(["{} {}\t{}".format(oid, start_dl, issue) for oid, start_dl, issue in results])
+        '\n'.join(["{} {}\t{}".format(oid, start_dl, issue)
+                   for oid, start_dl, issue in results])
     ))
 
     return results
@@ -292,8 +294,10 @@ def get_stereo_pairs(**kwargs):
     sql = stereo_pair_sql(**kwargs)
     # Load records
     with Postgres(planet_db) as db:
-        results = gpd.GeoDataFrame.from_postgis(sql=sql, con=db.get_engine().connect(),
-                                                geom_col="ovlp_geom", crs="epsg:4326")
+        results = gpd.GeoDataFrame.from_postgis(sql=sql,
+                                                con=db.get_engine().connect(),
+                                                geom_col="ovlp_geom",
+                                                crs="epsg:4326")
 
     return results
 

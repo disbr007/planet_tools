@@ -148,6 +148,7 @@ def create_attribute_filter(arg_name, arg_value):
 
     return filter
 
+
 def create_ids_filter(ids, field='id'):
     ids_filter = {ftype: sif,
                   field_name: field,
@@ -184,6 +185,21 @@ def create_master_attribute_filter(attrib_args):
 
 
 def monthlist(start_date, end_date):
+    """
+    Create a list of tuples of (YYYY, MM) for each month
+    between start_date and end_date.
+    Parameters
+    ----------
+    start_date: str
+        YYYY-MM-DD
+    end_date: str
+        YYYY-MM-DD
+
+    Returns
+    ----------
+    list: tuple of strings like (YYYY, MM)
+
+    """
     start, end = [datetime.strptime(_, "%Y-%m-%d") for _ in [start_date, end_date]]
     total_months = lambda dt: dt.month + 12 * dt.year
     mlist = []
@@ -199,12 +215,14 @@ def monthlist(start_date, end_date):
 def create_months_filter(months, min_date=None, max_date=None,
                          month_min_days=None, month_max_days=None):
     """
-    Create an OrFilter which has a subfilter for each monnth that is a
+    Create an OrFilter which has a subfilter for each month that is a
     DateRangeFilter for every year between min date and max date for
     that month. Eg, if months = ['01']:
         (acquired >= 2019-01-01 and acquired is <= 2019-01-31) OR
         (acquired >= 2020-01-01 and acquired is <= 2020-01-31)
+
     Parameters:
+    -----------
         months : list
         min_date: str
             Date, like '2020-10-01'
@@ -272,7 +290,6 @@ def create_noh_filter(tbl=scenes_onhand):
     #  add a check that the number of IDs in the not_filter is < 35k. This
     #  still won't scale perfectly but is a start for reducing returned
     #  results.
-
     with Postgres('sandwich-pool.planet') as db:
         sql = "SELECT {} FROM {}".format(f_id, tbl)
         oh_ids = list(set(list(db.sql2df(sql_str=sql, columns=[f_id])[f_id])))
@@ -291,8 +308,10 @@ def create_noh_filter(tbl=scenes_onhand):
 
 
 def filter_from_arg(filter_arg):
-    """Convert string of : separated arguments to form a filter
-    to a formated search_filter dict"""
+    """
+    Convert string of : separated arguments to a formated
+    search_filter dict
+    """
     # logger.debug('Filter arg: {}'.format(filter_arg))
     filter_types = ('DateRangeFilter', 'RangeFilter', 'UpdateFilter',
                     'GeometryFilter', 'NumberInFilter', 'StringInFilter')
@@ -378,8 +397,6 @@ def create_search_request(name, item_types, search_filters):
         "item_types": item_types,
         "filter": master_filter
     }
-    # print('length of search request: {:,}'.format(len(str(search_request))))
-    # print(search_request)
 
     return search_request
 
@@ -390,8 +407,8 @@ def create_saved_search(search_request, overwrite_saved=False):
         logger.debug('Authorizing using Planet API key...')
         s.auth = (PLANET_API_KEY, '')
         saved_searches = get_all_searches(s)
-
         search_name = search_request["name"]
+
         # Determine if a saved search with the provided name exists
         ids_with_same_name = [x for x in saved_searches.keys() if saved_searches[x]['name'] == search_name]
 
@@ -475,7 +492,8 @@ def create_search(name, item_types,
                   save_filter=False,
                   dryrun=False,
                   **kwargs):
-    """Create a saved search using the Planet API, which gets a search
+    """
+    Create a saved search using the Planet API, which gets a search
     ID. The search ID can then be used to retrieve footprints.
 
     Parameters
@@ -752,9 +770,9 @@ def response2gdf(response):
 
 
 def get_search_page_urls(saved_search_id, total_count):
-    # TODO: Speed this up, bottle neck - is it possible to speed up?
-    # TODO: How much longer would it take to just process each page...?
-    # TODO: Rewrite as loop up to total number of scenes in search id
+    # TODO: Speed this up, bottle neck / is it possible to speed up?
+    #   How much longer would it take to just process each page...?
+    # TODO: Possibly rewrite as loop up to total number of scenes in search id
     def fetch_pages(search_url, all_pages):
         # logger.debug('Fetching page...')
         session = get_session()
