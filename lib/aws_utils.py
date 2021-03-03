@@ -1,6 +1,9 @@
 from pathlib import Path
 
-import boto3
+try:
+    import boto3
+except ImportError:
+    print('Warning: boto3 import failed, delivery via AWS will not work.')
 
 from lib.lib import get_config
 from lib.logging_utils import create_logger

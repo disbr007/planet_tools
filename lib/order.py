@@ -14,10 +14,11 @@ from pathlib import Path
 from requests.auth import HTTPBasicAuth
 from retrying import retry, RetryError
 
-import boto3
-
+try:
+    import boto3
+except ImportError:
+    print('Warning: boto3 import failed, delivery via AWS will not work.')
 import geopandas as gpd
-
 from tqdm import tqdm
 
 from lib.lib import read_ids, get_config
