@@ -651,23 +651,6 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
 
-    # For debugging
-    sys.argv = [__file__,
-                '--input_directory',
-                r'E:\disbr007\projects\planet\scratch\demo_2021mar04\data\1fb3047b-705e-4ed0-b900-a86110b82dca',
-                '--copy_unshelveable',
-                r'E:\disbr007\projects\planet\scratch\demo_2021mar04\unshelveable',
-                '--skip_checksums',
-                '--destination_directory',
-                r'E:\disbr007\projects\planet\scratch\demo_2021mar04\shelved',
-                '--index_scenes',
-                # '-sme',
-                # '--logdir',
-                # r'V:\pgc\data\scratch\jeff\projects\planet\logs'
-                '--verbose',
-                # '--dryrun'
-                ]
-
     args = parser.parse_args()
 
     # Parse arguments, convert to pathlib.Path objects
