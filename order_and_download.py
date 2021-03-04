@@ -12,7 +12,7 @@ from lib.order import submit_order, poll_for_success
 # from submit_order import submit_order
 from lib.order import download_parallel
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
 default_dst_parent = get_config("download_loc")
 if platform.system() == 'Windows':
@@ -125,14 +125,12 @@ if __name__ == '__main__':
     # DEBUGGING
     # import sys
     # sys.argv = [
-    #     r'C:\code\planet_tools\order_and_download.py',
-    #     '-n', 'zip_test',
-    #     '--selection', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\test_zip.geojson',
+    #     __file__,
+    #     '-n', 'demo_test',
+    #     '--selection', r'E:\disbr007\projects\planet\scratch\demo\demo_mdv.geojson',
     #     '--product_bundle', 'basic_analytic',
-    #     '--orders',  r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
-    #     '--download_orders', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
+    #     '--orders',  r'E:\disbr007\projects\planet\scratch\demo\orders.txt',
     #     '--delivery', 'zip',
-    #     '--do_not_remove_onhand'
     # ]
 
     args = parser.parse_args()
@@ -163,17 +161,17 @@ if __name__ == '__main__':
         dst_parent = Path(download_par_dir)
 
     if not logfile:
-        logfile = create_logfile_path(Path(__file__).stem)
-    elif os.path.isdir(logfile):
-        logdir = logfile
-        logfile = create_logfile_path(Path(__file__).stem, logdir=logdir)
+        logdir = os.getcwd()
+
+    logfile = create_logfile_path(Path(__file__).stem, logdir=logdir)
 
     logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
     sublogger2 = create_logger('submit_order', 'fh', 'DEBUG', logfile)
     sublogger1 = create_logger('download_utils', 'fh', 'DEBUG', logfile)
 
 
-    order_and_download(order_name=order_name, order_ids_path=order_ids_path,
+    order_and_download(order_name=order_name,
+                       order_ids_path=order_ids_path,
                        order_selection_path=order_selection_path,
                        out_orders_list=out_orders_list,
                        order_product_bundle=order_product_bundle,

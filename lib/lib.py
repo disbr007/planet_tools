@@ -22,47 +22,51 @@ from .logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-# TODO: clean up logging around unshelveable scenes
+# TODO: clean up logging around unshelveable scenes2index
 #  (lots of repeated "XML path: None", "XML Path not located")
 
-# Shelve parent directory
-
-# TODO: move this to a config file
-planet_data_dir = PurePosixPath(r'/mnt/pgc/data/sat/orig')  # /planet?
-# if platform.system() == 'Windows':
-    # planet_data_dir = Path(r'V:\pgc\data\sat\orig')
-image = 'image'
-
 config_file = Path(__file__).parent.parent / "config" / "config.json"
-# config_file = r'C:\code\planet_stereo\config\config.json'
+
 
 # Constants
-windows = 'Windows'
-linux = 'Linux'
-# Keys in metadata.json
-k_location = 'location'
-k_scenes_id = 'id'
-k_order_id = 'order_id'
-# New fields that are created
-k_filename = 'filename'
-k_relative_loc = 'rel_location'
-# Manifest Keys
-k_files = 'files'
-k_media_type = 'media_type'
-k_path = 'path'
-k_annotations = 'annotations'
-k_asset_type = 'planet/asset_type'
-k_bundle_type = 'planet/bundle_type'
-k_item_type = 'planet/item_type'
-k_digests = 'digests'
-k_md5 = 'md5'
-# Manifest Constants
-# suffix to append to filenames for individual source files
-manifest_suffix = 'source'
-# included in unusable data mask files paths
-udm = 'udm'
-# start of media_type in master source that indicates imagery
+# Config keys
+DOWNLOAD_LOC = 'download_loc'
 
+WINDOWS = 'Windows'
+LINUX = 'Linux'
+# Keys in metadata.json
+K_LOCATION = 'location'
+K_SCENES_ID = 'id'
+K_ORDER_ID = 'order_id'
+# New fields that are created
+K_FILENAME = 'filename'
+K_RELATIVE_LOC = 'rel_location'
+# Manifest Keys
+K_FILES = 'files'
+K_MEDIA_TYPE = 'media_type'
+K_PATH = 'path'
+K_ANNOTATIONS = 'annotations'
+K_ASSET_TYPE = 'planet/asset_type'
+K_BUNDLE_TYPE = 'planet/bundle_type'
+K_ITEM_TYPE = 'planet/item_type'
+K_DIGESTS = 'digests'
+K_MD5 = 'md5'
+# Manifest Constants
+# suffix to append to filenames for individual manifest files
+MANIFEST_SUFFIX = 'manifest'
+# included in unusable data mask files paths
+UDM = 'udm'
+# start of media_type in master manifest that indicates imagery
+IMAGE = 'image'
+
+# For identifying scene ids from file names
+SCENE_LEVELS = ['1B', '3B']
+
+# Shelving parent directory
+PLANET_DATA_DIR = PurePosixPath(json.load(open(config_file))[DOWNLOAD_LOC])
+
+# Fields added to scene level manifests
+RECEIVED_DATETIME = 'received_datetime'
 
 def get_config(param):
     try:
@@ -93,17 +97,17 @@ def linux2win(path):
 
 
 def get_platform_location(path):
-    if platform.system() == 'Linux':
+    if platform.system() == LINUX:
         pl = win2linux(path)
-    elif platform.system() == 'Windows':
+    elif platform.system() == WINDOWS:
         pl = linux2win(path)
     return pl
 
 
 def type_parser(filepath):
     """
-    Takes a file path (or dataframe) in and determines whether it is a dbf,
-    excel, txt, csv (or df), ADD SUPPORT FOR SHP****
+    Takes a file path (or dataframe) in and determines whether
+    it is a dbf, shp, excel, txt, csv (or dataframe)****
     """
     if isinstance(filepath, pathlib.PurePath):
         fp = str(filepath)
@@ -170,16 +174,16 @@ def read_ids(ids_file, field=None, sep=None, stereo=False):
                 ids.append(the_id)
 
     # csv
-    elif file_type in ('csv'):
+    elif file_type == 'csv':
         df = pd.read_csv(ids_file, sep=sep, )
         ids = list(df[field])
 
-    # dbf, gdf, dbf
-    elif file_type in ('dbf'):
+    # dbf
+    elif file_type == 'dbf':
         df = gpd.read_file(ids_file)
         ids = list(df[field])
 
-    # SHP
+    # shp
     elif file_type == 'shp':
         df = gpd.read_file(ids_file)
         ids = list(df[field])
@@ -303,7 +307,7 @@ def parse_group_args(parser, group_name):
     return parsed_attribute_args
 
 
-def id_from_scene(scene, scene_levels=['1B', '3B']):
+def id_from_scene(scene, scene_levels=SCENE_LEVELS):
     """
     Get the scene id from a given scene's file path
     scene: pathlib.Path
@@ -322,125 +326,48 @@ def id_from_scene(scene, scene_levels=['1B', '3B']):
     return scene_id
 
 
-def gdf_from_metadata(scene_md_paths, relative_directory=None,
-                      relative_locs=False, pgc_locs=True,
-                      rel_loc_style='W'):
-    rows = []
-    for sm in tqdm(scene_md_paths):
-        # Get scene paths
-        scene_path = sm[0]
-        metadata_path = sm[1]
-
-        logger.debug('Parsing metdata for: '
-                     '{}\{}'.format(scene_path.parent.stem, scene_path.stem))
-        metadata = json.load(open(metadata_path))
-        properties = metadata['properties']
-
-        # Create paths for both Windows and linux
-        # Keep only Linux - Use windows for checking existence if code run on
-        # windows
-        if platform.system() == windows:
-            wl = str(scene_path)
-            tn = win2linux(str(scene_path))
-            if os.path.exists(wl):
-                add_row = True
-            else:
-                add_row = False
-        elif platform.system() == linux:
-            tn = str(scene_path)
-            # wl = linux2win(str(scene_path))
-            if os.path.exists(tn):
-                add_row = True
-            else:
-                add_row = False
-        if pgc_locs:
-            properties[k_location] = tn
-        if relative_locs:
-            rl = Path(scene_path).relative_to(Path(relative_directory))
-            if rel_loc_style == 'W' and platform.system() == 'Linux':
-                properties[k_relative_loc] = linux2win(str(rl))
-            elif rel_loc_style == 'L' and platform.system() == 'Windows':
-                properties[k_relative_loc] = win2linux(str(rl))
-            else:
-                properties[k_relative_loc] = str(rl)
-            oid = Path(metadata_path).relative_to(relative_directory).parts[0]
-        properties[k_scenes_id] = metadata['id']
-        # properties[k_order_id] = oid
-        properties[k_filename] = scene_path.name
-
-        try:
-            # TODO: Figure out why some footprints are multipolygon - handle better
-            if metadata['geometry']['type'] == 'Polygon':
-                properties['geometry'] = Polygon(metadata['geometry']
-                                                 ['coordinates'][0])
-            elif metadata['geometry']['type'] == 'MultiPolygon':
-                logger.warning('MultiPolygon geometry found. Not yet supported'
-                               ' - skipping.')
-                # logger.warning('Parsing MultiPolygon geometry not fully '
-                #                'tested.')
-                add_row = False
-                # properties['geometry'] = MultiPolygon(
-                #     [Polygon(metadata['geometry']['coordinates'][i][0])
-                #      for i in range(len(metadata['geometry']
-                #      ['coordinates']))])
-        except Exception as e:
-            logger.error('Geometry error, skipping add scene: '
-                         '{}'.format(properties[k_scenes_id]))
-            logger.error('Metadata file: {}'.format(metadata_path))
-            logger.error('Geometry: {}'.format(metadata['geometry']))
-            logger.error(e)
-            add_row = False
-
-        if add_row:
-            rows.append(properties)
-        else:
-            logger.warning('Scene could not be found (or had bad geometry), '
-                           'skipping adding:\n{}\tat {}'.format(metadata['id'],
-                                                                scene_path))
-
-    if len(rows) == 0:
-        # TODO: Address how to actually deal with not finding any features
-        #   sys.exit()?
-        logger.warning('No features to convert to GeoDataFrame.')
-
-    gdf = gpd.GeoDataFrame(rows, geometry='geometry', crs='epsg:4326')
-
-    return gdf
-
-
-def write_scene_manifest(scene_manifest, master_manifest,
-                         manifest_suffix=manifest_suffix,
-                         overwrite=False):
-    """Write the section of the parent source for an individual scene
-    to a new file with that scenes name."""
-    scene_path = Path(scene_manifest[k_path])
+def write_scene_manifest(scene_manifest: dict, master_manifest: Path,
+                         manifest_suffix: str = MANIFEST_SUFFIX,
+                         overwrite: bool = False):
+    """
+    Write the section of the parent manifest for an individual scene
+    to a new file with that scenes2index name.
+    """
+    scene_path = Path(scene_manifest[K_PATH])
     scene_mani_name = '{}_{}.json'.format(scene_path.stem, manifest_suffix)
     scene_mani_path = (master_manifest.parent / scene_path.parent /
                        scene_mani_name)
     exists = scene_mani_path.exists()
     if not exists or (exists and overwrite):
-        logger.debug('Writing source for: {}'.format(scene_path.stem))
+        logger.debug('Writing manifest for: {}'.format(scene_path.stem))
         with open(scene_mani_path, 'w') as scene_mani_out:
             json.dump(scene_manifest, scene_mani_out)
     elif exists and not overwrite:
-        logger.debug('Scene source exists, skipping.')
+        logger.debug('Scene manifest exists, skipping.')
 
     return scene_mani_path
 
 
-def get_scene_manifests(master_manifest):
+def get_scene_manifests(master_manifest: str) -> list:
     """
-    Parse a parent source file for the sections corresponding
-    to scenes.
+    Parse an order manifest file for the sections corresponding
+    to scenes2index.
+    Parameters
+    ---------
+    master_manifest: str
+        Path to order manifest
+    Returns
+    ---------
+    list: list of sections of order manifest corresponding to
+        scene image files
     """
     with open(master_manifest, 'r') as src:
         mani = json.load(src)
 
     # Get metadata for all images
     scene_manifests = []
-    for f in mani[k_files]:
-        # TODO: Identify imagery sections of master source better
-        if f[k_media_type].startswith(image) and udm not in f[k_path]:
+    for f in mani[K_FILES]:
+        if f[K_MEDIA_TYPE].startswith(IMAGE) and UDM not in f[K_PATH]:
             scene_manifests.append(f)
 
     return scene_manifests
@@ -448,12 +375,12 @@ def get_scene_manifests(master_manifest):
 
 def create_scene_manifests(master_manifest, overwrite=False):
     """
-    Create scene source files for each scene section in the master source.
+    Create scene manifest files for each scene section in the master manifest.
     """
-    logger.debug('Locating scene manifests within master source\n'
+    logger.debug('Locating scene manifests within master manifest\n'
                  '{}'.format(master_manifest))
     scene_manifests = get_scene_manifests(master_manifest)
-    logger.debug('Scene manifests found: {}'.format(len(scene_manifests)))
+    logger.debug('Scene manifests found: {:,}'.format(len(scene_manifests)))
 
     # TODO: Make this date format match the xml date format
     received_date = time.strftime('%Y-%m-%dT%H:%M:%S+00:00',
@@ -462,18 +389,9 @@ def create_scene_manifests(master_manifest, overwrite=False):
 
     scene_manifest_files = []
     pbar = tqdm(scene_manifests,
-                desc='Writing scene-level source.json files')
+                desc='Writing scene-level manifest.json files')
     for sm in pbar:
-        # TODO: is it worth checking for existence of scene files here?
-        #  Any missing scene files are found when determining if shelveable
-        # Check for existence of scene file (image file)
-        # sf = master_manifest.parent / Path(sm[k_path])
-        # if not sf.exists():
-        #     logger.warning('Scene file location in master source not found: '
-        #                    '{}'.format(sf))
-        # else:
-        #     logger.debug('Scene file found')
-        sm['received_datetime'] = received_date
+        sm[RECEIVED_DATETIME] = received_date
         scene_manifest_file = write_scene_manifest(sm, master_manifest,
                                                    overwrite=overwrite)
         scene_manifest_files.append(scene_manifest_file)
@@ -527,8 +445,10 @@ def tag_uri_and_name(elem):
 
 
 def add_renamed_attributes(node, renamer, root, attributes):
-    """Parse XML elements that would overwrite other attributes
-    renaming them before adding them to the attributes dict"""
+    """
+    Parse XML elements that would overwrite other attributes to
+    rename them before adding them to the attributes dict
+    """
     elems = root.find('.//{}'.format(node))
     for e in elems:
         uri, name = tag_uri_and_name(e)
@@ -611,7 +531,7 @@ class PlanetScene:
         if shelved_parent:
             self.shelved_parent = shelved_parent
         else:
-            self.shelved_parent = planet_data_dir
+            self.shelved_parent = PLANET_DATA_DIR
 
         # Parse source for attributes
         with open(str(self.manifest), 'r') as src:
@@ -1083,7 +1003,7 @@ class PlanetScene:
             self._footprint_row = copy.deepcopy(self.index_row)
             self._footprint_row.pop('shelved_loc', None)
             if rel_to:
-                self._footprint_row[k_relative_loc] = str(
+                self._footprint_row[K_RELATIVE_LOC] = str(
                     self.scene_path.relative_to(rel_to))
         return self._footprint_row
 

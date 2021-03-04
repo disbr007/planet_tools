@@ -19,7 +19,7 @@ planet_db = db_config['db_config']['host']
 off_nadir_tbl = 'off_nadir'
 # off_nadir_tbl_id = 'scene_name'
 off_nadir_tbl_id = db_config['tables'][off_nadir_tbl]['unique_id'][0]
-scenes_tbl = 'scenes'
+scenes_tbl = 'scenes2index'
 # scenes_tbl_id = 'id'
 scenes_tbl_id = db_config['tables'][scenes_tbl]['unique_id']
 
@@ -132,14 +132,14 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=""""Ingest Planet off-nadir exports from a given 
     directory. By default, this routine will only add those records that have a corresponding id 
-    in the "scenes" table.""")
+    in the "scenes2index" table.""")
 
     parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         help='Path to directory holding csvs exported by '
                              'Planet.')
     parser.add_argument('-noh', '--not_on_hand', action='store_true',
                         help='Use to load all new records found, not just those'
-                             ' with a corresponding scene in "scenes" table.')
+                             ' with a corresponding scene in "scenes2index" table.')
     parser.add_argument('-all', '--all_records', action='store_true',
                         help='Load all off-nadir files found in directory, '
                              'not just those not in off-nadir table. This '

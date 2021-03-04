@@ -23,9 +23,9 @@ def main(args):
     if not relative_directory:
         relative_directory = parse_directory
 
-    logger.info('Searching for scenes in: {}'.format(parse_directory))
+    logger.info('Searching for scenes2index in: {}'.format(parse_directory))
     planet_scenes = find_planet_scenes(parse_directory)
-    logger.info('Found {:,} scenes to parse...'.format(len(planet_scenes)))
+    logger.info('Found {:,} scenes2index to parse...'.format(len(planet_scenes)))
 
     # TODO: convert to using PlanetScenes generate footprints
     rows = [ps.footprint_row(rel_to=relative_directory)
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input_directory', type=os.path.abspath,
                         required=True,
-                        help='Directory to parse for scenes.')
+                        help='Directory to parse for scenes2index.')
     parser.add_argument('-o', '--out_footprint', type=os.path.abspath,
                         required=True,
                         help='Path to write footprint.')

@@ -24,11 +24,11 @@ def sort_scene_by_date(src_dir, dst_dir,
     logger.info('Locating scene files...')
     scenes = data_dir.rglob('*.tif')
 
-    logger.info('Copying scenes to sorted destination locations...')
+    logger.info('Copying scenes2index to sorted destination locations...')
     pbar = tqdm(scenes)
     for s in pbar:
         sp = Path(s)
-        if 'udm' in sp.stem:
+        if 'UDM' in sp.stem:
             continue
         # TODO: Improve finding SID / scene file, etc
         sid = '_'.join(sp.stem.split('_')[0:3])

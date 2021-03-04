@@ -19,42 +19,19 @@ AWS_BUCKET = AWS_PARAMS["aws_bucket"]
 AWS_REGION = AWS_PARAMS["aws_region"]
 AWS_PATH_PREFIX = AWS_PARAMS["aws_path_prefix"]
 BUCKET_NAME = 'pgc-data'
-PREFIX = r'jeff/planet'
+
+# Constants
+S3 = 's3'
 
 
 def connect_aws_bucket(bucket_name=BUCKET_NAME,
                        aws_access_key_id=AWS_ACCESS_KEY_ID,
                        aws_secret_access_key=AWS_SECRET_ACCESS_KEY):
-    s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
+    s3 = boto3.resource(S3, aws_access_key_id=aws_access_key_id,
                         aws_secret_access_key=aws_secret_access_key, )
     bucket = s3.Bucket(bucket_name)
 
     return bucket
-
-
-def get_oids(prefix=PREFIX):
-    """
-    Get all immediate subdirectories of prefix in AWS, these are Planet order ids.
-    TODO: Not being used - remove
-    """
-    # s3 = boto3.resource('s3', aws_access_key_id=aws_access_key_id,
-    #                     aws_secret_access_key=aws_secret_access_key, )
-    #
-    # bucket = s3.Bucket(bucket_name)
-    bucket = connect_aws_bucket()
-
-    bucket_filter = bucket.objects.filter(Prefix=prefix)
-    oids = set()
-    logger.info('Getting order IDs...')
-    for i, bo in enumerate(bucket_filter):
-        key = Path(bo.key)
-        oid = key.relative_to(Path(prefix)).parent.parent
-        if str(oid) != '.':
-            oids.add(str(oid))
-
-    logger.info('Order IDs found: {}'.format(len(oids)))
-
-    return oids
 
 
 def manifest_exists(order_id, bucket):
@@ -64,7 +41,7 @@ def manifest_exists(order_id, bucket):
     order is ready to download.
     """
     # Path to source for order
-    mani_path = PREFIX / Path(order_id) / 'source.json'
+    mani_path = AWS_PATH_PREFIX / Path(order_id) / 'source.json'
     # Get files that match source path - should only be one
     mani_filter = bucket.objects.filter(Prefix=mani_path.as_posix())
     objs = list(mani_filter)

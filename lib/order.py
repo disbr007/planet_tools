@@ -55,7 +55,8 @@ fld_id = 'id'
 AWS = 'aws'
 ZIP = 'zip'
 DELIVERY_OPTS = ['aws', 'zip']
-
+# Maximum time to wait for delivery to complete (in seconds)
+WAIT_MAX = 5000
 
 # Check Planet authorization
 auth_resp = requests.get(ORDERS_URL, auth=auth)
@@ -84,6 +85,7 @@ def get_url(url, sleep_base=10, sleep_add=10, **kwargs):
     r = requests.get(url, **kwargs)
     sleep_time = sleep_base
     while r.status_code == 429:
+        logger.debug(r)
         logger.warning('Too many requests, sleeping: {}s'.format(sleep_time))
         time.sleep(sleep_time)
         r = requests.get(url, **kwargs)
@@ -124,7 +126,7 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
     if delivery == AWS:
         # TODO: move to own aws_utils function
         # Filter the bucket for the order id, removing any directory keys
-        order_prefix = '{}/{}'.format(aws_utils.PREFIX, oid)
+        order_prefix = '{}/{}'.format(aws_utils.AWS_PATH_PREFIX, oid)
         bucket_filter = [bo for bo in bucket.objects.filter(Prefix=order_prefix)
                          if not bo.key.endswith('/')]
         # Set up progress bar
@@ -139,7 +141,7 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
             # Determine source and destination full paths
             aws_loc = Path(bo.key)
             # Create destination subdirectory path with order id as subdirectory
-            dst_path = dst_par_dir / aws_loc.relative_to(Path(aws_utils.PREFIX))
+            dst_path = dst_par_dir / aws_loc.relative_to(Path(aws_utils.AWS_PATH_PREFIX))
             if not os.path.exists(dst_path.parent):
                 os.makedirs(dst_path.parent)
 
@@ -164,13 +166,6 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
     elif delivery == ZIP:
         order_status_url = '{}/{}'.format(ORDERS_URL, oid)
         r = get_url(order_status_url, auth=auth)
-        # r = requests.get(order_status_url, auth=auth)
-        # sleep_time = 10
-        # while r.status_code == 429:
-        #     logger.warning('Too many requests, sleeping: {}s'.format(sleep_time))
-        #     time.sleep(sleep_time)
-        #     r = requests.get(order_status_url, auth=auth)
-        #     sleep_time += 10
 
         response = r.json()
         # response['results'] is an array of dicts, one for each file. there should
@@ -245,6 +240,7 @@ def dl_order_when_ready(order_id, dst_par_dir, delivery,
                                overwrite=overwrite, dryrun=dryrun)
     else:
         logger.info('Maximum wait reached, did not begin download: {}'.format(order_id))
+        all_success = False
 
     return order_id, start_dl, all_success
 
@@ -253,7 +249,7 @@ def download_parallel(order_ids, dst_par_dir, delivery,
                       overwrite=False,
                       dryrun=False,
                       threads=4,
-                      wait_max=3600):
+                      wait_max=WAIT_MAX):
     """
     Download order ids in parallel.
     """
@@ -272,8 +268,8 @@ def download_parallel(order_ids, dst_par_dir, delivery,
     pool.close()
     pool.join()
 
-    logger.info('Download statuses:\nOrder ID\t\tStarted\t\tIssue\n{}'.format(
-        '\n'.join(["{} {}\t{}".format(oid, start_dl, issue)
+    logger.info('Download statuses:\nOrder ID\t\t\t\t\tStarted\t\tIssue\n{}'.format(
+        '\n'.join(["{}\t\t{}\t{}".format(oid, start_dl, issue)
                    for oid, start_dl, issue in results])
     ))
 
@@ -400,7 +396,6 @@ def poll_for_success(order_id, num_checks=50, wait=10):
     waiting_reported = False
     while check_count < num_checks and finished is False:
         check_count += 1
-        # r = requests.get(ORDERS_URL, auth=auth)
         r = get_url(ORDERS_URL, auth=auth)
         response = r.json()
         state = None
@@ -527,7 +522,7 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     logger.info('IDs found: {:,}'.format(len(ids)))
 
-    # logger.info('Removing any recent IDs, per Planet limit on recent image
+    # logger.info('Removing any recent IDs, per Planet limit on recent IMAGE
     # ordering.')
     # ids = remove_recent_ids(ids)
     # logger.info('Remaining IDs: {}'.format(len(ids)))

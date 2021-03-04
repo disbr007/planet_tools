@@ -1,4 +1,4 @@
-/* Create empty scenes table to hold footprints from public API */
+/* Create empty scenes2index table to hold footprints from public API */
 CREATE TABLE scenes (
     ogc_fid             SERIAL PRIMARY KEY,
     id                  varchar(30),
@@ -47,18 +47,6 @@ SET azimuth = off_nadir.azimuth,
 FROM off_nadir
 WHERE off_nadir.scene_name = scenes.id;
 
-/* Not using any more, off nadirs are directly in scenes table. */
-/* Create view with off nadir and xml table joined to scenes - create
-   off_nadir_signed column */
--- CREATE MATERIALIZED VIEW scenes_metadata AS
---     SELECT s.*,
---            o.sat_satellite_azimuth_mean as azimuth,
---            o.sat_off_nadir as off_nadir_unsigned,
---            x."orbitDirection" as orbitDirection,
---            SIGN(o.sat_satellite_azimuth_mean)*o.sat_off_nadir as off_nadir_signed
---            FROM scenes as s
--- INNER JOIN off_nadir as o ON s.id = o.scene_name
--- INNER JOIN xml_metadata as x ON s.id = SUBSTR(x.identifier, 0, 21);
 
 /* Create xtrack table with all intersections within WHERE parameteres */
 CREATE MATERIALIZED VIEW xtrack_cc20
@@ -102,54 +90,6 @@ WHERE off_nadir_diff > 5 AND
       ovlp_perc >= 0.30 AND
       ovlp_perc <= 0.70;
 --       orbitDirection1 = orbitDirection2;
-
-
-/* Multilook table from scenes */
--- CREATE MATERIALIZED VIEW multilook_candidates AS
--- SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed,
---        string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
---     SELECT a.id AS src_id,
---            a.acquired as src_acquired,
---            a.azimuth as src_azimuth,
---            a.off_nadir_signed as src_off_nadir_signed,
---            b.id AS int_id
---     FROM scenes a, scenes b
---     WHERE a.id < b.id AND
---           a.cloud_cover < 0.20 AND
---           b.cloud_cover < 0.20 AND
---           ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
---           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
---           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
---           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
---           ST_Intersects(a.geometry, b.geometry)
--- ) all_int
--- GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed
--- HAVING count(*) > 2;
-
-CREATE MATERIALIZED VIEW multilook_candidates AS
-SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry,
-       string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
-    SELECT a.id AS src_id,
-           a.acquired as src_acquired,
-           a.azimuth as src_azimuth,
-           a.off_nadir_signed as src_off_nadir_signed,
-           a.geometry as geometry,
-           ABS(DATE_PART('day', a.acquired - b.acquired)) as date_diff,
-           b.id AS int_id
-    FROM scenes a, scenes b
-    WHERE a.id < b.id AND
-          a.cloud_cover < 0.20 AND
-          b.cloud_cover < 0.20 AND
---           ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
---           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
---           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
---           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
-          ST_Intersects(a.geometry, b.geometry)
-) all_int
-GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry
-HAVING count(*) > 2;
-
-DROP MATERIALIZED VIEW multilook_candidates;
 
 /* ONHAND TABLES */
 /* Find only pairs that are both onhand, create field:pairname_fn using
@@ -237,8 +177,36 @@ SELECT so.*,
 FROM scenes_onhand as so
 LEFT JOIN off_nadir as o
     ON so.id = o.scene_name;
--- LEFT JOIN scenes as s
+-- LEFT JOIN scenes2index as s
 --     ON so.id = s.id;
+
+
+
+
+CREATE MATERIALIZED VIEW multilook_candidates AS
+SELECT src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry,
+       string_agg(int_id, '-') AS pairname, count(*) AS ct FROM (
+    SELECT a.id AS src_id,
+           a.acquired as src_acquired,
+           a.azimuth as src_azimuth,
+           a.off_nadir_signed as src_off_nadir_signed,
+           a.geometry as geometry,
+           ABS(DATE_PART('day', a.acquired - b.acquired)) as date_diff,
+           b.id AS int_id
+    FROM scenes a, scenes b
+    WHERE a.id < b.id AND
+          a.cloud_cover < 0.20 AND
+          b.cloud_cover < 0.20 AND
+--           ABS(a.off_nadir_signed - b.off_nadir_signed) > 5 AND
+--           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) > 0.3 AND
+--           ST_Area(ST_INTERSECTION(a.geometry, b.geometry)) / ST_Area(ST_Union(a.geometry, b.geometry)) < 0.7 AND
+--           ABS(DATE_PART('day', a.acquired - b.acquired)) < 10 AND
+          ST_Intersects(a.geometry, b.geometry)
+) all_int
+GROUP BY src_id, src_acquired, src_azimuth, src_off_nadir_signed, geometry
+HAVING count(*) > 2;
+
+-- DROP MATERIALIZED VIEW multilook_candidates;
 
 /* Grant permissions */
 GRANT SELECT on off_nadir to pgc_users;

@@ -416,7 +416,7 @@ class Postgres(object):
         table : str
             Name of table to be inserted into
         """
-        # TODO: Create overwrite scenes option that removes any scenes in the
+        # TODO: Create overwrite scenes2index option that removes any scenes2index in the
         #  input from the DB before writing them
 
         def _row_columns_unique(row, unique_on, values):
