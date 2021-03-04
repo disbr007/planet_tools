@@ -109,7 +109,7 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
     """Download an order id (oid) to destination parent directory, creating
     a new subdirectory for the order id. Order ID is also name of subdirectory
     in AWS bucket."""
-    # TODO: Resolve why at least dst_par dir is not coming in as PurePath
+    # TODO: Resolve why at least dst_par dir is not coming in as Path
     if not isinstance(oid, pathlib.PurePath):
         oid = Path(oid)
     if not isinstance(dst_par_dir, pathlib.PurePath):
@@ -124,45 +124,10 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
 
     # AWS
     if delivery == AWS:
-        # TODO: move to own aws_utils function
-        # Filter the bucket for the order id, removing any directory keys
-        order_prefix = '{}/{}'.format(aws_utils.AWS_PATH_PREFIX, oid)
-        bucket_filter = [bo for bo in bucket.objects.filter(Prefix=order_prefix)
-                         if not bo.key.endswith('/')]
-        # Set up progress bar
-        # For setting progress bar length
-        item_count = len([x for x in bucket_filter])
-        pbar = tqdm(bucket_filter, total=item_count, desc='Order: {}'.format(oid), position=1)
-        # For aligning arrows in progress bar writing
-        # arrow_loc = max([len(x.key) for x in bucket_filter]) - len(order_prefix)
-
-        logger.info('Downloading {:,} files to: {}'.format(item_count, oid_dir))
-        for bo in pbar:
-            # Determine source and destination full paths
-            aws_loc = Path(bo.key)
-            # Create destination subdirectory path with order id as subdirectory
-            dst_path = dst_par_dir / aws_loc.relative_to(Path(aws_utils.AWS_PATH_PREFIX))
-            if not os.path.exists(dst_path.parent):
-                os.makedirs(dst_path.parent)
-
-            # Download
-            if os.path.exists(dst_path) and not overwrite:
-                logger.debug('File exists at destination, skipping: {}'.format(dst_path))
-                continue
-            else:
-                logger.debug('Downloading file: {}\n\t--> {}'.format(aws_loc, dst_path.absolute()))
-                # pbar.write('Downloading: {}{}-> {}'.format(aws_loc.relative_to(*aws_loc.parts[:3]),
-                #                                            ' '*(arrow_loc - len(str(aws_loc.relative_to(*aws_loc.parts[:3])))),
-                #                                            oid_dir.relative_to(*dst_par_dir.parts[:9])))
-            dl_issues = set()
-            if not dryrun:
-                try:
-                    bucket.download_file(bo.key, str(dst_path))
-                    dl_issues.add(False)
-                except Exception as e:
-                    logger.error('Error downloading: {}'.format(aws_loc))
-                    logger.error(e)
-                    dl_issues.add(True)
+        dl_issues = aws_utils.dl_aws(oid=oid, dst_par_dir=dst_par_dir,
+                                     oid_dir=oid_dir, bucket=bucket,
+                                     overwrite=overwrite,
+                                     dryrun=dryrun)
     elif delivery == ZIP:
         order_status_url = '{}/{}'.format(ORDERS_URL, oid)
         r = get_url(order_status_url, auth=auth)
@@ -183,7 +148,9 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
             else:
                 logger.debug('Destination exists, skipping download: '
                              '{}'.format(dest_path))
-        dl_issues = [None]  # TODO: create a method for actually checking success of direct downloads
+        # TODO: create a method for actually checking success of direct
+        #  downloads (existence of download zip?
+        dl_issues = [None]
 
     logger.info('Done.')
 
@@ -214,22 +181,10 @@ def dl_order_when_ready(order_id, dst_par_dir, delivery,
     start_dl = False
     # AWS TODO: Move to aws download function
     if delivery == AWS:
-        # Check for presence of source, sleeping between checks.
-        while running_time < wait_max and not start_dl:
-            exists = aws_utils.manifest_exists(order_id, bucket=bucket)
-            if not exists:
-                running_time = (datetime.datetime.now() - start_time).total_seconds()
-                logger.debug('Manifest not present for order ID: {} :'
-                             ' {}s remaining'.format(order_id, round(wait_max-running_time)))
-                time.sleep(wait)
-                if wait <= wait_max_interval:
-                    wait += wait_interval
-                if wait > wait_max_interval:
-                    wait = wait_max_interval
-
-            else:
-                logger.debug('Manifest present - beginning download: {}'.format(order_id))
-                start_dl = True
+        aws_utils.check_aws_delivery_status(order_id=order_id, bucket=bucket,
+                                            wait_max=wait_max,
+                                            wait_interval=wait_interval,
+                                            wait_max_interval=wait_max_interval)
     elif delivery == ZIP:
         start_dl, _response = poll_for_success(order_id=order_id)
 
