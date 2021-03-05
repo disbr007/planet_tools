@@ -124,9 +124,20 @@ Delivery via AWS is also possible, using `--delivery aws`, but requires
 that AWS account credentials are present in `config/config.json`
 
 ### Shelving and Indexing
-Once an order has been downloaded, it can be shelved and indexed:
+Once an order has been downloaded, it can be shelved and indexed. 
+This is a routine linking shelving and indexing. In a standard run, a directory is
+parsed for order manifests. The order manifest's are parsed for sections
+corresponding to the actual imagery (as opposed to the metadata files, masks,
+etc.), and these sections are written to new 'scene manifest' files following
+the naming convention of the scenes. Next, all scenes are located based on the
+presence of these scene manifest files, and their metadata (XML and scene
+manifest) is parsed in order to create both the shelved path and the row to
+add to the index table. Next the copy to the shelving location is performed,
+with options to remove the source files after copying and/or to move any
+unshelveable scenes to an alternate location. Finally, the new records are
+written to the index table: planet.scenes
 ```commandline
-python shelve_scenes.py -i orders/ --index_scenes
+python shelve_and_index.py -i orders/
 ```
 
 ### Multilook Stereo Selection 

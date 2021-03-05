@@ -149,7 +149,24 @@ def create_all_scene_manifests(directory: Union[Path, str]) -> List[Path]:
 
 
 def create_scenes(scene_manifests: list,
-                  destination_directory: Path):
+                  destination_directory: Path) -> List[PlanetScene]:
+    """
+    Creates a list of PlanetScene's from a list of scene
+    manifests.
+    Parameters
+    ----------
+    scene_manifests: list
+        List of paths to scene manifest files
+    destination_directory: Path
+        Parent path to use for shelveing. Often the PGC shelved
+        location, but also used for copying scenes to other
+        locations.
+
+    Returns
+    -------
+    list: list of PlanetScene objects
+
+    """
     logger.info('Locating scene manifests...')
 
     # Use manifests to create PlanetScene objects, this parses
@@ -177,8 +194,31 @@ def create_scenes(scene_manifests: list,
     return scenes
 
 
-def identify_shelveable_indexable(scenes):
+def identify_shelveable_indexable(scenes: List[PlanetScene]) -> Tuple[list]:
+    """
+    Identify which scenes are shelveable and/or indexable, and
+    which are neither shelveable nor indexable.
+    Shelveable scenes have both an XML file and scene manifest
+    file present that can be parsed for all metadata necessary to
+    create the shelved path, and don't exist at the shelved
+    location.
+    Indexable scenes require the same, plus that the scene is not
+    already present in the index.
+    Skippable scenes are those that do not have the necessary
+    metadata file present, or are both shelved and indexed
+    already, and thus can be skipped from subsequent shelving
+    and indexing steps.
 
+    Parameters
+    ----------
+    scenes: list
+        List of PlanetScene objects
+
+    Returns
+    -------
+    list, list, list: lists of PlanetScenes that can be shelved,
+        indexed, and skipped respectively.
+    """
     # Get all indexed IDs to skip reindexing
     logger.info('Loading indexed IDs...')
     with Postgres() as db_src:
@@ -315,8 +355,7 @@ def handle_unshelveable(unshelveable: list,
 def shelve_scenes(scenes2shelve: List[PlanetScene],
                   transfer_method: str = COPY,
                   remove_sources: bool = False,
-                  copy_unshelveable: bool = None,
-                  dryrun: bool = False) :
+                  dryrun: bool = False) -> None:
     """
     Shelve scenes.
 
@@ -331,11 +370,8 @@ def shelve_scenes(scenes2shelve: List[PlanetScene],
         exist at the shelved location. In the case of
         unshelveable scenes, they will be deleted if this is
         True.
-    copy_unshelveable: str
-        If None, unshelveable scenes are handled according to
-        remove sources. Otherwise, unshelveable scenes are
-        copied to this directory.
-    dryrun
+    dryrun: bool
+        True to not perform copy.
 
     Returns
     -------
@@ -456,46 +492,46 @@ def shelve_and_index(input_directory: Union[Path, str],
                      index_only: bool = False,
                      dryrun: bool = False) -> None:
     """
-        Shelve all Planet scenes found in the input_directory. Scenes
-        are located by their scene-level manifest files
-        ([scene_identifier]_manifest.json), which are created from
-        order-level manifest files, which are located by finding all
-        files matching 'manifest.json' files in the input_directory.
+    Shelve all Planet scenes found in the input_directory. Scenes
+    are located by their scene-level manifest files
+    ([scene_identifier]_manifest.json), which are created from
+    order-level manifest files, which are located by finding all
+    files matching 'manifest.json' files in the input_directory.
 
-        Parameters
-        ----------
-        input_directory : pathlib.Path, str
-            Path to directory to parse for Planet scenes.
-        destination_directory : pathlib.Path, str
-            Path to parent directory under which to shelve scenes.
-        scene_manifests_exist : bool
-            Set to True if scene-level manifest files
-            ([scene_identifier]_manifest.json files have already been
-            created from order manifests.
-        verify_checksums : bool
-            True to compute checksums and verify against values in
-            order-manifests (which are passed to scene-manifests.
-        transfer_method : str
-            'copy', 'link'
-        remove_sources: bool
-            Remove source files after copying and confirming they
-            exist at the shelved location. In the case of
-            unshelveable scenes, they will be deleted if this is
-            True.
-        copy_unshelveable: str, Path
-            If None, unshelveable scenes are handled according to
-            remove sources. Otherwise, unshelveable scenes are
-            copied to this directory.
-        manage_unshelveable_only : bool
-            Determine unshelveable scenes and handle according to
-            copy_unshelveable, then exit.
-        dryrun : bool
-            Locate scenes, determine if shelveable,
+    Parameters
+    ----------
+    input_directory : pathlib.Path, str
+        Path to directory to parse for Planet scenes.
+    destination_directory : pathlib.Path, str
+        Path to parent directory under which to shelve scenes.
+    scene_manifests_exist : bool
+        Set to True if scene-level manifest files
+        ([scene_identifier]_manifest.json files have already been
+        created from order manifests.
+    verify_checksums : bool
+        True to compute checksums and verify against values in
+        order-manifests (which are passed to scene-manifests.
+    transfer_method : str
+        'copy', 'link'
+    remove_sources: bool
+        Remove source files after copying and confirming they
+        exist at the shelved location. In the case of
+        unshelveable scenes, they will be deleted if this is
+        True.
+    copy_unshelveable: str, Path
+        If None, unshelveable scenes are handled according to
+        remove sources. Otherwise, unshelveable scenes are
+        copied to this directory.
+    manage_unshelveable_only : bool
+        Determine unshelveable scenes and handle according to
+        copy_unshelveable, then exit.
+    dryrun : bool
+        Locate scenes, determine if shelveable,
 
-        Returns
-        -------
-        list : list of PlanetScene objects that were shelveable
-        """
+    Returns
+    -------
+    list : list of PlanetScene objects that were shelveable
+    """
     # Verify arguments
     input_directory, destination_directory = verify_args(input_directory=input_directory,
                                                          destination_directory=destination_directory,
@@ -582,6 +618,21 @@ def shelve_and_index(input_directory: Union[Path, str],
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
+        description="Routine linking shelving and indexing. In a standard run, "
+                    "a directory is parsed for order manifests. The order "
+                    "manifest's are parsed for sections corresponding to the "
+                    "actual imagery (as opposed to the metadata files, masks, "
+                    "etc.), and these sections are written to new 'scene "
+                    "manifest' files following the naming convention of the "
+                    "scenes. Next, all scenes are located based on the "
+                    "presence of these scene manifest files, and their "
+                    "metadata (XML and scene manifest) is parsed in order to "
+                    "create both the shelved path and the row to add to the "
+                    "index table. Next the copy to the shelving location is "
+                    "performed, with options to remove the source files after "
+                    "copying and/or to move any unshelveable scenes to an "
+                    "alternate location. Finally, the new records are written "
+                    "to the index table: planet.scenes",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
@@ -651,10 +702,6 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
 
-    sys.argv = [__file__,
-                '-i',
-                r'E:\disbr007\projects\planet\scratch\demo_2021mar04\data\0b2133ea-7c0c-4207-ab55-a3227a94fdaf',
-                ]
     args = parser.parse_args()
 
     # Parse arguments, convert to pathlib.Path objects
