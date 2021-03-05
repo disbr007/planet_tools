@@ -39,7 +39,7 @@ thread_local = threading.local()
 
 # CREATE SEARCHES
 # Footprint tables
-SCENES_TBL = 'scenes2index'
+SCENES_TBL = 'scenes'
 scenes_onhand = 'scenes_onhand'
 
 # To ensure passed filter type is valid
@@ -523,7 +523,7 @@ def create_search(name, item_types,
     not_on_hand : bool
         Create a NOT filter with all IDs currently on hand.
     fp_not_on_hand : bool
-        Create a NOT filter with all IDs currently in 'scenes2index' table
+        Create a NOT filter with all IDs currently in 'scenes' table
     get_count_only : bool
         Get the count of the search and stop - do not get footprints
     overwrite_saved : bool
@@ -772,7 +772,7 @@ def response2gdf(response):
 def get_search_page_urls(saved_search_id, total_count):
     # TODO: Speed this up, bottle neck / is it possible to speed up?
     #   How much longer would it take to just process each page...?
-    # TODO: Possibly rewrite as loop up to total number of scenes2index in search id
+    # TODO: Possibly rewrite as loop up to total number of scenes in search id
     def fetch_pages(search_url, all_pages):
         # logger.debug('Fetching page...')
         session = get_session()
@@ -891,7 +891,7 @@ def get_search_footprints(out_path=None, out_dir=None,
 
     scenes, search_name = select_scenes(search_id=search_id, dryrun=dryrun)
     if len(scenes) == 0:
-        logger.warning('No scenes2index found. Exiting.')
+        logger.warning('No scenes found. Exiting.')
         sys.exit()
     if any([out_path, out_dir]):
         if out_dir:

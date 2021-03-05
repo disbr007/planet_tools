@@ -39,7 +39,7 @@ if __name__ == '__main__':
         "can later be used with the --load_filter argument. Resulting "
         "footprints can be written out as vector file to --out_path, or "
         "--out_dir with the created search name. Footprints can also be "
-        "written directly to 'scenes2index' database table by using --to_scenes_tbl.",
+        "written directly to 'scenes' database table by using --to_scenes_tbl.",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
@@ -122,10 +122,10 @@ if __name__ == '__main__':
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-                        help="Directory to write scenes2index footprint to. The "
+                        help="Directory to write scenes footprint to. The "
                              "search request name will be used for the filename.")
     parser.add_argument('--to_scenes_tbl', action='store_true',
-                        help="Insert search results into the scenes2index table.")
+                        help="Insert search results into the scenes table.")
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')

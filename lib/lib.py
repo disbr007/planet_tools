@@ -22,7 +22,7 @@ from .logging_utils import create_logger
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-# TODO: clean up logging around unshelveable scenes2index
+# TODO: clean up logging around unshelveable scenes
 #  (lots of repeated "XML path: None", "XML Path not located")
 
 config_file = Path(__file__).parent.parent / "config" / "config.json"
@@ -331,7 +331,7 @@ def write_scene_manifest(scene_manifest: dict, master_manifest: Path,
                          overwrite: bool = False):
     """
     Write the section of the parent manifest for an individual scene
-    to a new file with that scenes2index name.
+    to a new file with that scenes name.
     """
     scene_path = Path(scene_manifest[K_PATH])
     scene_mani_name = '{}_{}.json'.format(scene_path.stem, manifest_suffix)
@@ -351,7 +351,7 @@ def write_scene_manifest(scene_manifest: dict, master_manifest: Path,
 def get_scene_manifests(master_manifest: str) -> list:
     """
     Parse an order manifest file for the sections corresponding
-    to scenes2index.
+    to scenes.
     Parameters
     ---------
     master_manifest: str
@@ -388,9 +388,11 @@ def create_scene_manifests(master_manifest, overwrite=False):
                                       master_manifest)))
 
     scene_manifest_files = []
-    pbar = tqdm(scene_manifests,
-                desc='Writing scene-level manifest.json files')
-    for sm in pbar:
+    # pbar = tqdm(scene_manifests,
+                # desc='Writing scene-level manifest.json files'
+                # )
+    # for sm in pbar:
+    for sm in scene_manifests:
         sm[RECEIVED_DATETIME] = received_date
         scene_manifest_file = write_scene_manifest(sm, master_manifest,
                                                    overwrite=overwrite)

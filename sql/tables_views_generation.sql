@@ -1,4 +1,4 @@
-/* Create empty scenes2index table to hold footprints from public API */
+/* Create empty scenes table to hold footprints from public API */
 CREATE TABLE scenes (
     ogc_fid             SERIAL PRIMARY KEY,
     id                  varchar(30),
@@ -177,7 +177,7 @@ SELECT so.*,
 FROM scenes_onhand as so
 LEFT JOIN off_nadir as o
     ON so.id = o.scene_name;
--- LEFT JOIN scenes2index as s
+-- LEFT JOIN scenes as s
 --     ON so.id = s.id;
 
 

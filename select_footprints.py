@@ -12,7 +12,7 @@ from lib.logging_utils import create_logger
 
 # logger = create_logger('lib', 'sh', 'INFO')
 # Database Tables
-scenes_tbl = 'scenes2index'
+scenes_tbl = 'scenes'
 scenes_onhand_tbl = 'scenes_onhand'
 
 # Databse Fields
@@ -141,7 +141,7 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
     # Constants
     stereo_candidates_tbl = 'stereo_candidates'
     stereo_candidates_tbl_oh = 'stereo_candidates_onhand'
-    scene_tbl = 'scenes2index'
+    scene_tbl = 'scenes'
     scene_tbl_oh = 'scenes_onhand'
     sid_col = 'id'
     id1_col = 'id1'
@@ -183,7 +183,7 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
 
         write_gdf(gdf, out_pairs_footprint)
 
-    # Write footprint of individual scenes2index
+    # Write footprint of individual scenes
     if out_scene_footprint:
         all_sids = list(gdf[id1_col]) + list(gdf[id2_col])
         # logger.info('Total IDs before removing duplicates: {:,}'.format(len(all_sids)))
@@ -191,7 +191,7 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
         logger.info('Unique scene ids: {:,}'.format(len(all_sids)))
 
         sql_str = """SELECT * FROM {} WHERE {} IN ({})""".format(scenes, sid_col, str(all_sids)[1:-1])
-        logger.debug('SQL for selecting scenes2index footprint:\n{}...'.format(sql_str[:500]))
+        logger.debug('SQL for selecting scenes footprint:\n{}...'.format(sql_str[:500]))
         with Postgres() as db:
             scene_footprint = db.sql2gdf(sql_str=sql_str)
 
@@ -224,7 +224,7 @@ if __name__ == '__main__':
     choices_instruments = ['PS2', 'PSB.SD', 'PS2.SD']
     choices_quality_category = ['standard', 'test']
 
-    parser = argparse.ArgumentParser("Select footprints by attribute or AOI from scenes2index table "
+    parser = argparse.ArgumentParser("Select footprints by attribute or AOI from scenes table "
                                      "or from scenes_onhand table.")
 
     attribute_args = parser.add_argument_group(att_group)

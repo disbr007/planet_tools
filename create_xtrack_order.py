@@ -85,7 +85,7 @@ def main(args):
     stereo_pairs = get_stereo_pairs(**order_params)
     logger.info('Stereopairs found: {:,}'.format(len(stereo_pairs)))
     stereo_ids = pairs_to_list(stereo_pairs)
-    logger.info('Unique scenes2index: {:,}'.format(len(stereo_ids)))
+    logger.info('Unique scenes: {:,}'.format(len(stereo_ids)))
 
     logger.info('Removing onhand IDs...')
     if remove_onhand:

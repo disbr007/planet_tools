@@ -8,15 +8,15 @@ from lib.lib import write_gdf
 from lib.db import Postgres, intersect_aoi_where
 from lib.logging_utils import create_logger
 
-# TODO: See if this can be done on scenes2index table, to facilitate ordering only
-#  scenes2index that meet multilook specifications. As written all overlappng scenes2index
+# TODO: See if this can be done on scenes table, to facilitate ordering only
+#  scenes that meet multilook specifications. As written all overlappng scenes
 #  would have to exist in the scenes_onhand table already to be considered for
 #  selection. The challenge is not keying off of the filename field when
 #  determining pairs. Another possibility is to make this an arugment:
-#  select only all-onhand pairs or select from scenes2index table and determine
+#  select only all-onhand pairs or select from scenes table and determine
 #  what is onhand and what needs to be ordered.
 
-# TODO: When locating onhand scenes2index, ensure there is only one, as fn_pairname
+# TODO: When locating onhand scenes, ensure there is only one, as fn_pairname
 #  is based on id
 
 logger = create_logger(__name__, 'sh', 'INFO')
@@ -24,7 +24,7 @@ logger = create_logger(__name__, 'sh', 'INFO')
 # Constants
 ml_mv = 'multilook_candidates'
 ml_mv_geom = 'geometry'
-scenes = 'scenes2index'
+scenes = 'scenes'
 scenes_onhand = 'scenes_onhand'
 s_id = 'id'
 so_id = 'id'
@@ -106,7 +106,7 @@ def multilook_intersections(src_id, pair_ids, footprints,
     pairs : list
         IDs of all pairs to src, must all be in footprints['id']
     footprints : gpd.GeoDataframe
-        GeoDataFrame of all footprints, used to get each scenes2index geometry for
+        GeoDataFrame of all footprints, used to get each scenes geometry for
         computing intersections
     min_pairs : int
         The minimum number of pairs required to be kept

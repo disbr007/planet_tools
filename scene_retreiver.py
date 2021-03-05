@@ -54,7 +54,7 @@ def load_selection(scene_ids_path=None, footprint_path=None):
         with Postgres() as db_src:
             gdf = db_src.sql2gdf(sql_str=sql)
             # TODO: Remove this once Postgres restriction on DUPS is
-            #  implemented -> there should be no DUPs in scenes2index table
+            #  implemented -> there should be no DUPs in scenes table
             gdf = gdf.drop_duplicates(subset=scene_id)
             logger.info('IDs found in {}: {:,}'.format(scenes_onhand_table,
                                                      len(gdf)))
@@ -83,7 +83,7 @@ def locate_scenes(selection, destination_path):
     # scene_path_globs = [Path(p).parent.glob('{}*'.format(sid))
     #                     for p, sid in zip(list(selection[platform_location]),
     #                                       list(selection[scene_id]))]
-    # scenes2index = [PlanetScene(pl, shelved_parent=destination_path,
+    # scenes = [PlanetScene(pl, shelved_parent=destination_path,
     #                       scene_file_source=True)
     #           for pl in selection[platform_location].unique()]
     scenes = []
@@ -192,10 +192,10 @@ if __name__ == '__main__':
     parser.add_argument('--ids', type=os.path.abspath,
                         help='Path to list of IDs to retrieve.')
     parser.add_argument('--footprint', type=os.path.abspath,
-                        help='Path to footprint of scenes2index to retreive. Must '
+                        help='Path to footprint of scenes to retreive. Must '
                              'contain field: {}'.format(required_fields))
     parser.add_argument('-d', '--destination', type=os.path.abspath,
-                        help='Path to directory to write scenes2index to.')
+                        help='Path to directory to write scenes to.')
     parser.add_argument('-uss', '--use_shelved_struct', action='store_true',
                         help='Use the same folder structure in destination '
                              'directory that is used for shelving.')

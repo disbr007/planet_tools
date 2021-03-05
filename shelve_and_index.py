@@ -16,6 +16,7 @@ from lib.logging_utils import create_logger, create_logfile_path
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+
 # Constants
 WINDOWS = 'Windows'
 LINUX = 'Linux'
@@ -449,11 +450,10 @@ def shelve_and_index(input_directory: Union[Path, str],
                      verify_checksums: bool = False,
                      transfer_method: str = 'copy',
                      remove_sources: bool = False,
-                     run_indexer: bool = False,
                      generate_manifests_only: bool = False,
                      manage_unshelveable_only: bool = False,
+                     shelve_only: bool = False,
                      index_only: bool = False,
-                     logdir: str = None,
                      dryrun: bool = False) -> None:
     """
         Shelve all Planet scenes found in the input_directory. Scenes
@@ -572,7 +572,8 @@ def shelve_and_index(input_directory: Union[Path, str],
                           dryrun=dryrun)
 
     # Add all indexable scenes to index
-    if (scenes2index is not None) and (len(scenes2index) != 0) and run_indexer:
+    if (scenes2index is not None) and (len(scenes2index) != 0) \
+            and not shelve_only:
         logger.info('Indexing scenes...')
         index_scenes(scenes2index, index_tbl=INDEX_TBL, dryrun=dryrun)
 
@@ -614,9 +615,6 @@ if __name__ == '__main__':
                              type=os.path.abspath,
                              help='If provided, copy unshelveable files to '
                                   'this directory. Or')
-    common_args.add_argument('--index_scenes', action='store_true',
-                             help='Add shelveable scenes to index table after '
-                                  'performing shelving.')
 
     rare_args.add_argument('--destination_directory', type=os.path.abspath,
                            default=PLANET_DATA_DIR,
@@ -629,20 +627,22 @@ if __name__ == '__main__':
                                 'in data directory will be moved to destination.')
 
     # ALternative routines
-    # TODO: index_only routine
     mut_alt_routine_args.add_argument('--generate_manifests_only',
                                       action='store_true',
                                       help='Only generate scene manifests from order '
-                                       'manifests, do not perform copy operation. '
-                                       'This is done as part of the copy routine, '
-                                       'but this flag can be used to create scene '
-                                       'manifests without copying.')
+                                           'manifests, do not perform copy operation. '
+                                           'This is done as part of the copy routine, '
+                                           'but this flag can be used to create scene '
+                                           'manifests without copying.')
     mut_alt_routine_args.add_argument('--manage_unshelveable_only',
                                       action='store_true',
                                       help='Move or remove unshelveable data and exit.')
     mut_alt_routine_args.add_argument('--index_scenes_only', action='store_true',
                                       help='Index any scenes in input_directory '
-                                       'and exit.')
+                                           'and exit.')
+    mut_alt_routine_args.add_argument('--shelve_only', action='store_true',
+                                      help='Shelve any scenes in input_directory '
+                                           'and exit.')
 
     parser.add_argument('--logdir', type=os.path.abspath,
                         help='Path to write logfile to.')
@@ -651,6 +651,10 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing.')
 
+    sys.argv = [__file__,
+                '-i',
+                r'E:\disbr007\projects\planet\scratch\demo_2021mar04\data\0b2133ea-7c0c-4207-ab55-a3227a94fdaf',
+                ]
     args = parser.parse_args()
 
     # Parse arguments, convert to pathlib.Path objects
@@ -663,11 +667,11 @@ if __name__ == '__main__':
     verify_checksums = not args.skip_checksums
     transfer_method = args.transfer_method
     remove_sources = args.remove_sources
-    run_indexer = args.index_scenes
 
     # Alternative routine arguments
     generate_manifests_only = args.generate_manifests_only
     manage_unshelveable_only = args.manage_unshelveable_only
+    shelve_only = args.shelve_only
     index_only = args.index_scenes_only
 
     logdir = args.logdir
@@ -677,9 +681,6 @@ if __name__ == '__main__':
     if logdir:
         logfile = create_logfile_path(__name__, logdir)
         logger = create_logger(__name__, 'fh', 'DEBUG', filename=logfile)
-    #     for sl in subloggers:
-    #         create_logger(sl, 'fh', 'DEBUG', filename=logfile)
-
     if verbose:
         logger = create_logger(__name__, 'sh', 'DEBUG')
 
@@ -690,9 +691,9 @@ if __name__ == '__main__':
                      verify_checksums=verify_checksums,
                      transfer_method=transfer_method,
                      remove_sources=remove_sources,
-                     run_indexer=run_indexer,
-                     logdir=logdir,
-                     dryrun=dryrun,
                      generate_manifests_only=generate_manifests_only,
                      manage_unshelveable_only=manage_unshelveable_only,
-                     index_only=index_only)
+                     shelve_only=shelve_only,
+                     index_only=index_only,
+                     dryrun=dryrun,
+                     )
