@@ -10,18 +10,29 @@ from typing import Union, List, Tuple, Callable
 import geopandas as gpd
 from tqdm import tqdm
 
-from lib.db import Postgres
+# from lib.db import Postgres
 from lib.lib import create_scene_manifests, PlanetScene, get_config, linux2win
 from lib.logging_utils import create_logger, create_logfile_path
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres, generate_sql
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
 
 # Constants
 WINDOWS = 'Windows'
 LINUX = 'Linux'
 COPY = 'copy'
 LINK = 'link'
+# Databse
+SANDWICH = 'sandwich'
+PLANET = 'planet'
 
 # config.json keys
 SHELVED_LOC = 'shelved_loc'
@@ -221,7 +232,7 @@ def identify_shelveable_indexable(scenes: List[PlanetScene]) -> Tuple[list]:
     """
     # Get all indexed IDs to skip reindexing
     logger.info('Loading indexed IDs...')
-    with Postgres() as db_src:
+    with Postgres(host=SANDWICH, database=PLANET) as db_src:
         indexed_ids = set(
             db_src.get_values(table=INDEX_TBL,
                               columns=INDEX_UNIQUE_CONSTRAINT,
@@ -473,7 +484,7 @@ def index_scenes(scenes2index: List[PlanetScene],
                            crs=INDEX_CRS)
 
     logger.info('Indexing shelveable scenes: {:,}'.format(len(scenes2index)))
-    with Postgres() as db_src:
+    with Postgres(host=SANDWICH, database=PLANET) as db_src:
         db_src.insert_new_records(gdf,
                                   table=index_tbl,
                                   dryrun=dryrun)

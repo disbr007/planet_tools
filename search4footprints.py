@@ -5,8 +5,6 @@ from lib.lib import parse_group_args
 from lib.search import create_search, get_search_footprints
 from lib.logging_utils import create_logger
 
-# TODO: Add option to just create search from this script
-
 logger = create_logger(__name__, 'sh', 'INFO',)
 
 
@@ -22,18 +20,13 @@ def search4footprints(**kwargs):
     
     
 if __name__ == '__main__':
-    # Groups
-    att_group = 'Attributes'
-
-    # Defaults
-
     # Choices
     choices_instruments = ['PS2', 'PSB.SD', 'PS2.SD']
     choices_quality_category = ['standard', 'test']
 
     parser = argparse.ArgumentParser(
         description="Search for footprints from the Planet archives. " 
-        "Search can be specified using attribue arguments, or as using " 
+        "Search can be specified using attribue arguments, or by using " 
         "the --filters argument and specified syntax. Functionality "
         "provided to save the created filter out as a .json file, which "
         "can later be used with the --load_filter argument. Resulting "
@@ -43,13 +36,14 @@ if __name__ == '__main__':
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    attribute_args = parser.add_argument_group(att_group)
+    required_args = parser.add_argument_group('Required Arguments')
+    attribute_args = parser.add_argument_group('Attribute Arguments')
 
-    parser.add_argument('-n', '--name', type=str,
-                        help='Name of search to create')
+    required_args.add_argument('-n', '--name', type=str,
+                               help='Name of search to create')
 
     parser.add_argument('--ids', type=os.path.abspath,
-                        help='Text file of IDs to include.')
+                        help='Text file of IDs to search for.')
     parser.add_argument('--months', type=str, nargs='+',
                         help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',

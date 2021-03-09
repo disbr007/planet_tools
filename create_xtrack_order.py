@@ -1,18 +1,29 @@
 import argparse
 import os
+from pathlib import Path
 import requests
 from retrying import retry
+import sys
 import time
 
 import geopandas as gpd
 
 from lib.logging_utils import create_logger
-from lib.db import Postgres
+# from lib.db import Postgres
 from lib.search import get_stereo_pairs, pairs_to_list, \
     create_order_request, place_order
 
 # TODO: Change view_angle diff to off-nadir diff, add all parameters of updated query
 logger = create_logger(__name__, 'sh', 'INFO')
+
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres, generate_sql
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
 
 planet_db = 'sandwich-pool.planet'
 scenes_onhand_tbl = 'scenes_onhand'
