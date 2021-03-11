@@ -19,47 +19,45 @@ try:
 except ImportError:
     print('Warning: boto3 import failed, delivery via AWS will not work.')
 import geopandas as gpd
-from tqdm import tqdm
 
-from lib.lib import read_ids, get_config
-from lib.db import Postgres, stereo_pair_sql
+from lib.lib import read_ids, stereo_pair_sql
+# from lib.db import Postgres, stereo_pair_sql
 from lib.logging_utils import create_logger
 import lib.aws_utils as aws_utils
+import lib.constants as constants
 
 # TODO:
 #  -Rename download functions that are only for AWS deliveries to aws_[func_name]()
 logger = create_logger(__name__, 'sh', 'INFO')
+
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
+
 
 # Constants
 srid = 4326
 
 # Planet
 # API URLs
-ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
-PLANET_API_KEY = os.getenv("PL_API_KEY")
+# ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
+PLANET_API_KEY = os.getenv(constants.PL_API_KEY)
 if not PLANET_API_KEY:
     logger.error("Error retrieving API key. Is PL_API_KEY env. variable set?")
 auth = HTTPBasicAuth(PLANET_API_KEY, "")
 
-# Postgres
-# Used for finding connection config file -> config/sandwich-pool.planet.json
-# TODO read these from config file
-planet_db = "sandwich-pool.planet"
-scenes_onhand_tbl = 'scenes_onhand'
-# TODO: rename to use the same variable throughout
-scene_id = 'id'
-fld_id = 'id'
-
 # DELIVERY
-# TODO: other cloud locations (Azure, Google)
-AWS = 'aws'
-ZIP = 'zip'
-DELIVERY_OPTS = ['aws', 'zip']
+DELIVERY_OPTS = [constants.AWS, constants.ZIP]
 # Maximum time to wait for delivery to complete (in seconds)
 WAIT_MAX = 5000
 
 # Check Planet authorization
-auth_resp = requests.get(ORDERS_URL, auth=auth)
+auth_resp = requests.get(constants.ORDER_URL, auth=auth)
 logger.debug("Authorizing Planet API Key....")
 if auth_resp.status_code != 200:
     logger.error("Issue authorizing: {}".format(auth_resp))
@@ -123,13 +121,13 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
         os.makedirs(oid_dir)
 
     # AWS
-    if delivery == AWS:
+    if delivery == constants.AWS:
         dl_issues = aws_utils.dl_aws(oid=oid, dst_par_dir=dst_par_dir,
                                      oid_dir=oid_dir, bucket=bucket,
                                      overwrite=overwrite,
                                      dryrun=dryrun)
-    elif delivery == ZIP:
-        order_status_url = '{}/{}'.format(ORDERS_URL, oid)
+    elif delivery == constants.ZIP:
+        order_status_url = '{}/{}'.format(constants.ORDER_URL, oid)
         r = get_url(order_status_url, auth=auth)
 
         response = r.json()
@@ -180,12 +178,12 @@ def dl_order_when_ready(order_id, dst_par_dir, delivery,
     wait = wait_start
     start_dl = False
     # AWS TODO: Move to aws download function
-    if delivery == AWS:
+    if delivery == constants.AWS:
         aws_utils.check_aws_delivery_status(order_id=order_id, bucket=bucket,
                                             wait_max=wait_max,
                                             wait_interval=wait_interval,
                                             wait_max_interval=wait_max_interval)
-    elif delivery == ZIP:
+    elif delivery == constants.ZIP:
         start_dl, _response = poll_for_success(order_id=order_id)
 
     if start_dl:
@@ -208,7 +206,7 @@ def download_parallel(order_ids, dst_par_dir, delivery,
     """
     Download order ids in parallel.
     """
-    if delivery == AWS:
+    if delivery == constants.AWS:
         bucket = aws_utils.connect_aws_bucket()
     else:
         bucket = None
@@ -285,7 +283,7 @@ def create_zip_delivery():
 
 def create_order_request(order_name, ids, item_type="PSScene4Band",
                          product_bundle="basic_analytic_dn",
-                         delivery="aws"):
+                         delivery=constants.AWS):
     """Create order from list of IDs"""
     if isinstance(product_bundle, list):
         product_bundle = ','.join(product_bundle)
@@ -297,9 +295,9 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
              "product_bundle": product_bundle}
         ]
     }
-    if delivery == "aws":
+    if delivery == constants.AWS:
         order_request.update(aws_utils.create_aws_delivery())
-    elif delivery == "zip":
+    elif delivery == constants.ZIP:
         # pass
         order_request.update(create_zip_delivery())
 
@@ -309,7 +307,7 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
 
 
 def place_order(order_request):
-    response = requests.post(ORDERS_URL, data=json.dumps(order_request),
+    response = requests.post(constants.ORDER_URL, data=json.dumps(order_request),
                              auth=auth, headers=headers)
     logger.debug("Place order response: {}".format(response))
     if response.status_code != 202:
@@ -320,7 +318,7 @@ def place_order(order_request):
     order_id = response.json()["id"]
     # logger.debug('Request:\n{}'.format(order_request))
     logger.debug("Order ID: {}".format(order_id))
-    order_url = "{}/{}".format(ORDERS_URL, order_id)
+    order_url = "{}/{}".format(constants.ORDER_URL, order_id)
 
     return order_id, order_url
 
@@ -351,7 +349,7 @@ def poll_for_success(order_id, num_checks=50, wait=10):
     waiting_reported = False
     while check_count < num_checks and finished is False:
         check_count += 1
-        r = get_url(ORDERS_URL, auth=auth)
+        r = get_url(constants.ORDER_URL, auth=auth)
         response = r.json()
         state = None
         for i, o in enumerate(response['orders']):
@@ -412,7 +410,7 @@ def list_orders(state=None):
     if state:
         params = {"state": state}
 
-    response = requests.get(ORDERS_URL, auth=auth, params=state)
+    response = requests.get(constants.ORDER_URL, auth=auth, params=state)
     if response.status_code != 200:
         logger.error('Bad response: {}: {}'.format(response.status_code, response.reason))
         # TODO: Create error class
@@ -438,7 +436,6 @@ def list_orders(state=None):
 @retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
 def count_concurrent_orders():
     # TODO: Move these to a config file
-    orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
     PLANET_API_KEY = os.getenv('PL_API_KEY')
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
@@ -448,7 +445,7 @@ def count_concurrent_orders():
         logger.debug('Authorizing using Planet API key...')
         s.auth = (PLANET_API_KEY, '')
 
-        res = s.get(orders_url)
+        res = s.get(constants.ORDER_URL)
         if res.status_code == 200:
             order_statuses = res.json()['user']
             queued = order_statuses['queued_orders']
@@ -463,7 +460,8 @@ def count_concurrent_orders():
 
 
 def submit_order(name, ids_path, selection_path, product_bundle,
-                 orders_path=None, remove_onhand=True, delivery='aws',
+                 orders_path=None, remove_onhand=True,
+                 delivery=constants.AWS,
                  dryrun=False):
 
     if ids_path:
@@ -485,7 +483,7 @@ def submit_order(name, ids_path, selection_path, product_bundle,
     if remove_onhand:
         logger.info('Removing onhand IDs...')
         with Postgres() as db:
-            onhand = set(db.get_values(scenes_onhand_tbl, columns=[scene_id]))
+            onhand = set(db.get_values(constants.SCENES_ONHAND, columns=[constants.ID]))
 
         ids = list(set(ids) - onhand)
         logger.info('IDs remaining: {:,}'.format(len(ids)))

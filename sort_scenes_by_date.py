@@ -6,18 +6,16 @@ import shutil
 from tqdm import tqdm
 
 from lib.logging_utils import create_logger
+import lib.constants as constants
 
 
 logger = create_logger(__name__, 'sh', 'INFO')
-
-tm_link = 'link'
-tm_copy = 'copy'
 
 
 def sort_scene_by_date(src_dir, dst_dir,
                        year_dir=True, month_dir=True, day_dir=True,
                        hour_dir=False, minute_dir=False, second_dir=False,
-                       transfer_method=tm_copy, dryrun=False):
+                       transfer_method=constants.TM_COPY, dryrun=False):
     data_dir = Path(src_dir)
     dst_dir = Path(dst_dir)
 
@@ -28,7 +26,7 @@ def sort_scene_by_date(src_dir, dst_dir,
     pbar = tqdm(scenes)
     for s in pbar:
         sp = Path(s)
-        if 'UDM' in sp.stem:
+        if constants.UDM in sp.stem:
             continue
         # TODO: Improve finding SID / scene file, etc
         sid = '_'.join(sp.stem.split('_')[0:3])
@@ -63,7 +61,7 @@ def sort_scene_by_date(src_dir, dst_dir,
                 logger.debug('Destination file exists, skipping: {}'.format(sp.name))
                 continue
             if not dryrun:
-                if transfer_method == tm_link:
+                if transfer_method == constants.TM_LINK:
                     os.link(sf, df)
                 else:
                     shutil.copy2(sf, df)
@@ -77,7 +75,7 @@ if __name__ == '__main__':
                         help='Path to directory to shelve.')
     parser.add_argument('--dst_dir', type=os.path.abspath,
                         help='Path to destination directory')
-    parser.add_argument('-tm', '--transfer_method', choices=[tm_copy, tm_link],
+    parser.add_argument('-tm', '--transfer_method', choices=[constants.TM_COPY, constants.TM_LINK],
                         help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true')
     

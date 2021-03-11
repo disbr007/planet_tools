@@ -1,28 +1,34 @@
 import argparse
 import os
+from pathlib import Path
+import sys
 
 import geopandas as gpd
 from sqlalchemy.exc import ProgrammingError
 
-from lib.db import Postgres, intersect_aoi_where
+# from lib.db import Postgres, intersect_aoi_where
 from lib.lib import read_ids, write_gdf, parse_group_args
 # TODO: Fix this - place attrib_arg_lut dict somewhere better
 from lib.search import attrib_arg_lut
 from lib.logging_utils import create_logger
+import lib.constants as constants
 
-# logger = create_logger('lib', 'sh', 'INFO')
-# Database Tables
-scenes_tbl = 'scenes'
-scenes_onhand_tbl = 'scenes_onhand'
+logger = create_logger('lib', 'sh', 'INFO')
 
-# Databse Fields
-GEOMETRY_FLD = 'geometry'
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres, intersect_aoi_where
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
 
 
 def build_argument_sql(att_args=None, months=None,
                        month_min_days=None, month_max_days=None,
                        aoi_path=None, ids=None, ids_field='id',
-                       table=scenes_tbl):
+                       table=constants.SCENES):
     """Build SQL clause from supplied attribute arguements and AOI path
     att_args: tuple (attribute, value)
     aoi_path: os.path.abspath
@@ -45,7 +51,7 @@ def build_argument_sql(att_args=None, months=None,
     if aoi_path:
         # Build AOI sql
         aoi = gpd.read_file(aoi_path)
-        aoi_sql = intersect_aoi_where(aoi, GEOMETRY_FLD)
+        aoi_sql = intersect_aoi_where(aoi, constants.GEOMETRY)
         where_statements.append(aoi_sql)
 
     where = ""
@@ -91,7 +97,7 @@ def build_argument_sql(att_args=None, months=None,
 
 
 def make_selection(sql_str):
-    with Postgres() as db:
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
         try:
             selection = db.sql2gdf(sql_str=sql_str)
         except ProgrammingError as sql_error:
@@ -110,9 +116,9 @@ def select_scenes(att_args, aoi_path=None, ids=None, ids_field='id', months=None
                   month_min_days=None, month_max_days=None,
                   out_selection=None, onhand=False, dryrun=False):
     if onhand:
-        tbl = scenes_onhand_tbl
+        tbl = constants.SCENES_ONHAND
     else:
-        tbl = scenes_tbl
+        tbl = constants.SCENES
 
     if ids:
         selection_ids = read_ids(ids, field=ids_field)
@@ -169,7 +175,7 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
     sql_str = """SELECT * FROM {} WHERE {}""".format(stereo_tbl, where)
     logger.debug('SQL for stereo selection:\n{}'.format(sql_str))
 
-    with Postgres('sandwich-pool.planet') as db:
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
         gdf = db.sql2gdf(sql_str=sql_str, geom_col='ovlp_geom')
 
     logger.info('Pairs found: {:,}'.format(len(gdf)))
@@ -192,7 +198,7 @@ def select_xtrack(aoi_path=None, where=None, out_ids=None,
 
         sql_str = """SELECT * FROM {} WHERE {} IN ({})""".format(scenes, sid_col, str(all_sids)[1:-1])
         logger.debug('SQL for selecting scenes footprint:\n{}...'.format(sql_str[:500]))
-        with Postgres() as db:
+        with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
             scene_footprint = db.sql2gdf(sql_str=sql_str)
 
         write_gdf(scene_footprint, out_scene_footprint)

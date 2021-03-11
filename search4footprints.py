@@ -98,7 +98,7 @@ if __name__ == '__main__':
 
     # parser.add_argument('--not_on_hand', action='store_true',
     #                     help='Remove on hand IDs from search.')
-    # parser.add_argument('--fp_not_on_hand', action='store_true',
+    # parser.add_argument('--fp_not_on_hand', action='store_true',s
     #                     help='Remove IDs from search if footprint is on hand.')
 
     parser.add_argument('--get_count_only', action='store_true',
@@ -107,7 +107,8 @@ if __name__ == '__main__':
                              "footprints.")
 
     parser.add_argument('--overwrite_saved', action='store_true',
-                        help='Pass to overwrite a saved search of the same '
+                        help='Pass to overwrite a saved search (on the Planet '
+                             'API) of the same '
                              'name.')
     parser.add_argument('--save_filter', nargs='?', type=os.path.abspath,
                         const='default.json',
@@ -139,7 +140,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # Parse attribute arguments to handke seperately
     attrib_args = parse_group_args(parser=parser,
-                                   group_name=att_group)
+                                   group_name=attribute_args)
     attrib_args = {k: v for k, v in attrib_args._get_kwargs()}
 
     kwargs = {'name': args.name,

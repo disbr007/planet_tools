@@ -1,36 +1,27 @@
 import argparse
 import numpy as np
 import os
+from pathlib import Path
 import sys
 
 import pandas as pd
 from tqdm import tqdm
 
-from lib.db import Postgres, generate_sql
+# from lib.db import Postgres, generate_sql
 from lib.lib import get_config
 from lib.logging_utils import create_logger, create_logfile_path
-
+import lib.constants as constants
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-db_config = get_config('db')
-# planet_db = 'sandwich-pool.planet'
-planet_db = db_config['db_config']['host']
-off_nadir_tbl = 'off_nadir'
-# off_nadir_tbl_id = 'scene_name'
-off_nadir_tbl_id = db_config['tables'][off_nadir_tbl]['unique_id'][0]
-scenes_tbl = 'scenes'
-# scenes_tbl_id = 'id'
-scenes_tbl_id = db_config['tables'][scenes_tbl]['unique_id']
-
-# Existing field names in csvs
-off_nadir = 'sat.off_nadir'
-azimuth = 'sat.satellite_azimuth_mean'
-
-# Created / renamed field names
-signed_off_nadir = 'off_nadir_signed'
-tbl_off_nadir = 'off_nadir'
-tbl_azimuth = 'azimuth'
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres, generate_sql
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
 
 
 def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
@@ -38,22 +29,23 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
                      dryrun=False):
     """Ingest off-nadir files to a database table"""
     logger.info("Reading off-nadir csvs...")
-    with Postgres() as db:
-        if off_nadir_tbl in db.list_db_tables():
+    # TODO: update this to use db_utils syntax
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
+        if constants.OFF_NADIR in db.list_db_tables():
             tbl_exists = True
         else:
             tbl_exists = False
             logger.info('Table "{}" not found. Will be '
-                        'created.'.format(off_nadir_tbl))
+                        'created.'.format(constants.OFF_NADIR))
         if tbl_exists:
             logger.info('Starting count for {}.{}: '
-                        '{:,}'.format(planet_db, off_nadir_tbl,
-                                      db.get_table_count(off_nadir_tbl)))
+                        '{:,}'.format(constants.SANDWICH_POOL_PLANET, constants.OFF_NADIR,
+                                      db.get_table_count(constants.OFF_NADIR)))
 
         if onhand_scenes_only:
             logger.info('Locating records where scene is on hand...')
             # Get all onhand footprint ids
-            onhand_scenes = set(db.get_values(scenes_tbl, scenes_tbl_id[0]))
+            onhand_scenes = set(db.get_values(constants.SCENES, constants.ID))
             # # Keep only records that are onhand
             # records_to_add = records_to_add[
             #     records_to_add[off_nadir_tbl_id].isin(onhand_scenes)]
@@ -71,8 +63,8 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
         for csv in pbar:
             csv_df = pd.read_csv(csv)
             # Rename columns to match table names
-            csv_df.rename(columns={off_nadir: tbl_off_nadir,
-                                   azimuth: tbl_azimuth},
+            csv_df.rename(columns={constants.SAT_OFF_NADIR: constants.OFF_NADIR_FLD,
+                                   constants.SAT_AZIMUTH: constants.AZIMUTH},
                           inplace=True)
             # Column names are quoted... remove
             csv_df.rename(columns={c: c.replace('"', '')
@@ -82,17 +74,17 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
             csv_df.rename(columns={c: c.replace(".", '_')
                                    for c in csv_df.columns},
                           inplace=True)
-            # Add signed_off_nadir column
-            csv_df[signed_off_nadir] = np.sign(csv_df[tbl_azimuth]) * \
-                                       csv_df[tbl_off_nadir]
+            # Add off_nadir_signed column
+            csv_df[constants.OFF_NADIR_SIGNED] = np.sign(csv_df[constants.AZIMUTH]) * \
+                                       csv_df[constants.OFF_NADIR_FLD]
             # Keep only relevant columns
-            csv_df = csv_df[[off_nadir_tbl_id,
-                             tbl_off_nadir,
-                             tbl_azimuth,
-                             signed_off_nadir]]
+            csv_df = csv_df[[constants.SCENE_NAME,
+                             constants.OFF_NADIR_FLD,
+                             constants.AZIMUTH,
+                             constants.OFF_NADIR_SIGNED]]
             if onhand_scenes_only:
                 # Keep only records that are onhand
-                csv_df = csv_df[csv_df[off_nadir_tbl_id].isin(onhand_scenes)]
+                csv_df = csv_df[csv_df[constants.SCENE_NAME].isin(onhand_scenes)]
 
             all_dfs.append(csv_df)
 
@@ -101,20 +93,20 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
         logger.info('Total records: {:,}'.format(sum([len(df)
                                                       for df in all_dfs])))
         records_to_add = pd.concat(all_dfs)
-        records_to_add.drop_duplicates(subset=off_nadir_tbl_id, inplace=True)
+        records_to_add.drop_duplicates(subset=constants.SCENE_NAME, inplace=True)
         logger.info('Unique records found: {:,}'.format(len(records_to_add)))
 
         if tbl_exists and new_only:
             # Only add new values, do not overwrite existing
             logger.info('Locating new records...')
-            sql = generate_sql(layer=off_nadir_tbl,
-                               columns=off_nadir_tbl_id)
+            sql = generate_sql(layer=constants.OFF_NADIR,
+                               columns=constants.SCENE_NAME)
             # Get IDs all records currently in off-nadir table
             existing_off_nadirs = set(
-                db.sql2df(sql_str=sql, columns=off_nadir_tbl_id)[off_nadir_tbl_id])
+                db.sql2df(sql_str=sql, columns=constants.SCENE_NAME)[constants.SCENE_NAME])
             # Keep only records not currently in off-nadir table
             records_to_add = records_to_add[
-                ~records_to_add[off_nadir_tbl_id].isin(existing_off_nadirs)]
+                ~records_to_add[constants.SCENE_NAME].isin(existing_off_nadirs)]
             logger.info('Remaining records to add: '
                         '{:,}'.format(len(records_to_add)))
 
@@ -124,9 +116,9 @@ def ingest_off_nadir(export_dir, onhand_scenes_only=True, new_only=True,
 
         # Add records to table
         logger.info('Adding new records...')
-        db.insert_new_records(records_to_add, off_nadir_tbl, dryrun=dryrun)
+        db.insert_new_records(records_to_add, constants.OFF_NADIR, dryrun=dryrun)
         logger.info('New records added. New table count:'
-                    ' {:,}'.format(db.get_table_count(off_nadir_tbl)))
+                    ' {:,}'.format(db.get_table_count(constants.OFF_NADIR)))
 
 
 if __name__ == '__main__':
@@ -149,15 +141,6 @@ if __name__ == '__main__':
                         default=['.csv'],
                         help='Extension(s) of off-nadir files to load.')
     parser.add_argument('--logfile', type=os.path.abspath)
-
-    # For debugging
-    # sys.argv = ['ingest_off_nadir.py',
-    #             # '-i', r'V:\pgc\data\scratch\jeff\projects\planet'
-    #             #       r'\off_nadir_exports\paris_export'
-    #             #       r'\pl_fp_2019oct01_2020jun30\nasa_csv_PE-33905',
-    #             '-i', r'V:\pgc\data\scratch\jeff\projects\planet\scratch'
-    #                   r'\test_off_nadirs'
-    #             ]
 
     args = parser.parse_args()
 

@@ -11,17 +11,16 @@ from lib.logging_utils import create_logger, create_logfile_path
 from lib.order import submit_order, poll_for_success
 # from submit_order import submit_order
 from lib.order import download_parallel
+import lib.constants as constants
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-default_dst_parent = get_config("download_loc")
-if platform.system() == 'Windows':
+default_dst_parent = get_config(constants.DOWNLOAD_LOC)
+if platform.system() == constants.WINDOWS:
     default_dst_parent = linux2win(default_dst_parent)
 
 # DELIVERY
-AWS = 'aws'
-ZIP = 'zip'
-DELIVERY_OPTIONS = [AWS, ZIP]
+DELIVERY_OPTIONS = [constants.AWS, constants.ZIP]
 
 
 def order_and_download(order_name, order_ids_path,
@@ -29,7 +28,7 @@ def order_and_download(order_name, order_ids_path,
                        out_orders_list,
                        order_product_bundle,
                        remove_onhand=True,
-                       delivery=ZIP,
+                       delivery=constants.ZIP,
                        initial_wait=1200,
                        download_par_dir=default_dst_parent,
                        overwrite_downloads=False,
@@ -100,7 +99,7 @@ if __name__ == '__main__':
                             help='Path to write order IDs to.')
     order_args.add_argument('--do_not_remove_onhand', action='store_true',
                             help='On hand IDs are removed by default. Use this flag to not remove.')
-    order_args.add_argument('--delivery', choices=DELIVERY_OPTIONS, default=ZIP,
+    order_args.add_argument('--delivery', choices=DELIVERY_OPTIONS, default=constants.ZIP,
                             help='Delivery method to use. Supported options: '
                                  '{}'.format(DELIVERY_OPTIONS))
     download_args.add_argument('--initial_wait', type=int, default=600,
@@ -168,7 +167,6 @@ if __name__ == '__main__':
     logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
     sublogger2 = create_logger('submit_order', 'fh', 'DEBUG', logfile)
     sublogger1 = create_logger('download_utils', 'fh', 'DEBUG', logfile)
-
 
     order_and_download(order_name=order_name,
                        order_ids_path=order_ids_path,

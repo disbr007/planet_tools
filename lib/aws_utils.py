@@ -4,6 +4,7 @@ from pathlib import Path
 import time
 
 from tqdm import tqdm
+
 try:
     import boto3
 except ImportError:

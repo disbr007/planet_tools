@@ -19,54 +19,30 @@ from shapely.geometry import Point, Polygon
 from tqdm import tqdm
 
 from .logging_utils import create_logger
+import lib.constants as constants
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
-# TODO: clean up logging around unshelveable scenes
-#  (lots of repeated "XML path: None", "XML Path not located")
+# External modules
+sys.path.append(str(Path(__file__).parent.parent / '..'))
+try:
+    from db_utils.db import Postgres, generate_sql, check_where, \
+        make_identifier, intersect_aoi_where
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
 
 config_file = Path(__file__).parent.parent / "config" / "config.json"
 
-
-# Constants
-# Config keys
-DOWNLOAD_LOC = 'download_loc'
-
-WINDOWS = 'Windows'
-LINUX = 'Linux'
-# Keys in metadata.json
-K_LOCATION = 'location'
-K_SCENES_ID = 'id'
-K_ORDER_ID = 'order_id'
-# New fields that are created
-K_FILENAME = 'filename'
-K_RELATIVE_LOC = 'rel_location'
-# Manifest Keys
-K_FILES = 'files'
-K_MEDIA_TYPE = 'media_type'
-K_PATH = 'path'
-K_ANNOTATIONS = 'annotations'
-K_ASSET_TYPE = 'planet/asset_type'
-K_BUNDLE_TYPE = 'planet/bundle_type'
-K_ITEM_TYPE = 'planet/item_type'
-K_DIGESTS = 'digests'
-K_MD5 = 'md5'
-# Manifest Constants
-# suffix to append to filenames for individual manifest files
-MANIFEST_SUFFIX = 'manifest'
-# included in unusable data mask files paths
-UDM = 'udm'
-# start of media_type in master manifest that indicates imagery
-IMAGE = 'image'
 
 # For identifying scene ids from file names
 SCENE_LEVELS = ['1B', '3B']
 
 # Shelving parent directory
-PLANET_DATA_DIR = PurePosixPath(json.load(open(config_file))[DOWNLOAD_LOC])
+PLANET_DATA_DIR = PurePosixPath(
+    json.load(open(config_file))[constants.DOWNLOAD_LOC])
 
-# Fields added to scene level manifests
-RECEIVED_DATETIME = 'received_datetime'
 
 def get_config(param):
     try:
@@ -97,9 +73,9 @@ def linux2win(path):
 
 
 def get_platform_location(path):
-    if platform.system() == LINUX:
+    if platform.system() == constants.LINUX:
         pl = win2linux(path)
-    elif platform.system() == WINDOWS:
+    elif platform.system() == constants.WINDOWS:
         pl = linux2win(path)
     return pl
 
@@ -327,13 +303,13 @@ def id_from_scene(scene, scene_levels=SCENE_LEVELS):
 
 
 def write_scene_manifest(scene_manifest: dict, master_manifest: Path,
-                         manifest_suffix: str = MANIFEST_SUFFIX,
+                         manifest_suffix: str = constants.MANIFEST_SUFFIX,
                          overwrite: bool = False):
     """
     Write the section of the parent manifest for an individual scene
     to a new file with that scenes name.
     """
-    scene_path = Path(scene_manifest[K_PATH])
+    scene_path = Path(scene_manifest[constants.PATH])
     scene_mani_name = '{}_{}.json'.format(scene_path.stem, manifest_suffix)
     scene_mani_path = (master_manifest.parent / scene_path.parent /
                        scene_mani_name)
@@ -366,8 +342,9 @@ def get_scene_manifests(master_manifest: str) -> list:
 
     # Get metadata for all images
     scene_manifests = []
-    for f in mani[K_FILES]:
-        if f[K_MEDIA_TYPE].startswith(IMAGE) and UDM not in f[K_PATH]:
+    for f in mani[constants.FILES]:
+        # TODO: DANGER if something changes with order manifest structure
+        if f[constants.MEDIA_TYPE].startswith(constants.IMAGE) and constants.UDM not in f[constants.PATH]:
             scene_manifests.append(f)
 
     return scene_manifests
@@ -393,7 +370,7 @@ def create_scene_manifests(master_manifest, overwrite=False):
                 # )
     # for sm in pbar:
     for sm in scene_manifests:
-        sm[RECEIVED_DATETIME] = received_date
+        sm[constants.RECEIVED_DATETIME] = received_date
         scene_manifest_file = write_scene_manifest(sm, master_manifest,
                                                    overwrite=overwrite)
         scene_manifest_files.append(scene_manifest_file)
@@ -477,6 +454,72 @@ def locate_manifest(scene):
     pass
 
 
+def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
+                    date_diff_min=None, date_diff_max=None,
+                    view_angle_diff=None,
+                    ovlp_perc_min=None, ovlp_perc_max=None,
+                    off_nadir_diff_min=None, off_nadir_diff_max=None,
+                    limit=None, orderby=False, orderby_asc=False,
+                    remove_id_tbl=None, remove_id_tbl_col=None,
+                    remove_id_src_cols=None,
+                    geom_col=constants.OVLP_GEOM,
+                    columns='*'):
+    """
+    Create SQL statment to select stereo pairs based on passed
+    arguments.
+    """
+    # Ensure properly quoted identifiers
+    remove_id_tbl = make_identifier(remove_id_tbl)
+
+    # TODO: make this a loop over a dict of fields and argss
+    where = ""
+    if date_min:
+        where = check_where(where)
+        where += "{} >= '{}'".format(constants.ACQUIRED1, date_min)
+    if date_max:
+        where = check_where(where)
+        where += "{} <= '{}'".format(constants.ACQUIRED1, date_max)
+    if ins:
+        where = check_where(where)
+        where += "{0} = '{1}' AND {2} = '{1}'".format(constants.INSTRUMENT1, ins, constants.INSTRUMENT2)
+    if date_diff_max:
+        where = check_where(where)
+        where += "{} <= {}".format(constants.DATE_DIFF, date_diff_max)
+    if date_diff_min:
+        where = check_where(where)
+        where += "{} <= {}".format(constants.DATE_DIFF, date_diff_min)
+    if off_nadir_diff_max:
+        where = check_where(where)
+        where += "{} <= {}".format(constants.OFF_NADIR_DIFF, off_nadir_diff_max)
+    if off_nadir_diff_min:
+        where = check_where(where)
+        where += "{} >= {}".format(constants.OFF_NADIR_DIFF, off_nadir_diff_min)
+    if view_angle_diff:
+        where = check_where(where)
+        where += "{} >= {}".format(constants.VIEW_ANGLE_DIFF, view_angle_diff)
+    if ovlp_perc_min:
+        where = check_where(where)
+        where += "{} >= {}".format(constants.OVLP_PERC, ovlp_perc_min)
+    if ovlp_perc_max:
+        where = check_where(where)
+        where += "{} >= {}".format(constants.OVLP_PERC, ovlp_perc_max)
+    if isinstance(aoi, gpd.GeoDataFrame):
+        where = check_where(where)
+        where += intersect_aoi_where(aoi, geom_col=geom_col)
+
+    if columns != '*' and geom_col not in columns:
+        columns.append(geom_col)
+
+    sql_statement = generate_sql(layer=constants.STEREO_CANDIDATES,
+                                 columns=columns,
+                                 where=where, limit=limit, orderby=orderby,
+                                 orderby_asc=orderby_asc,
+                                 remove_id_tbl=remove_id_tbl,
+                                 remove_id_tbl_col=remove_id_tbl_col,
+                                 remove_id_src_cols=remove_id_src_cols)
+
+    return sql_statement
+
 class PlanetScene:
     def __init__(self, source, exclude_meta=None,
                  shelved_parent=None,
@@ -539,17 +582,18 @@ class PlanetScene:
         with open(str(self.manifest), 'r') as src:
             data = json.load(src)
             # Find the scene path within the source
-            _digests = data['digests']
-            _annotations = data['annotations']
-            self.scene_path = self.manifest.parent / Path(data['path']).name
-            self.media_type = data['size']
-            self.md5 = _digests['md5']
-            self.sha256 = _digests['sha256']
-            self.asset_type = _annotations['planet/asset_type']
-            self.bundle_type = _annotations['planet/bundle_type']
-            self.item_id = _annotations['planet/item_id']
-            self.item_type = _annotations['planet/item_type']
-            self.received_datetime = data['received_datetime']
+            _digests = data[constants.DIGESTS]
+            _annotations = data[constants.ANNOTATIONS]
+            self.scene_path = self.manifest.parent / \
+                              Path(data[constants.PATH]).name
+            self.media_type = data[constants.SIZE]
+            self.md5 = _digests[constants.MD5]
+            self.sha256 = _digests[constants.SHA56]
+            self.asset_type = _annotations[constants.PLANET_ASSET_TYPE]
+            self.bundle_type = _annotations[constants.PLANET_BUNDLE_TYPE]
+            self.item_id = _annotations[constants.PLANET_ITEM_ID]
+            self.item_type = _annotations[constants.PLANET_ITEM_TYPE]
+            self.received_datetime = data[constants.RECEIVED_DATETIME]
 
         # Determine "scene name" - the scene name without post processing
         # suffixes used when searching for metadata files, e.g.: _SR
@@ -966,23 +1010,28 @@ class PlanetScene:
         if self._index_row is None:
             # Get all attributes in XML, add others - unsorted
             uns_index_row = copy.deepcopy(self.xml_attributes)
-            uns_index_row['id'] = self.item_id
-            uns_index_row['strip_id'] = self.strip_id
-            uns_index_row['bundle_type'] = self.bundle_type
-            uns_index_row['geometry'] = self.geometry
-            uns_index_row['centroid'] = self.centroid
-            uns_index_row['center_x'] = self._center_x
-            uns_index_row['center_y'] = self._center_y
-            uns_index_row['received_datetime'] = self.received_datetime
-            uns_index_row['shelved_loc'] = str(self.shelved_location)
+            uns_index_row[constants.ID] = self.item_id
+            uns_index_row[constants.strip_id] = self.strip_id
+            uns_index_row[constants.BUNDLE_TYPE] = self.bundle_type
+            uns_index_row[constants.GEOMETRY] = self.geometry
+            uns_index_row[constants.CENTROID] = self.centroid
+            uns_index_row[constants.CENTER_X] = self._center_x
+            uns_index_row[constants.CENTER_Y] = self._center_y
+            uns_index_row[constants.RECEIVED_DATETIME] = self.received_datetime
+            uns_index_row[constants.SHELVED_LOC] = str(self.shelved_location)
             # Use only linux paths in index - /mnt/pgc/data/.., not V:\pgc\data\...
-            if platform.system() == 'Windows':
-                uns_index_row['shelved_loc'] = linux2win(uns_index_row['shelved_loc'])
+            if platform.system() == constants.WINDOWS:
+                uns_index_row[constants.SHELVED_LOC] = \
+                    linux2win(uns_index_row[constants.SHELVED_LOC])
 
             # Reorder fields
-            field_order = ['id', 'identifier', 'strip_id',
-                           'acquisitionDateTime', 'bundle_type', 'center_x',
-                           'center_y']
+            field_order = [constants.ID,
+                           constants.IDENTIFIER,
+                           constants.STRIP_ID,
+                           constants.ACQUISTIONDATETIME,
+                           constants.BUNDLE_TYPE,
+                           constants.CENTER_X,
+                           constants.CENTER_Y]
             self._index_row = {k: uns_index_row[k] for k in field_order}
             for k, v in uns_index_row.items():
                 if k not in self._index_row.keys():
@@ -1003,10 +1052,13 @@ class PlanetScene:
         #  we want in footprints
         if self._footprint_row is None:
             self._footprint_row = copy.deepcopy(self.index_row)
-            self._footprint_row.pop('shelved_loc', None)
+            self._footprint_row.pop(constants.SHELVED_LOC, None)
             if rel_to:
-                self._footprint_row[K_RELATIVE_LOC] = str(
+                self._footprint_row[constants.REL_LOCATION] = str(
                     self.scene_path.relative_to(rel_to))
         return self._footprint_row
 
 
+
+# TODO: clean up logging around unshelveable scenes
+#  (lots of repeated "XML path: None", "XML Path not located")

@@ -7,11 +7,11 @@ import geopandas as gpd
 
 from lib.logging_utils import create_logger
 from lib.lib import write_gdf, find_planet_scenes
+import lib.constants as constants
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
 choices_format = ['shp', 'gpkg', 'geojson']
-GEOMETRY = 'geometry'
 CRS = 'epsg:4326'
 
 
@@ -31,7 +31,7 @@ def main(args):
     rows = [ps.footprint_row(rel_to=relative_directory)
             for ps in planet_scenes]
     gdf = gpd.GeoDataFrame(rows)
-    gdf[GEOMETRY] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
+    gdf[constants.GEOMETRY] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
     gdf.crs = CRS
 
     logger.info('Footprint created with {:,} records.'.format(len(gdf)))

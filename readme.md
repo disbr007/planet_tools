@@ -51,7 +51,21 @@ through the use of a configuration file at: `config/config.json`.
 See `config/config_example.json` for an example.
 
 ## Usage
-### Search Planet archive for footprints
+### Search Planet archives for footprints
+This tool searches the [Planet Data API](https://developers.planet.com/docs/apis/data/)
+for footprints matching the arguments provided. The API returns the footprints 
+and metadata in pages of 250 records, which can take a while to parse. 
+*Note:* There is a limit to the payload size that can get POSTed when performing a
+search, making it impossible to remove all onhand or previously searched for
+records during the search itself. Therefore, it would be a best practice to 
+track what searches (and subsequent matching footprints) have been performed 
+and written to the `scenes` table and keep search parameters narrow to 
+avoid repeated parsing of records. Duplicates will however be removed before 
+writing to the 'scenes' table.  
+
+Either the list of IDs specified by `--ids` or the footprint written out as 
+`--out_path` can be passed to `order_and_download.py` for ordering and downloading.
+
 Search using attribute arguments:  
 ```commandline
 python search4footprints.py --name my_search \ 
@@ -98,7 +112,16 @@ python search4footprints.py
 ```
 
 ### Select footprints
-Select footprints that have been saved to `scenes` table:
+This tool searches the `scenes` table for scenes matching the arguments provided
+and is thus used when the user knows the records they are searching for have already
+been parsed from the Planet Data API and written to the `scenes` table via 
+`search4footprints.py`. Records can then be retrieved much more quickly than 
+would be from parsing responses from the Data API. 
+This could potentially be combined into `search4footprints.py` as an argument 
+flag, denoting that `scenes` should be parsed rather than the Data API.
+
+The footprint written out as `--out_selection` can be passed to 
+`order_and_download.py` for ordering and downloading.
 ```commandline
 python select_footprints.py 
     --aoi vectorfile.shp \
@@ -143,7 +166,8 @@ python shelve_and_index.py -i orders/
 ### Multilook Stereo Selection 
 `multilook_selection.py`  
 Select multilook 'pairs' (really groups of scenes) from `multilook_candidates` table that meet 
-minimum number of scene and minimum area (in m<sup>2</sup>) arguments.
+minimum number of scene and minimum area (in m<sup>2</sup>) arguments. Note this can take a long
+time and it is recommended to use an AOI to reduce the selection.
 ```python
 python multilook_selection.py --out_ids multilook_ids.txt --out_overlaps multilook_overlaps.shp 
 --aoi my_aoi.shp --min_pairs 3 --min_area 32_000_000
@@ -176,6 +200,12 @@ Highlights:
         logger = create_logger('lib.db', 'sh', 'INFO')
         logger = create_logger('lib.db', 'fh', 'DEBUG', filename='lib.db.log')
         ```
+
+* `lib.constants`: Constant string variables, including database and table 
+names, field names, keys in configuration files, etc. Generally, if the string
+variable/constant is used in more than one script, it *should* be in this file. 
+Other string variables, like argparse defaults, that are only used in one place
+are at the top of their respective scripts. 
 
 * `lib.lib`: General purpose functions. Highlights:
     * read configuration file

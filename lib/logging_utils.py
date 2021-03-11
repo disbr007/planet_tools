@@ -7,20 +7,11 @@ Logging module helper functions
 """
 
 from datetime import datetime
-
 import logging
 import os
-import platform
-import sys
-
-WINDOWS = 'Windows'
-LINUX = 'Linux'
+from pathlib import Path
 
 # TODO: Update this default log location
-if platform.system() == WINDOWS:
-    DEFAULT_LOGDIR = r'V:\pgc\data\scratch\jeff\projects\planet\logs'
-elif platform.system() == LINUX:
-    DEFAULT_LOGDIR = r'/mnt/pgc/data/scratch/jeff/projects/planet/logs'
 
 
 def logging_level_int(logging_level):
@@ -129,7 +120,12 @@ def create_logfile_path(name, logdir=None):
     now = datetime.now().strftime('%Y%b%d_%H%m%S').lower()
     logname = '{}_{}.log'.format(name, now)
     if not logdir:
-        logdir = DEFAULT_LOGDIR
+        if Path(name).is_file():
+            logdir, logname = Path(name).parent, Path(name).name
+        else:
+            logging.error('Please provide the full path to write '
+                          'the logfile. Received: {}'.format(name))
+
     logfile = os.path.join(logdir, logname)
 
     return logfile

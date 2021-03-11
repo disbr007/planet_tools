@@ -1,3 +1,9 @@
+"""
+This code has not been tested in a while. It was originally used
+to help with ordering IDs for xtrack stereo with two IDs, but has
+not been used since moving to multilook stereo.
+"""
+# TODO: REMOVE?
 import argparse
 import os
 from pathlib import Path
@@ -12,8 +18,8 @@ from lib.logging_utils import create_logger
 # from lib.db import Postgres
 from lib.search import get_stereo_pairs, pairs_to_list, \
     create_order_request, place_order
+import lib.constants as constants
 
-# TODO: Change view_angle diff to off-nadir diff, add all parameters of updated query
 logger = create_logger(__name__, 'sh', 'INFO')
 
 # External modules
@@ -25,16 +31,12 @@ except ImportError as e:
                  'the planet_tools directory. Path: \n{}'.format(sys.path))
     sys.exit()
 
-planet_db = 'sandwich-pool.planet'
-scenes_onhand_tbl = 'scenes_onhand'
-scene_id = 'id'
-
 
 @retry(wait_exponential_multiplier=1000, wait_exponential_max=10000)
 def count_concurrent_orders():
     # TODO: Move these to a config file
-    orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
-    PLANET_API_KEY = os.getenv('PL_API_KEY')
+    # orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
+    PLANET_API_KEY = os.getenv(constants.PL_API_KEY)
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
 
@@ -42,7 +44,7 @@ def count_concurrent_orders():
         logger.error('Authorizing using Planet API key...')
         s.auth = (PLANET_API_KEY, '')
 
-        res = s.get(orders_url)
+        res = s.get(constants.ORDERS_URL)
         if res.status_code == 200:
             order_statuses = res.json()['user']
             queued = order_statuses['queued_orders']
@@ -100,8 +102,8 @@ def main(args):
 
     logger.info('Removing onhand IDs...')
     if remove_onhand:
-        with Postgres(planet_db) as db:
-            onhand = set(db.get_values(scenes_onhand_tbl, columns=[scene_id]))
+        with Postgres(constants.SANDIWCH_POOL_PLANET) as db:
+            onhand = set(db.get_values(constants.SCENES_ONHAND, columns=[constants.ID]))
 
         stereo_ids = list(set(stereo_ids) - onhand)
         logger.info('IDs remaining: {:,}'.format(len(stereo_ids)))
