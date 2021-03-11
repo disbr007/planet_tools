@@ -51,7 +51,7 @@ through the use of a configuration file at: `config/config.json`.
 See `config/config_example.json` for an example.
 
 ## Usage
-### Search Planet archives for footprints
+### Search Planet archives for footprints (search4footprints.py)
 This tool searches the [Planet Data API](https://developers.planet.com/docs/apis/data/)
 for footprints matching the arguments provided. The API returns the footprints 
 and metadata in pages of 250 records, which can take a while to parse. 
@@ -111,7 +111,7 @@ python search4footprints.py
     --dryrun
 ```
 
-### Select footprints
+### Select footprints (select_footprints.py)
 This tool searches the `scenes` table for scenes matching the arguments provided
 and is thus used when the user knows the records they are searching for have already
 been parsed from the Planet Data API and written to the `scenes` table via 
@@ -131,7 +131,7 @@ python select_footprints.py
     --out_selection selection.shp
 ```
 
-### Order and download imagery
+### Order and download imagery (order_and_download.py)
 A selected footprint (or list of IDs) can be used to order and download
 imagery:
 ```commandline
@@ -146,7 +146,7 @@ python order_and_download.py
 Delivery via AWS is also possible, using `--delivery aws`, but requires 
 that AWS account credentials are present in `config/config.json`
 
-### Shelving and Indexing
+### Shelving and Indexing (shelve_and_index.py)
 Once an order has been downloaded, it can be shelved and indexed. 
 This is a routine linking shelving and indexing. In a standard run, a directory is
 parsed for order manifests. The order manifest's are parsed for sections
@@ -163,8 +163,7 @@ written to the index table: planet.scenes
 python shelve_and_index.py -i orders/
 ```
 
-### Multilook Stereo Selection 
-`multilook_selection.py`  
+### Multilook Stereo Selection (multilook_selection.py)
 Select multilook 'pairs' (really groups of scenes) from `multilook_candidates` table that meet 
 minimum number of scene and minimum area (in m<sup>2</sup>) arguments. Note this can take a long
 time and it is recommended to use an AOI to reduce the selection.
@@ -172,6 +171,16 @@ time and it is recommended to use an AOI to reduce the selection.
 python multilook_selection.py --out_ids multilook_ids.txt --out_overlaps multilook_overlaps.shp 
 --aoi my_aoi.shp --min_pairs 3 --min_area 32_000_000
 ```
+
+### Footprint a directory of scenes
+`fp_planet.py`  
+Footprint a directory containing Planet imagery. A field is added to the 
+footprint, specifying the path to each scene, relative to the directory provided 
+to `--relative_directory`. If not directory is provided, the paths will be 
+relative to the `--input_directory`.  
+*Note:* Imagery is identified by locating scene-level manifest files, like 
+`[scene]_manifest.json`.
+
 
 ## Miscellaneous
 `lib`  
@@ -233,9 +242,6 @@ the [Planet Data API](https://developers.planet.com/docs/apis/data/).
     * creating an aws_delivery dictionary containing all necessary parameters to pass to the 
       [Planet Orders API](https://developers.planet.com/docs/orders/)
 
-`fp_planet.py`  
-Footprint a directory containing Planet imagery. Imagery is identified by locating
-scene-level manifest files. (in progress)
 
 `ingest_off_nadir.py`  
 Parse off-nadir metadata .csv's from Planet into database table `off_nadir`. These
@@ -264,4 +270,7 @@ views on `sandwich-pool.planet`. **Not meant to be run as a standalone script.**
 
 ### TODO:
 - [] Use Planet API key from config.json, not a system environmental variable
-- [] Make boto3 import dependent on delivery method
+- [x] Make boto3 import dependent on delivery method
+- [] Locate scenes in `fp_planet.py` using a string or strings provided as an 
+     argument for example: "*AnalyticMS.tif" Some functionality to his end 
+     has been added to lib.PlanetScene already.

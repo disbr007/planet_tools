@@ -28,10 +28,14 @@ def main(args):
     planet_scenes = find_planet_scenes(parse_directory)
     logger.info('Found {:,} scenes to parse...'.format(len(planet_scenes)))
 
-    rows = [ps.footprint_row(rel_to=relative_directory)
+    rows = [ps.get_footprint_row(rel_to=relative_directory)
             for ps in planet_scenes]
     gdf = gpd.GeoDataFrame(rows)
-    gdf[constants.GEOMETRY] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
+
+    # Drop centroid column (can only write one geometry column and
+    # center_x and center_y remain)
+    gdf = gdf.drop(columns=constants.CENTROID)
+
     gdf.crs = CRS
 
     logger.info('Footprint created with {:,} records.'.format(len(gdf)))

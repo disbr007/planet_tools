@@ -588,7 +588,7 @@ class PlanetScene:
                               Path(data[constants.PATH]).name
             self.media_type = data[constants.SIZE]
             self.md5 = _digests[constants.MD5]
-            self.sha256 = _digests[constants.SHA56]
+            self.sha256 = _digests[constants.SHA256]
             self.asset_type = _annotations[constants.PLANET_ASSET_TYPE]
             self.bundle_type = _annotations[constants.PLANET_BUNDLE_TYPE]
             self.item_id = _annotations[constants.PLANET_ITEM_ID]
@@ -1011,7 +1011,7 @@ class PlanetScene:
             # Get all attributes in XML, add others - unsorted
             uns_index_row = copy.deepcopy(self.xml_attributes)
             uns_index_row[constants.ID] = self.item_id
-            uns_index_row[constants.strip_id] = self.strip_id
+            uns_index_row[constants.STRIP_ID] = self.strip_id
             uns_index_row[constants.BUNDLE_TYPE] = self.bundle_type
             uns_index_row[constants.GEOMETRY] = self.geometry
             uns_index_row[constants.CENTROID] = self.centroid
@@ -1046,10 +1046,7 @@ class PlanetScene:
 
         return self._index_row
 
-    @property
-    def footprint_row(self, rel_to=None):
-        # TODO: write, such that this only includes attributes
-        #  we want in footprints
+    def get_footprint_row(self, rel_to=None):
         if self._footprint_row is None:
             self._footprint_row = copy.deepcopy(self.index_row)
             self._footprint_row.pop(constants.SHELVED_LOC, None)
@@ -1057,6 +1054,18 @@ class PlanetScene:
                 self._footprint_row[constants.REL_LOCATION] = str(
                     self.scene_path.relative_to(rel_to))
         return self._footprint_row
+
+    # @property
+    # def footprint_row(self, rel_to=None):
+    #     TODO: write, such that this only includes attributes
+    #      we want in footprints
+        # if self._footprint_row is None:
+        #     self._footprint_row = copy.deepcopy(self.index_row)
+        #     self._footprint_row.pop(constants.SHELVED_LOC, None)
+        #     if rel_to:
+        #         self._footprint_row[constants.REL_LOCATION] = str(
+        #             self.scene_path.relative_to(rel_to))
+        # return self._footprint_row
 
 
 
