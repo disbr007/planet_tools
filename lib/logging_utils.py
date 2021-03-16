@@ -7,69 +7,11 @@ Logging module helper functions
 """
 
 from datetime import datetime
-
 import logging
 import os
-import platform
-import sys
-
+from pathlib import Path
 
 # TODO: Update this default log location
-if platform.system() == 'Windows':
-    default_logdir = r'V:\pgc\data\scratch\jeff\projects\planet\logs'
-elif platform.system() == 'Linux':
-    default_logdir = r'/mnt/pgc/data/scratch/jeff/projects/planet/logs'
-
-
-class CustomError(Exception):
-    """pass"""
-
-    pass
-
-
-def LOGGING_CONFIG(level):
-    """Config dict for logging module"""
-    CONFIG = {
-        'version': 1,
-        'disable_existing_loggers': True,
-        'formatters': { 
-            'standard': { 
-                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-            },
-        },
-        'handlers': {
-            'default': {
-                'level': level,
-                'formatter': 'standard',
-                'class': 'logging.StreamHandler',
-                'stream': 'ext://sys.stdout',  # Default is stderr
-            },
-            'module': {
-                'level': logging.DEBUG,
-                'formatter': 'standard',
-                'class': 'logging.StreamHandler',
-                'stream': 'ext://sys.stdout',  # Default is stderr
-            },
-        },
-        'loggers': {
-            '': {  # root logger
-                'handlers': ['default'],
-                'level': 'WARNING',
-                'propagate': True
-            },
-            '__main__': {  # if __name__ == '__main__'
-                'handlers': ['default'],
-                'level': level,
-                'propagate': False
-            },
-            'module': {
-                'handlers': ['default'],
-                'level': logging.DEBUG,
-                'propagate': True
-            },
-        }
-    }
-    return CONFIG
 
 
 def logging_level_int(logging_level):
@@ -77,7 +19,7 @@ def logging_level_int(logging_level):
     Return integer representing logging level in logging module
     Parameters
     ----------
-    logging_level : STR
+    logging_level: str
         One of the logging levels: 'CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'NOTSET'
 
     Returns
@@ -150,6 +92,8 @@ def create_logger(logger_name, handler_type,
                 # print('handler exists, not adding')
                 handler = h
                 break
+            elif existing_level > desired_level:
+                logger.removeHandler(h)
 
     # If no handler of specified type and level was found, create it
     if handler is None:
@@ -172,55 +116,16 @@ def create_logger(logger_name, handler_type,
     return logger
 
 
-def project_path():
-    # TODO: This is hardcoded...
-    if platform.system() == 'Windows':
-        prj_path = r'C:\code\pgc-code-all'
-    elif platform.system() == 'Linux':
-        prj_path = r'/mnt/pgc/data/scratch/jeff/code/pgc-code-all'
-
-    return prj_path
-
-
-def project_modules(repo_path=None):
-    if repo_path is None:
-        repo_path = project_path()
-    modules = [f.split('.')[0] for root, dirs, files in os.walk(repo_path)
-               for f in files if f.endswith('.py')]
-
-    return modules
-
-
-def imported_modules(repo_path=None):
-    # TODO: modules is missing submodule name, i.e. submodule.fxn is just fxn?
-    modules = project_modules(repo_path)
-    imported = [m for m in modules if m in sys.modules.keys()]
-    
-    return imported
-
-
-def create_module_loggers(handler_type, handler_level,
-                          filename=None, duplicate=False):
-
-    imported = imported_modules()
-    loggers = []
-    for i in imported:
-        logger = create_logger(logger_name=i,
-                               handler_type=handler_type,
-                               handler_level=handler_level,
-                               filename=filename,
-                               duplicate=duplicate)
-        loggers.append(logger)
-    
-    return loggers
-
-
 def create_logfile_path(name, logdir=None):
     now = datetime.now().strftime('%Y%b%d_%H%m%S').lower()
     logname = '{}_{}.log'.format(name, now)
     if not logdir:
-        # logdir = get_config("logdir")
-        logdir = default_logdir
+        if Path(name).is_file():
+            logdir, logname = Path(name).parent, Path(name).name
+        else:
+            logging.error('Please provide the full path to write '
+                          'the logfile. Received: {}'.format(name))
+
     logfile = os.path.join(logdir, logname)
 
     return logfile

@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import math
 import os
+from pathlib import Path
 import requests
 import sys
 import threading
@@ -18,29 +19,34 @@ from tqdm import tqdm
 from lib.lib import read_ids, write_gdf
 from lib.db import Postgres
 from lib.logging_utils import create_logger
+import lib.constants as constants
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
-# TODO: convert to search_session class (all fxns that take session)
-# TODO: Add filter: id NOT IN [list of existing IDs]
-
-# config = os.path.join('config', 'saved_searches.yaml')
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres, intersect_aoi_where
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
 
 # API URLs and key
-PLANET_URL = r'https://api.planet.com/data/v1'
-SEARCH_URL = '{}/searches'.format(PLANET_URL)
-STATS_URL = '{}/stats'.format(PLANET_URL)
-PLANET_API_KEY = os.getenv('PL_API_KEY')
+# PLANET_URL = r'https://api.planet.com/data/v1'
+# SEARCH_URL = '{}/searches'.format(constants.PLANET_URL)
+# STATS_URL = '{}/stats'.format(constants.PLANET_URL)
+PLANET_API_KEY = os.getenv(constants.PL_API_KEY)
 if not PLANET_API_KEY:
-    logger.error('Error retrieving API key. Is PL_API_KEY env. variable set?')
+    logger.error('Error retrieving API key. Is PL_API_KEY env variable set?')
 
 # Threading
 thread_local = threading.local()
 
 # CREATE SEARCHES
 # Footprint tables
-scenes = 'scenes'
-scenes_onhand = 'scenes_onhand'
+# constants.SCENES = 'scenes'
+# scenes_onhand = 'scenes_onhand'
 
 # To ensure passed filter type is valid
 filter_types = ('DateRangeFilter', 'RangeFilter', 'UpdateFilter',
@@ -67,9 +73,6 @@ op_symbol = 'op_symbol'
 sym_gte = '>='
 sym_lte = '<='
 sym_equal = '='
-
-# Fields
-f_id = 'id'
 
 # For parsing attribute arguements
 # TODO: move this to a config file?
@@ -104,14 +107,14 @@ def create_master_geom_filter(vector_file):
         aoi = vector_file
     # Create list of geometries to put in separate filters
     geometries = aoi.geometry.values
-    json_geoms = [json.loads(gpd.GeoSeries([g]).to_json())['features'][0]['geometry']
+    json_geoms = [json.loads(gpd.GeoSeries([g]).to_json())['features'][0][constants.GEOMETRY]
                   for g in geometries]
     # Create each geometry filter
     geom_filters = []
     for jg in json_geoms:
         geom_filter = {
             ftype: gf,
-            field_name: 'geometry',
+            field_name: constants.GEOMETRY,
             config: jg
         }
         geom_filters.append(geom_filter)
@@ -147,6 +150,7 @@ def create_attribute_filter(arg_name, arg_value):
     }
 
     return filter
+
 
 def create_ids_filter(ids, field='id'):
     ids_filter = {ftype: sif,
@@ -184,6 +188,21 @@ def create_master_attribute_filter(attrib_args):
 
 
 def monthlist(start_date, end_date):
+    """
+    Create a list of tuples of (YYYY, MM) for each month
+    between start_date and end_date.
+    Parameters
+    ----------
+    start_date: str
+        YYYY-MM-DD
+    end_date: str
+        YYYY-MM-DD
+
+    Returns
+    ----------
+    list: tuple of strings like (YYYY, MM)
+
+    """
     start, end = [datetime.strptime(_, "%Y-%m-%d") for _ in [start_date, end_date]]
     total_months = lambda dt: dt.month + 12 * dt.year
     mlist = []
@@ -199,12 +218,14 @@ def monthlist(start_date, end_date):
 def create_months_filter(months, min_date=None, max_date=None,
                          month_min_days=None, month_max_days=None):
     """
-    Create an OrFilter which has a subfilter for each monnth that is a
+    Create an OrFilter which has a subfilter for each month that is a
     DateRangeFilter for every year between min date and max date for
     that month. Eg, if months = ['01']:
         (acquired >= 2019-01-01 and acquired is <= 2019-01-31) OR
         (acquired >= 2020-01-01 and acquired is <= 2020-01-31)
+
     Parameters:
+    -----------
         months : list
         min_date: str
             Date, like '2020-10-01'
@@ -265,21 +286,20 @@ def create_months_filter(months, min_date=None, max_date=None,
     return months_filters
 
 
-def create_noh_filter(tbl=scenes_onhand):
+def create_noh_filter(tbl=constants.SCENES_ONHAND):
     # TODO: This does not work with as it exceeds the Planet API payload size
     #  when more than approximately 35k ids are included. Workaround is to
     #  subset the IDs using the same parameters as the search filter, and
     #  add a check that the number of IDs in the not_filter is < 35k. This
     #  still won't scale perfectly but is a start for reducing returned
     #  results.
-
-    with Postgres('sandwich-pool.planet') as db:
-        sql = "SELECT {} FROM {}".format(f_id, tbl)
-        oh_ids = list(set(list(db.sql2df(sql_str=sql, columns=[f_id])[f_id])))
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
+        sql = "SELECT {} FROM {}".format(constants.ID, tbl)
+        oh_ids = list(set(list(db.sql2df(sql_str=sql, columns=[constants.ID])[constants.ID])))
 
     sf = {
         ftype: sif,
-        field_name: f_id,
+        field_name: constants.ID,
         config: oh_ids
     }
     nf = {
@@ -291,8 +311,10 @@ def create_noh_filter(tbl=scenes_onhand):
 
 
 def filter_from_arg(filter_arg):
-    """Convert string of : separated arguments to form a filter
-    to a formated search_filter dict"""
+    """
+    Convert string of : separated arguments to a formated
+    search_filter dict
+    """
     # logger.debug('Filter arg: {}'.format(filter_arg))
     filter_types = ('DateRangeFilter', 'RangeFilter', 'UpdateFilter',
                     'GeometryFilter', 'NumberInFilter', 'StringInFilter')
@@ -323,7 +345,7 @@ def filter_from_arg(filter_arg):
         config = filter_arg[2:]
     elif filter_type == 'GeometryFilter':
         if len(filter_arg) == 2:
-            field_name = 'geometry'
+            field_name = constants.GEOMETRY
             vector_file = filter_arg[1]
         elif len(filter_arg) == 3:
             field_name = filter_arg[1]
@@ -378,8 +400,6 @@ def create_search_request(name, item_types, search_filters):
         "item_types": item_types,
         "filter": master_filter
     }
-    # print('length of search request: {:,}'.format(len(str(search_request))))
-    # print(search_request)
 
     return search_request
 
@@ -390,8 +410,8 @@ def create_saved_search(search_request, overwrite_saved=False):
         logger.debug('Authorizing using Planet API key...')
         s.auth = (PLANET_API_KEY, '')
         saved_searches = get_all_searches(s)
-
         search_name = search_request["name"]
+
         # Determine if a saved search with the provided name exists
         ids_with_same_name = [x for x in saved_searches.keys() if saved_searches[x]['name'] == search_name]
 
@@ -400,7 +420,7 @@ def create_saved_search(search_request, overwrite_saved=False):
             if overwrite_saved:
                 logger.warning("Overwriting saved search with same name.")
                 for overwrite_id in ids_with_same_name:
-                    overwrite_url = '{}/{}'.format(SEARCH_URL, overwrite_id)
+                    overwrite_url = '{}/{}'.format(constants.SEARCH_URL, overwrite_id)
                     r = s.delete(overwrite_url)
                     if r.status_code == 204:
                         logger.debug('Deleted saved search: {}'.format(overwrite_id))
@@ -409,7 +429,7 @@ def create_saved_search(search_request, overwrite_saved=False):
                 sys.exit()
         # Create new saved search
         logger.info('Creating new saved search: {}'.format(search_name))
-        saved_search = s.post(SEARCH_URL, json=search_request)
+        saved_search = s.post(constants.SEARCH_URL, json=search_request)
         logger.debug('Search creation request status: {}'.format(saved_search.status_code))
         if saved_search.status_code == 200:
             saved_search_id = saved_search.json()['id']
@@ -423,7 +443,7 @@ def create_saved_search(search_request, overwrite_saved=False):
 
 def get_all_searches(session):
     logger.debug('Getting saved searches...')
-    res = session.get(SEARCH_URL, params={"search_type": "saved"})
+    res = session.get(constants.SEARCH_URL, params={"search_type": "saved"})
     searches = res.json()["searches"]
 
     saved_searches = dict()
@@ -475,7 +495,8 @@ def create_search(name, item_types,
                   save_filter=False,
                   dryrun=False,
                   **kwargs):
-    """Create a saved search using the Planet API, which gets a search
+    """
+    Create a saved search using the Planet API, which gets a search
     ID. The search ID can then be used to retrieve footprints.
 
     Parameters
@@ -526,7 +547,7 @@ def create_search(name, item_types,
 
     if attrib_args and any([v for k, v in attrib_args.items()]):
         master_attribute_filter = create_master_attribute_filter(attrib_args)
-        print(master_attribute_filter)
+        # print(master_attribute_filter)
         search_filters.append(master_attribute_filter)
 
     # Parse AOI to filter
@@ -575,13 +596,13 @@ def create_search(name, item_types,
     if not_on_hand:
         logger.warning('Not on hand filter may fail due to payload size '
                        'restriction on Planet API.')
-        noh_filter = create_noh_filter(tbl=scenes_onhand)
+        noh_filter = create_noh_filter(tbl=constants.SCENES_ONHAND)
         search_filters.append(noh_filter)
 
     if fp_not_on_hand:
         logger.warning('Not on hand filter may fail due to payload size '
                        'restriction on Planet API.')
-        fp_noh_filter = create_noh_filter(tbl=scenes)
+        fp_noh_filter = create_noh_filter(tbl=constants.SCENES)
         fp_noh_filter['config']['config'] = fp_noh_filter['config']['config'][:10000]
         search_filters.append(fp_noh_filter)
 
@@ -638,7 +659,7 @@ def delete_saved_search(session, search_name=None, search_id=None,
     if search_id:
         if search_id in all_searches.keys():
             delete_id = search_id
-            delete_url = "{}/{}".format(SEARCH_URL, delete_id)
+            delete_url = "{}/{}".format(constants.SEARCH_URL, delete_id)
     elif search_name:
         ids_names = [(s_id, all_searches[s_id]['name']) for s_id in all_searches
                      if all_searches[s_id]['name'] == search_name]
@@ -648,7 +669,7 @@ def delete_saved_search(session, search_name=None, search_id=None,
             logger.warning('Multiple searches found with name {}\n{}'.format(search_name, ids_names))
         else:
             delete_id = ids_names[0]
-        delete_url = "{}/{}".format(SEARCH_URL, delete_id)
+        delete_url = "{}/{}".format(constants.SEARCH_URL, delete_id)
 
     logger.debug('ID to delete: {}'.format(delete_id))
 
@@ -672,12 +693,12 @@ def get_search_count(search_request):
     with requests.Session() as session:
         logger.debug('Authorizing using Planet API key...')
         session.auth = (PLANET_API_KEY, '')
-        stats = session.post(STATS_URL, json=stats_request)
+        stats = session.post(constants.STATS_URL, json=stats_request)
         if not str(stats.status_code).startswith('2'):
             logger.error(stats.status_code)
             logger.error(stats.reason)
             logger.error('Error connecting to {} with request:'
-                         '\n{}'.format(STATS_URL, str(stats_request)[0:500]))
+                         '\n{}'.format(constants.STATS_URL, str(stats_request)[0:500]))
             if len(str(stats_request)) > 500:
                 logger.error('...{}'.format(str(stats_request)[-500:]))
             logger.debug(str(stats_request)[500:])
@@ -686,7 +707,7 @@ def get_search_count(search_request):
     # pprint(stats_request)
     total_count = sum(bucket[count_key]
                       for bucket in stats.json()[buckets_key])
-    logger.debug('Total count for search request "{}": {:,}'.format(name,
+    logger.info('Total count for search request "{}": {:,}'.format(name,
                                                                     total_count))
 
     return total_count
@@ -706,7 +727,7 @@ def response2gdf(response):
     # Response feature property keys
     features_key = 'features'
     id_key = 'id'
-    geometry_key = 'geometry'
+    geometry_key = constants.GEOMETRY
     type_key = 'type'
     coords_key = 'coordinates'
     properties_key = 'properties'
@@ -752,9 +773,9 @@ def response2gdf(response):
 
 
 def get_search_page_urls(saved_search_id, total_count):
-    # TODO: Speed this up, bottle neck - is it possible to speed up?
-    # TODO: How much longer would it take to just process each page...?
-    # TODO: Rewrite as loop up to total number of scenes in search id
+    # TODO: Speed this up, bottle neck / is it possible to speed up?
+    #   How much longer would it take to just process each page...?
+    # TODO: Possibly rewrite as loop up to total number of scenes in search id
     def fetch_pages(search_url, all_pages):
         # logger.debug('Fetching page...')
         session = get_session()
@@ -784,7 +805,7 @@ def get_search_page_urls(saved_search_id, total_count):
     total_pages = math.ceil(total_count / feat_per_page) + 1
     logger.debug('Total pages for search: {}'.format(total_pages))
     pbar = tqdm(total=total_pages, desc='Parsing response pages')
-    first_page_url = '{}/{}/results?_page_size={}'.format(SEARCH_URL, saved_search_id, feat_per_page)
+    first_page_url = '{}/{}/results?_page_size={}'.format(constants.SEARCH_URL, saved_search_id, feat_per_page)
     next_page = first_page_url
     while next_page:
         # pbar.write('Parsing: {}'.format(next_page))
@@ -834,7 +855,7 @@ def select_scenes(search_id, dryrun=False):
 
     # Test a request
     session = get_session()
-    r = session.get(PLANET_URL)
+    r = session.get(constants.PLANET_URL)
     if not r.status_code == 200:
         logger.error('Error connecting to Planet Data API.')
 
@@ -845,7 +866,6 @@ def select_scenes(search_id, dryrun=False):
     sr = get_saved_search(session=session, search_id=search_id)
     sr_name = sr['name']
     total_count = get_search_count(search_request=sr)
-    logger.info('Total count for search parameters: {:,}'.format(total_count))
 
     # Perform requests to API to return features, which are converted to footprints in a geodataframe
     master_footprints = gpd.GeoDataFrame()
@@ -866,7 +886,7 @@ def write_scenes(scenes, out_name=None, out_path=None, out_dir=None):
 
 
 def get_search_footprints(out_path=None, out_dir=None,
-                          to_tbl=None, dryrun=False,
+                          to_scenes_tbl=False, dryrun=False,
                           search_id=None, **kwargs):
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
@@ -882,10 +902,14 @@ def get_search_footprints(out_path=None, out_dir=None,
         else:
             write_scenes(scenes, out_path=out_path)
 
-    if to_tbl:
-        with Postgres() as db:
+    if to_scenes_tbl:
+        with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
             db.insert_new_records(scenes,
-                                  table=to_tbl,
+                                  table=constants.SCENES,
                                   dryrun=dryrun)
 
     return scenes
+
+
+# TODO: WISHLIST: convert to SearchSession class (all fxns that take session)
+# TODO: move constants to lib.constants.py

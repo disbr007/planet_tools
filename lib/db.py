@@ -202,7 +202,7 @@ def stereo_pair_sql(aoi=None, date_min=None, date_max=None, ins=None,
     return sql_statement
 
 
-def intersect_aoi_where(aoi, geom_col):
+def intersect_aoi_where(aoi, geom_col='geometry'):
     """Create a where statement for a PostGIS intersection between the
     geometry(s) in the aoi geodataframe and a PostGIS table with
     geometry in geom_col"""

@@ -8,20 +8,19 @@ import time
 
 from lib.lib import read_ids, get_config, linux2win
 from lib.logging_utils import create_logger, create_logfile_path
-from lib.order import poll_for_success
-from submit_order import submit_order
+from lib.order import submit_order, poll_for_success
+# from submit_order import submit_order
 from lib.order import download_parallel
+import lib.constants as constants
 
-logger = create_logger(__name__, 'sh', 'DEBUG')
+logger = create_logger(__name__, 'sh', 'INFO')
 
-default_dst_parent = get_config("download_loc")
-if platform.system() == 'Windows':
+default_dst_parent = get_config(constants.DOWNLOAD_LOC)
+if platform.system() == constants.WINDOWS:
     default_dst_parent = linux2win(default_dst_parent)
 
 # DELIVERY
-AWS = 'aws'
-ZIP = 'zip'
-DELIVERY_OPTIONS = [AWS, ZIP]
+DELIVERY_OPTIONS = [constants.AWS, constants.ZIP]
 
 
 def order_and_download(order_name, order_ids_path,
@@ -29,7 +28,8 @@ def order_and_download(order_name, order_ids_path,
                        out_orders_list,
                        order_product_bundle,
                        remove_onhand=True,
-                       delivery=ZIP,
+                       order_only=False,
+                       delivery=constants.ZIP,
                        initial_wait=1200,
                        download_par_dir=default_dst_parent,
                        overwrite_downloads=False,
@@ -67,10 +67,11 @@ def order_and_download(order_name, order_ids_path,
         order_ids = read_ids(dl_orders)
         logger.info('Orders IDs: {}'.format(len(order_ids)))
 
-    logger.info('Checking for ready orders...')
-    download_parallel(order_ids, dst_par_dir=download_par_dir,
-                      delivery=delivery,
-                      overwrite=overwrite_downloads, dryrun=dryrun)
+    if not order_only:
+        logger.info('Checking for ready orders...')
+        download_parallel(order_ids, dst_par_dir=download_par_dir,
+                          delivery=delivery,
+                          overwrite=overwrite_downloads, dryrun=dryrun)
 
 if __name__ == '__main__':
     # Choices
@@ -94,15 +95,17 @@ if __name__ == '__main__':
                             help='Path to selection of footprints to order, by ID.')
     order_args.add_argument('--product_bundle', type=str, default='basic_analytic_dn',
                             choices=all_bundle_types, metavar='', nargs='+',
-                            help='Product bundle types to include in order.')
+                            help='Product bundle types to include in order, e.g.: basic_analytic')
     order_args.add_argument('--orders', type=os.path.abspath,
                             default=os.path.join(os.getcwd(), 'planet_orders.txt'),
                             help='Path to write order IDs to.')
     order_args.add_argument('--do_not_remove_onhand', action='store_true',
                             help='On hand IDs are removed by default. Use this flag to not remove.')
-    order_args.add_argument('--delivery', choices=DELIVERY_OPTIONS, default=ZIP,
+    order_args.add_argument('--delivery', choices=DELIVERY_OPTIONS, default=constants.ZIP,
                             help='Delivery method to use. Supported options: '
                                  '{}'.format(DELIVERY_OPTIONS))
+    order_args.add_argument('--order_only', action='store_true',
+                            help='Place orders only - do not true to download.')
     download_args.add_argument('--initial_wait', type=int, default=600,
                                help='Initial period to wait before checking AWS for completed orders, in seconds.')
     download_args.add_argument('--download_orders', type=os.path.abspath,
@@ -122,17 +125,13 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without downloading.')
 
-    # DEBUGGING
     import sys
     sys.argv = [
-        r'C:\code\planet_tools\order_and_download.py',
-        '-n', 'zip_test',
-        '--selection', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\test_zip.geojson',
-        '--product_bundle', 'basic_analytic',
-        '--orders',  r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
-        '--download_orders', r'V:\pgc\data\scratch\jeff\projects\planet\scratch\zip_test\orders.txt',
-        '--delivery', 'zip',
-        '--do_not_remove_onhand'
+        __file__,
+        '--download_orders',
+        r'E:\disbr007\projects\planet\scratch\test_order2021mar11_orders.txt',
+        '-dpd',
+        r'E:\disbr007\projects\planet\data'
     ]
 
     args = parser.parse_args()
@@ -145,6 +144,7 @@ if __name__ == '__main__':
     order_product_bundle = args.product_bundle
     remove_onhand = not args.do_not_remove_onhand
     delivery = args.delivery
+    order_only = args.order_only
 
     # Download args
     initial_wait = args.initial_wait
@@ -163,25 +163,27 @@ if __name__ == '__main__':
         dst_parent = Path(download_par_dir)
 
     if not logfile:
-        logfile = create_logfile_path(Path(__file__).stem)
-    elif os.path.isdir(logfile):
-        logdir = logfile
-        logfile = create_logfile_path(Path(__file__).stem, logdir=logdir)
+        # TODO: Fix this
+        logfile = os.path.join(os.getcwd(), 'order_and_download.log')
+
+    # logfile = create_logfile_path(Path(__file__))
 
     logger = create_logger(__name__, 'fh', 'DEBUG', logfile)
     sublogger2 = create_logger('submit_order', 'fh', 'DEBUG', logfile)
     sublogger1 = create_logger('download_utils', 'fh', 'DEBUG', logfile)
 
-
-    order_and_download(order_name=order_name, order_ids_path=order_ids_path,
+    order_and_download(order_name=order_name,
+                       order_ids_path=order_ids_path,
                        order_selection_path=order_selection_path,
                        out_orders_list=out_orders_list,
                        order_product_bundle=order_product_bundle,
                        remove_onhand=remove_onhand,
                        delivery=delivery,
+                       order_only=order_only,
                        initial_wait=initial_wait,
                        download_par_dir=dst_parent,
                        # wait_max=wait_max,
                        dl_orders=download_orders,
                        overwrite_downloads=overwrite_downloads,
                        dryrun=dryrun)
+

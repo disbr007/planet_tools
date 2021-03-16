@@ -3,34 +3,40 @@ import os
 from pathlib import Path
 import platform
 import shutil
+import sys
 
 import geopandas as gpd
 from tqdm import tqdm
 
-from lib.db import Postgres, ids2sql
+# from lib.db import Postgres, ids2sql
 from lib.lib import get_config, linux2win, read_ids, write_gdf, \
     get_platform_location, PlanetScene
 # from shelve_scenes import shelve_scenes
 from lib.logging_utils import create_logger
+import lib.constants as constants
 
 # TODO: Add ability to select by either ID (current method) or filename
 
 logger = create_logger(__name__, 'sh', 'DEBUG')
 
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres, ids2sql
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
+
+
 # Params
-db = 'sandwich-pool.planet'
-scenes_onhand_table = 'scenes_onhand'
-scene_id = 'id'
-# TODO: Change this to 'location' and convert to platform specific path in script
-location = 'shelved_loc'
-platform_location = 'platform_location'
-opf = None
-required_fields = [scene_id, location]
+PLATFORM_LOCATION = 'platform_location'
+REQUIRED_FIELDS = [constants.ID, constants.SHELVED_LOC]
 # Transfer methods
-tm_link = 'link'
-tm_copy = 'copy'
-shelved_base = get_config(location)
-if platform.system() == 'Windows':
+TM_LINK = 'link'
+TM_COPY = 'copy'
+shelved_base = get_config(constants.SHELVED_LOC)
+if platform.system() == constants.WINDOWS:
     shelved_base = Path(linux2win(shelved_base))
 else:
     shelved_base = Path(shelved_base)
@@ -47,23 +53,23 @@ def load_selection(scene_ids_path=None, footprint_path=None):
 
         sql = """
         SELECT * FROM {}
-        WHERE {} IN ({})""".format(scenes_onhand_table, scene_id,
+        WHERE {} IN ({})""".format(constants.SCENES_ONHAND, constants.ID,
                                    ids2sql(scene_ids))
         logger.info('Loading shelved locations from onhand database: '
-                    '{}'.format(scenes_onhand_table))
-        with Postgres() as db_src:
+                    '{}'.format(constants.SCENES_ONHAND))
+        with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db_src:
             gdf = db_src.sql2gdf(sql_str=sql)
             # TODO: Remove this once Postgres restriction on DUPS is
             #  implemented -> there should be no DUPs in scenes table
-            gdf = gdf.drop_duplicates(subset=scene_id)
-            logger.info('IDs found in {}: {:,}'.format(scenes_onhand_table,
-                                                     len(gdf)))
+            gdf = gdf.drop_duplicates(subset=constants.ID)
+            logger.info('IDs found in {}: {:,}'.format(constants.SCENES_ONHAND,
+                                                       len(gdf)))
 
     elif footprint_path:
         # Use provided footprint
         gdf = gpd.read_file(footprint_path)
         # Make sure required fields are present
-        for field in [location, scene_id]:
+        for field in [constants.SHELVED_LOC, constants.ID]:
             if field not in gdf.columns:
                 logger.error('Selection footprint missing required field: '
                              '"{}"').format(field)
@@ -75,19 +81,19 @@ def locate_scenes(selection, destination_path):
     # Locate scene files
     logger.info('Locating scene files...')
     # Convert location to correct platform (Windows/Linux) if necessary
-    selection[platform_location] = selection[location].apply(
+    selection[PLATFORM_LOCATION] = selection[constants.SHELVED_LOC].apply(
         lambda x: get_platform_location(x))
 
     # Create glob generators for each scene to find to all scene files
     # (metadata, etc.) e.g. "..\PSScene4Band\20191009_160416_100d*"
     # scene_path_globs = [Path(p).parent.glob('{}*'.format(sid))
-    #                     for p, sid in zip(list(selection[platform_location]),
-    #                                       list(selection[scene_id]))]
+    #                     for p, sid in zip(list(selection[PLATFORM_LOCATION]),
+    #                                       list(selection[constants.ID]))]
     # scenes = [PlanetScene(pl, shelved_parent=destination_path,
     #                       scene_file_source=True)
-    #           for pl in selection[platform_location].unique()]
+    #           for pl in selection[PLATFORM_LOCATION].unique()]
     scenes = []
-    for pl in tqdm(selection[platform_location].unique()):
+    for pl in tqdm(selection[PLATFORM_LOCATION].unique()):
         scenes.append(PlanetScene(pl,
                                   # shelved_parent=destination_path,
                                   scene_file_source=True))
@@ -106,7 +112,7 @@ def locate_scenes(selection, destination_path):
 
 def copy_files(scenes, destination_path,
                use_shelved_struct=False,
-               transfer_method=tm_copy,
+               transfer_method=TM_COPY,
                dryrun=False):
     # Create destination folder structure
     # TODO: Option to build directory tree the same way we will index
@@ -139,7 +145,7 @@ def copy_files(scenes, destination_path,
         if not dryrun:
             if not df.parent.exists():
                 os.makedirs(df.parent)
-            if transfer_method == tm_link:
+            if transfer_method == TM_LINK:
                 os.link(sf, df)
             else:
                 shutil.copy2(sf, df)
@@ -151,7 +157,7 @@ def scene_retreiver(scene_ids_path=None,
                     footprint_path=None,
                     destination_path=None,
                     use_shelved_struct=False,
-                    transfer_method=tm_copy,
+                    transfer_method=TM_COPY,
                     out_footprint=None,
                     dryrun=False):
     # Convert string paths to pathlib.Path
@@ -193,7 +199,7 @@ if __name__ == '__main__':
                         help='Path to list of IDs to retrieve.')
     parser.add_argument('--footprint', type=os.path.abspath,
                         help='Path to footprint of scenes to retreive. Must '
-                             'contain field: {}'.format(required_fields))
+                             'contain field: {}'.format(REQUIRED_FIELDS))
     parser.add_argument('-d', '--destination', type=os.path.abspath,
                         help='Path to directory to write scenes to.')
     parser.add_argument('-uss', '--use_shelved_struct', action='store_true',
@@ -203,7 +209,7 @@ if __name__ == '__main__':
                         help='Path to write footprint (only useful if '
                              'providing a list of IDs.)')
     parser.add_argument('-tm', '--transfer_method', type=str,
-                        choices=[tm_copy, tm_link],
+                        choices=[TM_COPY, TM_LINK],
                         help='Transfer method to use.')
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without performing copy.')

@@ -7,10 +7,12 @@ import geopandas as gpd
 
 from lib.logging_utils import create_logger
 from lib.lib import write_gdf, find_planet_scenes
+import lib.constants as constants
 
 logger = create_logger(__name__, 'sh', 'INFO')
 
 choices_format = ['shp', 'gpkg', 'geojson']
+CRS = 'epsg:4326'
 
 
 def main(args):
@@ -18,7 +20,6 @@ def main(args):
     out_format = args.format
     parse_directory = args.input_directory
     relative_directory = args.relative_directory
-    rel_loc_style = args.rel_loc_style
 
     if not relative_directory:
         relative_directory = parse_directory
@@ -27,12 +28,15 @@ def main(args):
     planet_scenes = find_planet_scenes(parse_directory)
     logger.info('Found {:,} scenes to parse...'.format(len(planet_scenes)))
 
-    # TODO: convert to using PlanetScenes generate footprints
-    rows = [ps.footprint_row(rel_to=relative_directory)
+    rows = [ps.get_footprint_row(rel_to=relative_directory)
             for ps in planet_scenes]
     gdf = gpd.GeoDataFrame(rows)
-    gdf['geometry'] = gdf.geometry.apply(lambda x: shapely.wkt.loads(x))
-    gdf.crs = 'epsg:4326'
+
+    # Drop centroid column (can only write one geometry column and
+    # center_x and center_y remain)
+    gdf = gdf.drop(columns=constants.CENTROID)
+
+    gdf.crs = CRS
 
     logger.info('Footprint created with {:,} records.'.format(len(gdf)))
 
@@ -53,17 +57,6 @@ if __name__ == '__main__':
     parser.add_argument('-r', '--relative_directory', type=os.path.abspath,
                         help='Path to create filepaths relative to in '
                              'footprint.')
-    parser.add_argument('--rel_loc_style', type=str, choices=['W', 'L'],
-                        help='System style for paths in footprint.')
-
-    # import sys
-    # sys.argv = [r'C:\code\planet_stereo\fp_planet.py',
-    #             '-i',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-    #             r'\2020oct14_multilook\2019\10\09',
-    #             '-o',
-    #             r'V:\pgc\data\scratch\jeff\projects\planet\deliveries'
-    #             r'\2020oct14_multilook\2020oct14_multilook.geojson']
 
     args = parser.parse_args()
 

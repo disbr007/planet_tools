@@ -5,30 +5,9 @@ from lib.lib import parse_group_args
 from lib.search import create_search, get_search_footprints
 from lib.logging_utils import create_logger
 
-# TODO: Add option to just create search from this script
-
 logger = create_logger(__name__, 'sh', 'INFO',)
 
 
-# def search4footprints(name, item_types,
-#                       aoi=None,
-#                       attrib_args=None,
-#                       ids=None,
-#                       months=None,
-#                       month_min_day_args=None,
-#                       month_max_day_args=None,
-#                       filters=None,
-#                       asset_filters=None,
-#                       load_filter=None,
-#                       not_on_hand=False,
-#                       fp_not_on_hand=False,
-#                       get_count_only=False,
-#                       overwrite_saved=False,
-#                       save_filter=False,
-#                       out_path=None,
-#                       out_dir=None,
-#                       to_tbl=None,
-#                       dryrun=False):
 def search4footprints(**kwargs):
     logger.info('Creating search...')
     ssid, search_count = create_search(**kwargs)
@@ -41,35 +20,30 @@ def search4footprints(**kwargs):
     
     
 if __name__ == '__main__':
-    # Groups
-    att_group = 'Attributes'
-
-    # Defaults
-
     # Choices
     choices_instruments = ['PS2', 'PSB.SD', 'PS2.SD']
     choices_quality_category = ['standard', 'test']
 
     parser = argparse.ArgumentParser(
         description="Search for footprints from the Planet archives. " 
-        "Search can be specified using attribue arguments, or as using " 
+        "Search can be specified using attribue arguments, or by using " 
         "the --filters argument and specified syntax. Functionality "
         "provided to save the created filter out as a .json file, which "
         "can later be used with the --load_filter argument. Resulting "
         "footprints can be written out as vector file to --out_path, or "
         "--out_dir with the created search name. Footprints can also be "
-        "written directly to database table provided in --to_tbl in the "
-        "database provided in config/config.json. ",
+        "written directly to 'scenes' database table by using --to_scenes_tbl.",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
-    attribute_args = parser.add_argument_group(att_group)
+    required_args = parser.add_argument_group('Required Arguments')
+    attribute_args = parser.add_argument_group('Attribute Arguments')
 
-    parser.add_argument('-n', '--name', type=str,
-                        help='Name of search to create')
+    required_args.add_argument('-n', '--name', type=str,
+                               help='Name of search to create')
 
     parser.add_argument('--ids', type=os.path.abspath,
-                        help='Text file of IDs to include.')
+                        help='Text file of IDs to search for.')
     parser.add_argument('--months', type=str, nargs='+',
                         help='Month as zero-padded number, e.g. 04')
     parser.add_argument('--month_min_day', nargs=2, action='append',
@@ -78,8 +52,10 @@ if __name__ == '__main__':
     parser.add_argument('--month_max_day', nargs=2, action='append',
                         help='Maximum day to include in a given month: '
                              'eg. 12 20. Can be repeated multiple times.')
-    attribute_args.add_argument('--min_date', type=str,)
-    attribute_args.add_argument('--max_date', type=str,)
+    attribute_args.add_argument('--min_date', type=str,
+                                help='Minimum date to include: YYYY-MM-DD')
+    attribute_args.add_argument('--max_date', type=str,
+                                help='Maximum date to include: YYYY-MM-DD')
     attribute_args.add_argument('--max_cc', type=float, )
     attribute_args.add_argument('--min_ulx', type=float, )
     attribute_args.add_argument('--max_ulx', type=float, )
@@ -122,7 +98,7 @@ if __name__ == '__main__':
 
     # parser.add_argument('--not_on_hand', action='store_true',
     #                     help='Remove on hand IDs from search.')
-    # parser.add_argument('--fp_not_on_hand', action='store_true',
+    # parser.add_argument('--fp_not_on_hand', action='store_true',s
     #                     help='Remove IDs from search if footprint is on hand.')
 
     parser.add_argument('--get_count_only', action='store_true',
@@ -131,20 +107,22 @@ if __name__ == '__main__':
                              "footprints.")
 
     parser.add_argument('--overwrite_saved', action='store_true',
-                        help='Pass to overwrite a saved search of the same '
+                        help='Pass to overwrite a saved search (on the Planet '
+                             'API) of the same '
                              'name.')
     parser.add_argument('--save_filter', nargs='?', type=os.path.abspath,
                         const='default.json',
-                        help='Path to save filter (json).')
+                        help='Path to save filter (json) locally. The save will '
+                             'be saved with or without this argument in your '
+                             'Planet account unless you use --get_count_only')
     # Writing arguments
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
     parser.add_argument('-od', '--out_dir', type=os.path.abspath,
-                        help="""Directory to write scenes footprint to. The 
-                        search request name will be used for the filename.""")
-    parser.add_argument('--to_tbl', type=str,
-
-                        help="""Insert search results into this table.""")
+                        help="Directory to write scenes footprint to. The "
+                             "search request name will be used for the filename.")
+    parser.add_argument('--to_scenes_tbl', action='store_true',
+                        help="Insert search results into the scenes table.")
     parser.add_argument('-d', '--dryrun', action='store_true',
                         help='Do not actually create the saved search.')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -164,7 +142,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # Parse attribute arguments to handke seperately
     attrib_args = parse_group_args(parser=parser,
-                                   group_name=att_group)
+                                   group_name='Attribute Arguments')
     attrib_args = {k: v for k, v in attrib_args._get_kwargs()}
 
     kwargs = {'name': args.name,
@@ -186,7 +164,7 @@ if __name__ == '__main__':
               'attrib_args': attrib_args,
               'out_path': args.out_path,
               'out_dir': args.out_dir,
-              'to_tbl': args.to_tbl,
+              'to_scenes_tbl': args.to_scenes_tbl,
               'dryrun': args.dryrun,
               }
 

@@ -14,50 +14,50 @@ from pathlib import Path
 from requests.auth import HTTPBasicAuth
 from retrying import retry, RetryError
 
-import boto3
-
+try:
+    import boto3
+except ImportError:
+    print('Warning: boto3 import failed, delivery via AWS will not work.')
 import geopandas as gpd
 
-from tqdm import tqdm
-
-from lib.lib import read_ids, get_config
-from lib.db import Postgres, stereo_pair_sql
+from lib.lib import read_ids, stereo_pair_sql
+# from lib.db import Postgres, stereo_pair_sql
 from lib.logging_utils import create_logger
 import lib.aws_utils as aws_utils
+import lib.constants as constants
 
 # TODO:
 #  -Rename download functions that are only for AWS deliveries to aws_[func_name]()
 logger = create_logger(__name__, 'sh', 'INFO')
+
+# External modules
+sys.path.append(str(Path(__file__).parent / '..'))
+try:
+    from db_utils.db import Postgres
+except ImportError as e:
+    logger.error('db_utils module not found. It should be adjacent to '
+                 'the planet_tools directory. Path: \n{}'.format(sys.path))
+    sys.exit()
+
 
 # Constants
 srid = 4326
 
 # Planet
 # API URLs
-ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
-PLANET_API_KEY = os.getenv("PL_API_KEY")
+# ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
+PLANET_API_KEY = os.getenv(constants.PL_API_KEY)
 if not PLANET_API_KEY:
     logger.error("Error retrieving API key. Is PL_API_KEY env. variable set?")
 auth = HTTPBasicAuth(PLANET_API_KEY, "")
 
-# Postgres
-# Used for finding connection config file -> config/sandwich-pool.planet.json
-# TODO read these from config file
-planet_db = "sandwich-pool.planet"
-scenes_onhand_tbl = 'scenes_onhand'
-# TODO: rename to use the same variable throughout
-scene_id = 'id'
-fld_id = 'id'
-
 # DELIVERY
-# TODO: other cloud locations (Azure, Google)
-AWS = 'aws'
-ZIP = 'zip'
-DELIVERY_OPTS = ['aws', 'zip']
-
+DELIVERY_OPTS = [constants.AWS, constants.ZIP]
+# Maximum time to wait for delivery to complete (in seconds)
+WAIT_MAX = 5000
 
 # Check Planet authorization
-auth_resp = requests.get(ORDERS_URL, auth=auth)
+auth_resp = requests.get(constants.ORDERS_URL, auth=auth)
 logger.debug("Authorizing Planet API Key....")
 if auth_resp.status_code != 200:
     logger.error("Issue authorizing: {}".format(auth_resp))
@@ -66,10 +66,12 @@ logger.debug("Response: {}".format(auth_resp))
 headers = {"content-type": "application/json"}
 
 
-def unzip_delivery(zf):
+def unzip_delivery(zf, dest):
     logger.debug('Unzipping: {}'.format(zf))
+    # FIXME: This is failing to unzip zipped directories, not sure
+    #  why as they can be unzipped manually....
     with zipfile.ZipFile(str(zf), 'r') as zipref:
-        zipref.extractall(zf.parent)
+        zipref.extractall(dest)
     fp = zf.parent / 'files'
     scenes_dir = fp / os.listdir(fp)[0]
     scenes_dir.rename(scenes_dir.parent.parent / scenes_dir.name)
@@ -79,10 +81,11 @@ def unzip_delivery(zf):
     os.remove(zf)
 
 
-def get_url(url, sleep_base=10, sleep_add=10, **kwargs):
+def get_url(url, sleep_base=10, sleep_add=20, **kwargs):
     r = requests.get(url, **kwargs)
     sleep_time = sleep_base
     while r.status_code == 429:
+        logger.debug(r)
         logger.warning('Too many requests, sleeping: {}s'.format(sleep_time))
         time.sleep(sleep_time)
         r = requests.get(url, **kwargs)
@@ -106,7 +109,7 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
     """Download an order id (oid) to destination parent directory, creating
     a new subdirectory for the order id. Order ID is also name of subdirectory
     in AWS bucket."""
-    # TODO: Resolve why at least dst_par dir is not coming in as PurePath
+    # TODO: Resolve why at least dst_par dir is not coming in as Path
     if not isinstance(oid, pathlib.PurePath):
         oid = Path(oid)
     if not isinstance(dst_par_dir, pathlib.PurePath):
@@ -120,56 +123,14 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
         os.makedirs(oid_dir)
 
     # AWS
-    if delivery == AWS:
-        # TODO: move to own aws_utils function
-        # Filter the bucket for the order id, removing any directory keys
-        order_prefix = '{}/{}'.format(aws_utils.PREFIX, oid)
-        bucket_filter = [bo for bo in bucket.objects.filter(Prefix=order_prefix)
-                         if not bo.key.endswith('/')]
-        # Set up progress bar
-        # For setting progress bar length
-        item_count = len([x for x in bucket_filter])
-        pbar = tqdm(bucket_filter, total=item_count, desc='Order: {}'.format(oid), position=1)
-        # For aligning arrows in progress bar writing
-        # arrow_loc = max([len(x.key) for x in bucket_filter]) - len(order_prefix)
-
-        logger.info('Downloading {:,} files to: {}'.format(item_count, oid_dir))
-        for bo in pbar:
-            # Determine source and destination full paths
-            aws_loc = Path(bo.key)
-            # Create destination subdirectory path with order id as subdirectory
-            dst_path = dst_par_dir / aws_loc.relative_to(Path(aws_utils.PREFIX))
-            if not os.path.exists(dst_path.parent):
-                os.makedirs(dst_path.parent)
-
-            # Download
-            if os.path.exists(dst_path) and not overwrite:
-                logger.debug('File exists at destination, skipping: {}'.format(dst_path))
-                continue
-            else:
-                logger.debug('Downloading file: {}\n\t--> {}'.format(aws_loc, dst_path.absolute()))
-                # pbar.write('Downloading: {}{}-> {}'.format(aws_loc.relative_to(*aws_loc.parts[:3]),
-                #                                            ' '*(arrow_loc - len(str(aws_loc.relative_to(*aws_loc.parts[:3])))),
-                #                                            oid_dir.relative_to(*dst_par_dir.parts[:9])))
-            dl_issues = set()
-            if not dryrun:
-                try:
-                    bucket.download_file(bo.key, str(dst_path))
-                    dl_issues.add(False)
-                except Exception as e:
-                    logger.error('Error downloading: {}'.format(aws_loc))
-                    logger.error(e)
-                    dl_issues.add(True)
-    elif delivery == ZIP:
-        order_status_url = '{}/{}'.format(ORDERS_URL, oid)
+    if delivery == constants.AWS:
+        dl_issues = aws_utils.dl_aws(oid=oid, dst_par_dir=dst_par_dir,
+                                     oid_dir=oid_dir, bucket=bucket,
+                                     overwrite=overwrite,
+                                     dryrun=dryrun)
+    elif delivery == constants.ZIP:
+        order_status_url = '{}/{}'.format(constants.ORDERS_URL, oid)
         r = get_url(order_status_url, auth=auth)
-        # r = requests.get(order_status_url, auth=auth)
-        # sleep_time = 10
-        # while r.status_code == 429:
-        #     logger.warning('Too many requests, sleeping: {}s'.format(sleep_time))
-        #     time.sleep(sleep_time)
-        #     r = requests.get(order_status_url, auth=auth)
-        #     sleep_time += 10
 
         response = r.json()
         # response['results'] is an array of dicts, one for each file. there should
@@ -182,12 +143,16 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
             if not dest_path.exists():
                 logger.info('Downloading {} to:\n{}'.format(name, dest_path))
                 download_url(url=url, save_path=dest_path)
-                if dest_path.suffix == '.zip':
-                    unzip_delivery(dest_path)
             else:
                 logger.debug('Destination exists, skipping download: '
                              '{}'.format(dest_path))
-        dl_issues = [None]  # TODO: create a method for actually checking success of direct downloads
+            # if dest_path.suffix == '.zip':
+            #     unzipped_dest = Path(str(dest_path).replace('.zip', ''))
+            #     if not unzipped_dest.exists():
+            #         unzip_delivery(dest_path, unzipped_dest)
+        # TODO: create a method for actually checking success of direct
+        #  downloads (existence of download zip?
+        dl_issues = [None]
 
     logger.info('Done.')
 
@@ -217,24 +182,12 @@ def dl_order_when_ready(order_id, dst_par_dir, delivery,
     wait = wait_start
     start_dl = False
     # AWS TODO: Move to aws download function
-    if delivery == AWS:
-        # Check for presence of source, sleeping between checks.
-        while running_time < wait_max and not start_dl:
-            exists = aws_utils.manifest_exists(order_id, bucket=bucket)
-            if not exists:
-                running_time = (datetime.datetime.now() - start_time).total_seconds()
-                logger.debug('Manifest not present for order ID: {} :'
-                             ' {}s remaining'.format(order_id, round(wait_max-running_time)))
-                time.sleep(wait)
-                if wait <= wait_max_interval:
-                    wait += wait_interval
-                if wait > wait_max_interval:
-                    wait = wait_max_interval
-
-            else:
-                logger.debug('Manifest present - beginning download: {}'.format(order_id))
-                start_dl = True
-    elif delivery == ZIP:
+    if delivery == constants.AWS:
+        aws_utils.check_aws_delivery_status(order_id=order_id, bucket=bucket,
+                                            wait_max=wait_max,
+                                            wait_interval=wait_interval,
+                                            wait_max_interval=wait_max_interval)
+    elif delivery == constants.ZIP:
         start_dl, _response = poll_for_success(order_id=order_id)
 
     if start_dl:
@@ -244,6 +197,7 @@ def dl_order_when_ready(order_id, dst_par_dir, delivery,
                                overwrite=overwrite, dryrun=dryrun)
     else:
         logger.info('Maximum wait reached, did not begin download: {}'.format(order_id))
+        all_success = False
 
     return order_id, start_dl, all_success
 
@@ -252,11 +206,11 @@ def download_parallel(order_ids, dst_par_dir, delivery,
                       overwrite=False,
                       dryrun=False,
                       threads=4,
-                      wait_max=3600):
+                      wait_max=WAIT_MAX):
     """
     Download order ids in parallel.
     """
-    if delivery == AWS:
+    if delivery == constants.AWS:
         bucket = aws_utils.connect_aws_bucket()
     else:
         bucket = None
@@ -264,14 +218,16 @@ def download_parallel(order_ids, dst_par_dir, delivery,
     pool = ThreadPool(threads)
     # Create a dl_order_when_ready call for each order id in order_ids,
     # with the specified arguments
-    results = pool.starmap(dl_order_when_ready, product(order_ids, [dst_par_dir], [delivery],
-                                                        [bucket], [overwrite], [dryrun],
-                                                        [2], [10], [wait_max]))
+    results = pool.starmap(dl_order_when_ready,
+                           product(order_ids, [dst_par_dir], [delivery],
+                                   [bucket], [overwrite], [dryrun], [2], [10],
+                                   [wait_max]))
     pool.close()
     pool.join()
 
-    logger.info('Download statuses:\nOrder ID\t\tStarted\t\tIssue\n{}'.format(
-        '\n'.join(["{} {}\t{}".format(oid, start_dl, issue) for oid, start_dl, issue in results])
+    logger.info('Download statuses:\nOrder ID\t\t\t\t\t\t\t\tStarted\t\t\t\tIssue\n{}'.format(
+        '\n'.join(["{}\t\t{}\t\t\t{}".format(oid, start_dl, issue)
+                   for oid, start_dl, issue in results])
     ))
 
     return results
@@ -291,9 +247,11 @@ def get_stereo_pairs(**kwargs):
     """Load stereo pairs from DB"""
     sql = stereo_pair_sql(**kwargs)
     # Load records
-    with Postgres(planet_db) as db:
-        results = gpd.GeoDataFrame.from_postgis(sql=sql, con=db.get_engine().connect(),
-                                                geom_col="ovlp_geom", crs="epsg:4326")
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
+        results = gpd.GeoDataFrame.from_postgis(sql=sql,
+                                                con=db.get_engine().connect(),
+                                                geom_col="ovlp_geom",
+                                                crs="epsg:4326")
 
     return results
 
@@ -329,7 +287,7 @@ def create_zip_delivery():
 
 def create_order_request(order_name, ids, item_type="PSScene4Band",
                          product_bundle="basic_analytic_dn",
-                         delivery="aws"):
+                         delivery=constants.AWS):
     """Create order from list of IDs"""
     if isinstance(product_bundle, list):
         product_bundle = ','.join(product_bundle)
@@ -341,9 +299,9 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
              "product_bundle": product_bundle}
         ]
     }
-    if delivery == "aws":
+    if delivery == constants.AWS:
         order_request.update(aws_utils.create_aws_delivery())
-    elif delivery == "zip":
+    elif delivery == constants.ZIP:
         # pass
         order_request.update(create_zip_delivery())
 
@@ -353,7 +311,7 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
 
 
 def place_order(order_request):
-    response = requests.post(ORDERS_URL, data=json.dumps(order_request),
+    response = requests.post(constants.ORDERS_URL, data=json.dumps(order_request),
                              auth=auth, headers=headers)
     logger.debug("Place order response: {}".format(response))
     if response.status_code != 202:
@@ -364,7 +322,7 @@ def place_order(order_request):
     order_id = response.json()["id"]
     # logger.debug('Request:\n{}'.format(order_request))
     logger.debug("Order ID: {}".format(order_id))
-    order_url = "{}/{}".format(ORDERS_URL, order_id)
+    order_url = "{}/{}".format(constants.ORDERS_URL, order_id)
 
     return order_id, order_url
 
@@ -395,8 +353,7 @@ def poll_for_success(order_id, num_checks=50, wait=10):
     waiting_reported = False
     while check_count < num_checks and finished is False:
         check_count += 1
-        # r = requests.get(ORDERS_URL, auth=auth)
-        r = get_url(ORDERS_URL, auth=auth)
+        r = get_url(constants.ORDERS_URL, auth=auth)
         response = r.json()
         state = None
         for i, o in enumerate(response['orders']):
@@ -457,7 +414,7 @@ def list_orders(state=None):
     if state:
         params = {"state": state}
 
-    response = requests.get(ORDERS_URL, auth=auth, params=state)
+    response = requests.get(constants.ORDERS_URL, auth=auth, params=state)
     if response.status_code != 200:
         logger.error('Bad response: {}: {}'.format(response.status_code, response.reason))
         # TODO: Create error class
@@ -480,11 +437,9 @@ def list_orders(state=None):
     return orders
 
 
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
+# @retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
 def count_concurrent_orders():
-    # TODO: Move these to a config file
-    orders_url = 'https://api.planet.com/compute/ops/stats/orders/v2'
-    PLANET_API_KEY = os.getenv('PL_API_KEY')
+    PLANET_API_KEY = os.getenv(constants.PL_API_KEY)
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
                      'set?')
@@ -493,7 +448,7 @@ def count_concurrent_orders():
         logger.debug('Authorizing using Planet API key...')
         s.auth = (PLANET_API_KEY, '')
 
-        res = s.get(orders_url)
+        res = s.get(constants.ORDERS_STATS_URL)
         if res.status_code == 200:
             order_statuses = res.json()['user']
             queued = order_statuses['queued_orders']
@@ -508,7 +463,8 @@ def count_concurrent_orders():
 
 
 def submit_order(name, ids_path, selection_path, product_bundle,
-                 orders_path=None, remove_onhand=True, delivery='aws',
+                 orders_path=None, remove_onhand=True,
+                 delivery=constants.AWS,
                  dryrun=False):
 
     if ids_path:
@@ -522,15 +478,15 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     logger.info('IDs found: {:,}'.format(len(ids)))
 
-    # logger.info('Removing any recent IDs, per Planet limit on recent image
+    # logger.info('Removing any recent IDs, per Planet limit on recent IMAGE
     # ordering.')
     # ids = remove_recent_ids(ids)
     # logger.info('Remaining IDs: {}'.format(len(ids)))
 
     if remove_onhand:
         logger.info('Removing onhand IDs...')
-        with Postgres(planet_db) as db:
-            onhand = set(db.get_values(scenes_onhand_tbl, columns=[scene_id]))
+        with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
+            onhand = set(db.get_values(constants.SCENES_ONHAND, columns=[constants.ID]))
 
         ids = list(set(ids) - onhand)
         logger.info('IDs remaining: {:,}'.format(len(ids)))
@@ -544,6 +500,8 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     submitted_orders = []
     # Iterate over IDs in chunks, submitting each as an order
+    logger.info('Submitting order requests in chunks of '
+                '{:,} IDs'.format(assets_per_order))
     for i, ids_chunk in enumerate(ids_chunks):
         if more_than_one:
             order_name = '{}_{}'.format(name, i)
@@ -583,10 +541,11 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     if orders_path:
         logger.info('Writing order IDs to file: {}'.format(orders_path))
-        with open(orders_path, 'w') as orders_txt:
-            for order_id in submitted_orders:
-                orders_txt.write(order_id)
-                orders_txt.write('\n')
+        if not dryrun:
+            with open(orders_path, 'w') as orders_txt:
+                for order_id in submitted_orders:
+                    orders_txt.write(order_id)
+                    orders_txt.write('\n')
 
     return submitted_orders
 
