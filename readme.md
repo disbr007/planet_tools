@@ -63,8 +63,8 @@ and written to the `scenes` table and keep search parameters narrow to
 avoid repeated parsing of records. Duplicates will however be removed before 
 writing to the 'scenes' table.  
 
-Either the list of IDs specified by `--ids` or the footprint written out as 
-`--out_path` can be passed to `order_and_download.py` for ordering and downloading.
+The footprint written out as `--out_path` can be passed to 
+`order_and_download.py` for ordering and downloading.
 
 Search using attribute arguments:  
 ```commandline
@@ -133,7 +133,20 @@ python select_footprints.py
 
 ### Order and download imagery (order_and_download.py)
 A selected footprint (or list of IDs) can be used to order and download
-imagery:
+imagery. Orders can only contain 500 IDs each, so this will split the input
+into groups of 500 and submit them as separate orders.
+*Note:* When writing this script (and using AWS) orders were completing in roughly 10 minutes,
+so it made sense to link ordering and downloading. Recently (using deliver via ZIP, though 
+that may not be the reason) orders have been taking multiple hours to complete. As such, it
+may make sense to entirely decouple ordering and downloading. Currently, orders can just be placed 
+and downloads not attempted using the `--order_only` flag. This should be combined with 
+writing the order IDs to a text file using `--orders`. That text file can then be passed 
+to `--download_orders` on a subsequent run to skip directly to downloading. 
+Additional functionality can be developed to:
+ 1. notify when orders are ready via email (this exists in the Orders API).
+ 2. download all undownloaded orders (order status can be checked via API and compared to a 
+ destination directory to determine which are new) 
+ 
 ```commandline
 python order_and_download.py 
     --name my_order \

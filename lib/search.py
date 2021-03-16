@@ -293,7 +293,7 @@ def create_noh_filter(tbl=constants.SCENES_ONHAND):
     #  add a check that the number of IDs in the not_filter is < 35k. This
     #  still won't scale perfectly but is a start for reducing returned
     #  results.
-    with Postgres('sandwich-pool.planet') as db:
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
         sql = "SELECT {} FROM {}".format(constants.ID, tbl)
         oh_ids = list(set(list(db.sql2df(sql_str=sql, columns=[constants.ID])[constants.ID])))
 
@@ -903,7 +903,7 @@ def get_search_footprints(out_path=None, out_dir=None,
             write_scenes(scenes, out_path=out_path)
 
     if to_scenes_tbl:
-        with Postgres() as db:
+        with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
             db.insert_new_records(scenes,
                                   table=constants.SCENES,
                                   dryrun=dryrun)

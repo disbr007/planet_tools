@@ -57,7 +57,7 @@ DELIVERY_OPTS = [constants.AWS, constants.ZIP]
 WAIT_MAX = 5000
 
 # Check Planet authorization
-auth_resp = requests.get(constants.ORDER_URL, auth=auth)
+auth_resp = requests.get(constants.ORDERS_URL, auth=auth)
 logger.debug("Authorizing Planet API Key....")
 if auth_resp.status_code != 200:
     logger.error("Issue authorizing: {}".format(auth_resp))
@@ -66,10 +66,12 @@ logger.debug("Response: {}".format(auth_resp))
 headers = {"content-type": "application/json"}
 
 
-def unzip_delivery(zf):
+def unzip_delivery(zf, dest):
     logger.debug('Unzipping: {}'.format(zf))
+    # FIXME: This is failing to unzip zipped directories, not sure
+    #  why as they can be unzipped manually....
     with zipfile.ZipFile(str(zf), 'r') as zipref:
-        zipref.extractall(zf.parent)
+        zipref.extractall(dest)
     fp = zf.parent / 'files'
     scenes_dir = fp / os.listdir(fp)[0]
     scenes_dir.rename(scenes_dir.parent.parent / scenes_dir.name)
@@ -79,7 +81,7 @@ def unzip_delivery(zf):
     os.remove(zf)
 
 
-def get_url(url, sleep_base=10, sleep_add=10, **kwargs):
+def get_url(url, sleep_base=10, sleep_add=20, **kwargs):
     r = requests.get(url, **kwargs)
     sleep_time = sleep_base
     while r.status_code == 429:
@@ -127,7 +129,7 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
                                      overwrite=overwrite,
                                      dryrun=dryrun)
     elif delivery == constants.ZIP:
-        order_status_url = '{}/{}'.format(constants.ORDER_URL, oid)
+        order_status_url = '{}/{}'.format(constants.ORDERS_URL, oid)
         r = get_url(order_status_url, auth=auth)
 
         response = r.json()
@@ -141,11 +143,13 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
             if not dest_path.exists():
                 logger.info('Downloading {} to:\n{}'.format(name, dest_path))
                 download_url(url=url, save_path=dest_path)
-                if dest_path.suffix == '.zip':
-                    unzip_delivery(dest_path)
             else:
                 logger.debug('Destination exists, skipping download: '
                              '{}'.format(dest_path))
+            # if dest_path.suffix == '.zip':
+            #     unzipped_dest = Path(str(dest_path).replace('.zip', ''))
+            #     if not unzipped_dest.exists():
+            #         unzip_delivery(dest_path, unzipped_dest)
         # TODO: create a method for actually checking success of direct
         #  downloads (existence of download zip?
         dl_issues = [None]
@@ -221,8 +225,8 @@ def download_parallel(order_ids, dst_par_dir, delivery,
     pool.close()
     pool.join()
 
-    logger.info('Download statuses:\nOrder ID\t\t\t\t\tStarted\t\tIssue\n{}'.format(
-        '\n'.join(["{}\t\t{}\t{}".format(oid, start_dl, issue)
+    logger.info('Download statuses:\nOrder ID\t\t\t\t\t\t\t\tStarted\t\t\t\tIssue\n{}'.format(
+        '\n'.join(["{}\t\t{}\t\t\t{}".format(oid, start_dl, issue)
                    for oid, start_dl, issue in results])
     ))
 
@@ -243,7 +247,7 @@ def get_stereo_pairs(**kwargs):
     """Load stereo pairs from DB"""
     sql = stereo_pair_sql(**kwargs)
     # Load records
-    with Postgres() as db:
+    with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
         results = gpd.GeoDataFrame.from_postgis(sql=sql,
                                                 con=db.get_engine().connect(),
                                                 geom_col="ovlp_geom",
@@ -307,7 +311,7 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
 
 
 def place_order(order_request):
-    response = requests.post(constants.ORDER_URL, data=json.dumps(order_request),
+    response = requests.post(constants.ORDERS_URL, data=json.dumps(order_request),
                              auth=auth, headers=headers)
     logger.debug("Place order response: {}".format(response))
     if response.status_code != 202:
@@ -318,7 +322,7 @@ def place_order(order_request):
     order_id = response.json()["id"]
     # logger.debug('Request:\n{}'.format(order_request))
     logger.debug("Order ID: {}".format(order_id))
-    order_url = "{}/{}".format(constants.ORDER_URL, order_id)
+    order_url = "{}/{}".format(constants.ORDERS_URL, order_id)
 
     return order_id, order_url
 
@@ -349,7 +353,7 @@ def poll_for_success(order_id, num_checks=50, wait=10):
     waiting_reported = False
     while check_count < num_checks and finished is False:
         check_count += 1
-        r = get_url(constants.ORDER_URL, auth=auth)
+        r = get_url(constants.ORDERS_URL, auth=auth)
         response = r.json()
         state = None
         for i, o in enumerate(response['orders']):
@@ -410,7 +414,7 @@ def list_orders(state=None):
     if state:
         params = {"state": state}
 
-    response = requests.get(constants.ORDER_URL, auth=auth, params=state)
+    response = requests.get(constants.ORDERS_URL, auth=auth, params=state)
     if response.status_code != 200:
         logger.error('Bad response: {}: {}'.format(response.status_code, response.reason))
         # TODO: Create error class
@@ -433,10 +437,9 @@ def list_orders(state=None):
     return orders
 
 
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
+# @retry(wait_exponential_multiplier=1000, wait_exponential_max=60000)
 def count_concurrent_orders():
-    # TODO: Move these to a config file
-    PLANET_API_KEY = os.getenv('PL_API_KEY')
+    PLANET_API_KEY = os.getenv(constants.PL_API_KEY)
     if not PLANET_API_KEY:
         logger.error('Error retrieving API key. Is PL_API_KEY env. variable '
                      'set?')
@@ -445,7 +448,7 @@ def count_concurrent_orders():
         logger.debug('Authorizing using Planet API key...')
         s.auth = (PLANET_API_KEY, '')
 
-        res = s.get(constants.ORDER_URL)
+        res = s.get(constants.ORDERS_STATS_URL)
         if res.status_code == 200:
             order_statuses = res.json()['user']
             queued = order_statuses['queued_orders']
@@ -482,7 +485,7 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     if remove_onhand:
         logger.info('Removing onhand IDs...')
-        with Postgres() as db:
+        with Postgres(host=constants.SANDWICH, database=constants.PLANET) as db:
             onhand = set(db.get_values(constants.SCENES_ONHAND, columns=[constants.ID]))
 
         ids = list(set(ids) - onhand)
@@ -497,6 +500,8 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     submitted_orders = []
     # Iterate over IDs in chunks, submitting each as an order
+    logger.info('Submitting order requests in chunks of '
+                '{:,} IDs'.format(assets_per_order))
     for i, ids_chunk in enumerate(ids_chunks):
         if more_than_one:
             order_name = '{}_{}'.format(name, i)
@@ -536,10 +541,11 @@ def submit_order(name, ids_path, selection_path, product_bundle,
 
     if orders_path:
         logger.info('Writing order IDs to file: {}'.format(orders_path))
-        with open(orders_path, 'w') as orders_txt:
-            for order_id in submitted_orders:
-                orders_txt.write(order_id)
-                orders_txt.write('\n')
+        if not dryrun:
+            with open(orders_path, 'w') as orders_txt:
+                for order_id in submitted_orders:
+                    orders_txt.write(order_id)
+                    orders_txt.write('\n')
 
     return submitted_orders
 

@@ -6,10 +6,12 @@ ZIP = 'zip'
 
 # Planet API
 PL_API_KEY = 'PL_API_KEY'  # environmental variable name
-ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
+
 PLANET_URL = r'https://api.planet.com/data/v1'
 SEARCH_URL = '{}/searches'.format(PLANET_URL)
 STATS_URL = '{}/stats'.format(PLANET_URL)
+ORDERS_URL = "https://api.planet.com/compute/ops/orders/v2"
+ORDERS_STATS_URL = "https://api.planet.com/compute/ops/stats/orders/v2"
 
 # config.json keys
 DOWNLOAD_LOC = 'download_loc'

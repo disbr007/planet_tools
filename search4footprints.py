@@ -112,7 +112,9 @@ if __name__ == '__main__':
                              'name.')
     parser.add_argument('--save_filter', nargs='?', type=os.path.abspath,
                         const='default.json',
-                        help='Path to save filter (json).')
+                        help='Path to save filter (json) locally. The save will '
+                             'be saved with or without this argument in your '
+                             'Planet account unless you use --get_count_only')
     # Writing arguments
     parser.add_argument('-op', '--out_path', type=os.path.abspath,
                         help='Path to write selected scene footprints to.')
@@ -140,7 +142,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     # Parse attribute arguments to handke seperately
     attrib_args = parse_group_args(parser=parser,
-                                   group_name=attribute_args)
+                                   group_name='Attribute Arguments')
     attrib_args = {k: v for k, v in attrib_args._get_kwargs()}
 
     kwargs = {'name': args.name,
