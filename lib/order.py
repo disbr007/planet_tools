@@ -67,10 +67,24 @@ headers = {"content-type": "application/json"}
 
 
 def unzip_delivery(zf, dest):
+    """
+    Unzip a zipped (.zip) file
+    Parameters
+    ----------
+    zf: Path
+        Path to zipped file (.zip)
+    dest: str, Path
+        Path to directory to unzip to.
+
+    Returns
+    -------
+    None
+
+    """
     logger.debug('Unzipping: {}'.format(zf))
     # FIXME: This is failing to unzip zipped directories, not sure
     #  why as they can be unzipped manually....
-    with zipfile.ZipFile(str(zf), 'r') as zipref:
+    with zipfile.ZipFile(str(zf), 'r') as zipref:  # Failing here on creating the zip reference
         zipref.extractall(dest)
     fp = zf.parent / 'files'
     scenes_dir = fp / os.listdir(fp)[0]
@@ -140,16 +154,18 @@ def dl_order(oid, dst_par_dir, delivery, bucket=None, overwrite=False, dryrun=Fa
         names_urls = [(r['name'], r['location']) for r in response['_links']['results']]
         for name, url in names_urls:
             dest_path = oid_dir / Path(name).name
+            # Download
             if not dest_path.exists():
                 logger.info('Downloading {} to:\n{}'.format(name, dest_path))
                 download_url(url=url, save_path=dest_path)
             else:
                 logger.debug('Destination exists, skipping download: '
                              '{}'.format(dest_path))
-            # if dest_path.suffix == '.zip':
-            #     unzipped_dest = Path(str(dest_path).replace('.zip', ''))
-            #     if not unzipped_dest.exists():
-            #         unzip_delivery(dest_path, unzipped_dest)
+            # Unzip
+            if dest_path.suffix == '.zip':  # TODO: Why does this need to be checked?
+                unzipped_dest = Path(str(dest_path).replace('.zip', ''))
+                if not unzipped_dest.exists():
+                    unzip_delivery(dest_path, unzipped_dest)
         # TODO: create a method for actually checking success of direct
         #  downloads (existence of download zip?
         dl_issues = [None]
@@ -181,7 +197,6 @@ def dl_order_when_ready(order_id, dst_par_dir, delivery,
     running_time = (datetime.datetime.now() - start_time).total_seconds()
     wait = wait_start
     start_dl = False
-    # AWS TODO: Move to aws download function
     if delivery == constants.AWS:
         aws_utils.check_aws_delivery_status(order_id=order_id, bucket=bucket,
                                             wait_max=wait_max,
@@ -272,14 +287,23 @@ def pairs_to_list(pairs_df, id1="id1", id2="id2", removed_onhand=True):
     return out_list
 
 
-def create_zip_delivery():
-    zip_delivery = {
-        "delivery": {
-            "archive_type": "zip",
-            "single_archive": True,
-            "archive_filename": "{{order_id}}.zip"
+def create_zip_delivery(single_archive=True):
+    # TODO: FIX ME - bad request
+    if single_archive:
+        zip_delivery = {
+            "delivery": {
+                "archive_type": "zip",
+                "single_archive": single_archive,
+                "archive_filename": "{{order_id}}.zip"
+            }
         }
-    }
+    else:
+        zip_delivery = {
+            "delivery": {
+                "archive_type": "zip",
+                "archive_filename": "{{order_id}}.zip"
+            }
+        }
     # zip_delivery = json.dumps(zip_delivery)
 
     return zip_delivery
@@ -287,7 +311,8 @@ def create_zip_delivery():
 
 def create_order_request(order_name, ids, item_type="PSScene4Band",
                          product_bundle="basic_analytic_dn",
-                         delivery=constants.AWS):
+                         delivery=constants.AWS,
+                         zip_single_archive=True):
     """Create order from list of IDs"""
     if isinstance(product_bundle, list):
         product_bundle = ','.join(product_bundle)
@@ -302,8 +327,7 @@ def create_order_request(order_name, ids, item_type="PSScene4Band",
     if delivery == constants.AWS:
         order_request.update(aws_utils.create_aws_delivery())
     elif delivery == constants.ZIP:
-        # pass
-        order_request.update(create_zip_delivery())
+        order_request.update(create_zip_delivery(single_archive=zip_single_archive))
 
     logger.debug(order_request)
 
@@ -465,6 +489,7 @@ def count_concurrent_orders():
 def submit_order(name, ids_path, selection_path, product_bundle,
                  orders_path=None, remove_onhand=True,
                  delivery=constants.AWS,
+                 zip_single_archive=True,
                  dryrun=False):
 
     if ids_path:
@@ -510,7 +535,8 @@ def submit_order(name, ids_path, selection_path, product_bundle,
         order_request = create_order_request(order_name=order_name,
                                              ids=ids_chunk,
                                              product_bundle=product_bundle,
-                                             delivery=delivery)
+                                             delivery=delivery,
+                                             zip_single_archive=zip_single_archive)
         order_submitted = False
         while order_submitted is False:
             concurrent_orders = count_concurrent_orders()

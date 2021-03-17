@@ -30,6 +30,7 @@ def order_and_download(order_name, order_ids_path,
                        remove_onhand=True,
                        order_only=False,
                        delivery=constants.ZIP,
+                       zip_single_archive=False,
                        initial_wait=1200,
                        download_par_dir=default_dst_parent,
                        overwrite_downloads=False,
@@ -47,6 +48,7 @@ def order_and_download(order_name, order_ids_path,
                                  orders_path=out_orders_list,
                                  remove_onhand=remove_onhand,
                                  delivery=delivery,
+                                 zip_single_archive=zip_single_archive,
                                  dryrun=dryrun)
         logger.info('Waiting {:,} seconds before checking for orders '
                     'status...'.format(initial_wait))
@@ -104,6 +106,9 @@ if __name__ == '__main__':
     order_args.add_argument('--delivery', choices=DELIVERY_OPTIONS, default=constants.ZIP,
                             help='Delivery method to use. Supported options: '
                                  '{}'.format(DELIVERY_OPTIONS))
+    order_args.add_argument('--zip_single_archive', action='store_true',
+                            help='If using {} delivery, use this flag to have the order delivered '
+                                 'as a single zip archive.')
     order_args.add_argument('--order_only', action='store_true',
                             help='Place orders only - do not true to download.')
     download_args.add_argument('--initial_wait', type=int, default=600,
@@ -128,10 +133,13 @@ if __name__ == '__main__':
     import sys
     sys.argv = [
         __file__,
+        # '-n', 'per_bundle',
+        # '--selection', r'E:\disbr007\projects\planet\scratch\test_order2021mar11.shp',
         '--download_orders',
         r'E:\disbr007\projects\planet\scratch\test_order2021mar11_orders.txt',
         '-dpd',
-        r'E:\disbr007\projects\planet\data'
+        r'E:\disbr007\projects\planet\data',
+        # '--zip_single_archive'
     ]
 
     args = parser.parse_args()
@@ -144,6 +152,7 @@ if __name__ == '__main__':
     order_product_bundle = args.product_bundle
     remove_onhand = not args.do_not_remove_onhand
     delivery = args.delivery
+    zip_single_archive = args.zip_single_archive
     order_only = args.order_only
 
     # Download args
@@ -179,6 +188,7 @@ if __name__ == '__main__':
                        order_product_bundle=order_product_bundle,
                        remove_onhand=remove_onhand,
                        delivery=delivery,
+                       zip_single_archive=zip_single_archive,
                        order_only=order_only,
                        initial_wait=initial_wait,
                        download_par_dir=dst_parent,

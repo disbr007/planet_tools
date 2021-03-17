@@ -176,7 +176,6 @@ def create_scenes(scene_manifests: list,
     Returns
     -------
     list: list of PlanetScene objects
-
     """
     logger.info('Locating scene manifests...')
 
@@ -578,6 +577,7 @@ def shelve_and_index(input_directory: Union[Path, str],
         sys.exit()
 
     # Create scene-level manifests from order manifests
+    # FIXME: Need a way to locate scene files without scene-level manifests
     if not scene_manifests_exist and not dryrun:
         scene_manifests = create_all_scene_manifests(input_directory)
     elif scene_manifests_exist:

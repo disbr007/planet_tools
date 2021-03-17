@@ -537,7 +537,7 @@ class PlanetScene:
             passed and the associated manifest will attempt to be
             located. If it cannot be located,
             self.scene_manifest_present will be marked False, and an
-            error will be raised.
+            error message will be logged.
             TODO: if self.scene_manifest_present == False, allow
               PlanetScene to be created and limit the available attributes.
         exclude_meta : list
@@ -579,6 +579,8 @@ class PlanetScene:
             self.shelved_parent = PLANET_DATA_DIR
 
         # Parse source for attributes
+        # TODO: fix how these attributes are parsed currently from
+        #  scene-level manifest
         with open(str(self.manifest), 'r') as src:
             data = json.load(src)
             # Find the scene path within the source
