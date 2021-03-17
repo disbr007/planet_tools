@@ -130,17 +130,18 @@ if __name__ == '__main__':
     parser.add_argument('--dryrun', action='store_true',
                         help='Print actions without downloading.')
 
-    import sys
-    sys.argv = [
-        __file__,
-        # '-n', 'per_bundle',
-        # '--selection', r'E:\disbr007\projects\planet\scratch\test_order2021mar11.shp',
-        '--download_orders',
-        r'E:\disbr007\projects\planet\scratch\test_order2021mar11_orders.txt',
-        '-dpd',
-        r'E:\disbr007\projects\planet\data',
-        # '--zip_single_archive'
-    ]
+    # TODO: left this so you can see how I was debugging
+    # import sys
+    # sys.argv = [
+    #     __file__,
+    #     # '-n', 'per_bundle',
+    #     # '--selection', r'E:\disbr007\projects\planet\scratch\test_order2021mar11.shp',
+    #     '--download_orders',
+    #     r'E:\disbr007\projects\planet\scratch\test_order2021mar11_orders.txt',
+    #     '-dpd',
+    #     r'E:\disbr007\projects\planet\data',
+    #     # '--zip_single_archive'
+    # ]
 
     args = parser.parse_args()
 
